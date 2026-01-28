@@ -223,6 +223,7 @@
   let activePaletteIndex = 0;
   let spriteTimerId = null;
   let isCtrlDrawing = false;
+  let copiedFramePixels = null;
 
   const state = {
     grid: {
@@ -261,7 +262,9 @@
         showGrid: true
       }
     },
-    onionSkin: false
+    onionSkin: false,
+    onionFrameIndex: null,
+    onionSelecting: false
   };
 
   const wallTileDefinitions = [
@@ -708,28 +711,18 @@
     const pixels = getActivePixels();
     if (!pixels || pixelCells.length === 0) return;
 
-    const prevFrame = state.preview.mode === 'sprite' && state.onionSkin && state.frames.length > 1
-      ? state.frames[Math.max(state.activeFrameIndex - 1, 0)]
-      : null;
-    const nextFrame = state.preview.mode === 'sprite' && state.onionSkin && state.frames.length > 1
-      ? state.frames[Math.min(state.activeFrameIndex + 1, state.frames.length - 1)]
+    const onionFrame = state.preview.mode === 'sprite'
+      && state.onionSkin
+      && Number.isInteger(state.onionFrameIndex)
+      ? state.frames[state.onionFrameIndex]
       : null;
 
     pixelCells.forEach((cell, index) => {
       const color = pixels[index] ?? null;
       setCellColor(cell, color);
       cell.style.boxShadow = '';
-      if (!color && (prevFrame || nextFrame)) {
-        const prevColor = prevFrame?.pixels[index];
-        const nextColor = nextFrame?.pixels[index];
-        const shadows = [];
-        if (prevColor) {
-          shadows.push('inset 0 0 0 2px rgba(0, 148, 174, 0.35)');
-        }
-        if (nextColor) {
-          shadows.push('inset 0 0 0 2px rgba(255, 213, 0, 0.35)');
-        }
-        cell.style.boxShadow = shadows.join(', ');
+      if (!color && onionFrame?.pixels?.[index]) {
+        cell.style.boxShadow = 'inset 0 0 0 2px var(--color-accent-2)';
       }
     });
   };
@@ -997,6 +990,9 @@
       if (index === state.activeFrameIndex) {
         item.classList.add('is-active');
       }
+      if (state.onionSkin && index === state.onionFrameIndex) {
+        item.classList.add('is-onion');
+      }
 
       const canvas = document.createElement('canvas');
       canvas.className = 'frame-thumb';
@@ -1068,9 +1064,39 @@
         if (state.frames.length === 1) return;
         state.frames.splice(index, 1);
         state.activeFrameIndex = clamp(state.activeFrameIndex, 0, state.frames.length - 1);
+        if (state.onionFrameIndex === index) {
+          state.onionFrameIndex = null;
+        } else if (state.onionFrameIndex > index) {
+          state.onionFrameIndex -= 1;
+        }
         renderFramesStrip();
         renderActivePixelGrid();
         renderPreviews();
+        scheduleCacheSave();
+      });
+
+      const copyButton = document.createElement('button');
+      copyButton.type = 'button';
+      copyButton.className = 'frame-control-button';
+      copyButton.textContent = 'Copy';
+      copyButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        copiedFramePixels = frame.pixels.slice();
+      });
+
+      const pasteButton = document.createElement('button');
+      pasteButton.type = 'button';
+      pasteButton.className = 'frame-control-button';
+      pasteButton.textContent = 'Paste';
+      pasteButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (!copiedFramePixels) return;
+        frame.pixels = normalizePixels(copiedFramePixels, state.grid.width, state.grid.height);
+        renderFrameThumbnail(index);
+        if (index === state.activeFrameIndex) {
+          renderActivePixelGrid();
+          renderPreviews();
+        }
         scheduleCacheSave();
       });
 
@@ -1078,9 +1104,18 @@
       controls.appendChild(downButton);
       controls.appendChild(duplicateButton);
       controls.appendChild(deleteButton);
+      controls.appendChild(copyButton);
+      controls.appendChild(pasteButton);
       item.appendChild(controls);
 
       item.addEventListener('click', () => {
+        if (state.onionSkin && state.onionSelecting) {
+          state.onionFrameIndex = index;
+          state.onionSelecting = false;
+          renderFramesStrip();
+          renderActivePixelGrid();
+          return;
+        }
         state.activeFrameIndex = index;
         state.preview.sprite.currentFrame = index;
         renderFramesStrip();
@@ -1159,9 +1194,14 @@
     if (onionButton) {
       onionButton.addEventListener('click', () => {
         state.onionSkin = !state.onionSkin;
+        state.onionSelecting = state.onionSkin;
+        if (!state.onionSkin) {
+          state.onionFrameIndex = null;
+        }
         onionButton.setAttribute('aria-pressed', String(state.onionSkin));
         onionButton.classList.toggle('is-active', state.onionSkin);
         renderActivePixelGrid();
+        renderFramesStrip();
       });
     }
   };
