@@ -138,6 +138,13 @@
         <div class="wall-tiles-panel" id="wall-tiles-panel">
           <h2 class="panel-title" data-i18n="panel.wallTiles">Wall Tiles</h2>
           <p class="panel-subtitle" data-i18n="panel.wallTilesSubtitle">Select a wall segment to edit.</p>
+          <div class="wall-mode-controls">
+            <label class="panel-label" for="wall-mode" data-i18n="panel.wallMode">Wall Mode</label>
+            <select class="wall-mode-select" id="wall-mode" aria-label="Wall mode">
+              <option value="x13" data-i18n="panel.wallMode13">Mode x13 (Minimal)</option>
+              <option value="x47" data-i18n="panel.wallMode47">Mode x47 (RPG / Advanced)</option>
+            </select>
+          </div>
           <div class="wall-tiles-grid" id="wall-tiles-grid"></div>
         </div>
       </aside>
@@ -217,11 +224,15 @@
             <div class="preview-control-group">
               <label class="panel-label" for="walls-cols" data-i18n="panel.wallGrid">Wall Grid</label>
               <div class="grid-inputs">
-                <input class="grid-size-input" type="number" id="walls-cols" min="2" max="30" value="12" aria-label="Wall grid columns" />
+                <input class="grid-size-input" type="number" id="walls-cols" min="2" max="30" value="10" aria-label="Wall grid columns" />
                 <span class="grid-separator">x</span>
-                <input class="grid-size-input" type="number" id="walls-rows" min="2" max="30" value="8" aria-label="Wall grid rows" />
+                <input class="grid-size-input" type="number" id="walls-rows" min="2" max="30" value="10" aria-label="Wall grid rows" />
                 <button class="button-secondary" type="button" id="walls-apply" data-i18n="panel.previewApply">Apply</button>
               </div>
+            </div>
+            <div class="preview-control-group">
+              <label class="panel-label" data-i18n="panel.wallRandom">Random Map</label>
+              <button class="button-secondary" type="button" id="walls-randomize" data-i18n="panel.wallRandomButton">Generate</button>
             </div>
             <div class="preview-control-group">
               <label class="panel-label" data-i18n="panel.previewOverlay">Overlay</label>

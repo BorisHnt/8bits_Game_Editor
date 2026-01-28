@@ -96,6 +96,11 @@
       'panel.wallGrid': 'Wall Grid',
       'panel.wallPaint': 'Wall Paint Grid',
       'panel.wallResult': 'Rendered Walls',
+      'panel.wallMode': 'Wall Mode',
+      'panel.wallMode13': 'Mode x13 (Minimal)',
+      'panel.wallMode47': 'Mode x47 (RPG / Advanced)',
+      'panel.wallRandom': 'Random Map',
+      'panel.wallRandomButton': 'Generate',
       'panel.frames': 'Frames',
       'panel.framesSubtitle': 'Add, reorder, and preview animation frames.',
       'panel.onionSkin': 'Onion Skin',
@@ -200,6 +205,11 @@
       'panel.wallGrid': 'Grille murs',
       'panel.wallPaint': 'Grille de peinture',
       'panel.wallResult': 'Rendu des murs',
+      'panel.wallMode': 'Mode de mur',
+      'panel.wallMode13': 'Mode x13 (Minimal)',
+      'panel.wallMode47': 'Mode x47 (RPG / Avancé)',
+      'panel.wallRandom': 'Carte aléatoire',
+      'panel.wallRandomButton': 'Générer',
       'panel.frames': 'Frames',
       'panel.framesSubtitle': 'Ajouter, réordonner, prévisualiser les frames.',
       'panel.onionSkin': 'Onion Skin',
@@ -237,9 +247,10 @@
     activeFrameIndex: 0,
     wallTiles: [],
     activeWallTileIndex: 0,
+    wallMode: 'x13',
     wallLayout: {
-      width: 12,
-      height: 8,
+      width: 10,
+      height: 10,
       cells: []
     },
     preview: {
@@ -258,8 +269,8 @@
         currentFrame: 0
       },
       walls: {
-        cols: 12,
-        rows: 8,
+        cols: 10,
+        rows: 10,
         zoom: 2,
         showGrid: true
       }
@@ -269,25 +280,74 @@
     onionSelecting: false
   };
 
-  const wallTileDefinitions = [
-    { id: 'horizontal-top', label: 'Horizontal Top' },
-    { id: 'horizontal-bottom', label: 'Horizontal Bottom' },
-    { id: 'vertical-left', label: 'Vertical Left' },
-    { id: 'vertical-right', label: 'Vertical Right' },
-    { id: 'cap-top', label: 'Cap Top' },
-    { id: 'cap-bottom', label: 'Cap Bottom' },
-    { id: 'cap-left', label: 'Cap Left' },
-    { id: 'cap-right', label: 'Cap Right' },
-    { id: 'corner-top-left', label: 'Corner Top Left' },
-    { id: 'corner-top-right', label: 'Corner Top Right' },
-    { id: 'corner-bottom-left', label: 'Corner Bottom Left' },
-    { id: 'corner-bottom-right', label: 'Corner Bottom Right' },
-    { id: 't-up', label: 'T Up' },
-    { id: 't-down', label: 'T Down' },
-    { id: 't-left', label: 'T Left' },
-    { id: 't-right', label: 'T Right' },
-    { id: 'cross', label: 'Cross' }
-  ];
+  const wallTileSets = {
+    x13: [
+      { id: 'center', label: 'Center' },
+      { id: 'edge-top', label: 'Edge Top' },
+      { id: 'edge-bottom', label: 'Edge Bottom' },
+      { id: 'edge-left', label: 'Edge Left' },
+      { id: 'edge-right', label: 'Edge Right' },
+      { id: 'corner-out-top-left', label: 'Corner Top Left' },
+      { id: 'corner-out-top-right', label: 'Corner Top Right' },
+      { id: 'corner-out-bottom-left', label: 'Corner Bottom Left' },
+      { id: 'corner-out-bottom-right', label: 'Corner Bottom Right' },
+      { id: 'corner-in-top-left', label: 'Inner Corner Top Left' },
+      { id: 'corner-in-top-right', label: 'Inner Corner Top Right' },
+      { id: 'corner-in-bottom-left', label: 'Inner Corner Bottom Left' },
+      { id: 'corner-in-bottom-right', label: 'Inner Corner Bottom Right' }
+    ],
+    x47: [
+      { id: 'center', label: 'Center' },
+      { id: 'edge-top', label: 'Edge Top' },
+      { id: 'edge-bottom', label: 'Edge Bottom' },
+      { id: 'edge-left', label: 'Edge Left' },
+      { id: 'edge-right', label: 'Edge Right' },
+      { id: 'corner-out-top-left', label: 'Corner Top Left' },
+      { id: 'corner-out-top-right', label: 'Corner Top Right' },
+      { id: 'corner-out-bottom-left', label: 'Corner Bottom Left' },
+      { id: 'corner-out-bottom-right', label: 'Corner Bottom Right' },
+      { id: 'corner-in-top-left', label: 'Inner Corner Top Left' },
+      { id: 'corner-in-top-right', label: 'Inner Corner Top Right' },
+      { id: 'corner-in-bottom-left', label: 'Inner Corner Bottom Left' },
+      { id: 'corner-in-bottom-right', label: 'Inner Corner Bottom Right' },
+      { id: 'cap-top', label: 'End Top' },
+      { id: 'cap-bottom', label: 'End Bottom' },
+      { id: 'cap-left', label: 'End Left' },
+      { id: 'cap-right', label: 'End Right' },
+      { id: 't-open-top', label: 'T Open Top' },
+      { id: 't-open-bottom', label: 'T Open Bottom' },
+      { id: 't-open-left', label: 'T Open Left' },
+      { id: 't-open-right', label: 'T Open Right' },
+      { id: 'cross', label: 'Cross +' },
+      { id: 'isolated', label: 'Isolated' },
+      { id: 'column-vertical', label: 'Column Vertical' },
+      { id: 'column-horizontal', label: 'Column Horizontal' },
+      { id: 'corridor-vertical', label: 'Corridor Vertical' },
+      { id: 'corridor-horizontal', label: 'Corridor Horizontal' },
+      { id: 'hole-center', label: 'Hole Center' },
+      { id: 'hole-edge-top', label: 'Hole Edge Top' },
+      { id: 'hole-edge-bottom', label: 'Hole Edge Bottom' },
+      { id: 'hole-edge-left', label: 'Hole Edge Left' },
+      { id: 'hole-edge-right', label: 'Hole Edge Right' },
+      { id: 'hole-corner-top-left', label: 'Hole Corner Top Left' },
+      { id: 'hole-corner-top-right', label: 'Hole Corner Top Right' },
+      { id: 'hole-corner-bottom-left', label: 'Hole Corner Bottom Left' },
+      { id: 'hole-corner-bottom-right', label: 'Hole Corner Bottom Right' },
+      { id: 'double-edge-top', label: 'Double Edge Top' },
+      { id: 'double-edge-bottom', label: 'Double Edge Bottom' },
+      { id: 'double-edge-left', label: 'Double Edge Left' },
+      { id: 'double-edge-right', label: 'Double Edge Right' },
+      { id: 'mixed-corner-top-left', label: 'Mixed Corner Top Left' },
+      { id: 'mixed-corner-top-right', label: 'Mixed Corner Top Right' },
+      { id: 'mixed-corner-bottom-left', label: 'Mixed Corner Bottom Left' },
+      { id: 'mixed-corner-bottom-right', label: 'Mixed Corner Bottom Right' },
+      { id: 'separator-horizontal', label: 'Separator Horizontal' },
+      { id: 'separator-vertical', label: 'Separator Vertical' },
+      { id: 'center-alt', label: 'Center Alt' }
+    ]
+  };
+
+  const getWallTileDefinitions = () => wallTileSets[state.wallMode] || wallTileSets.x13;
 
   const paletteColors = [
     { name: 'Black', value: 'rgb(0,0,0)' },
@@ -435,6 +495,76 @@
     return resized;
   };
 
+  function setWallMode(mode, { preserve = true } = {}) {
+    const nextMode = mode === 'x47' ? 'x47' : 'x13';
+    if (state.wallMode === nextMode && preserve) return;
+    state.wallMode = nextMode;
+
+    const definitions = getWallTileDefinitions();
+    const existing = new Map(state.wallTiles.map((tile) => [tile.id, tile]));
+    state.wallTiles = definitions.map((definition) => {
+      const source = preserve ? existing.get(definition.id) : null;
+      const pixels = source?.pixels
+        ? resizePixelBuffer(source.pixels, state.grid.width, state.grid.height, state.grid.width, state.grid.height)
+        : createEmptyPixels(state.grid.width, state.grid.height);
+      return {
+        id: definition.id,
+        label: definition.label,
+        pixels
+      };
+    });
+    state.activeWallTileIndex = 0;
+  }
+
+  function generateWallLayout(mode, cols, rows) {
+    const total = cols * rows;
+    let cells = Array.from({ length: total }, () => (Math.random() > (mode === 'x47' ? 0.45 : 0.5) ? 1 : 0));
+
+    const countNeighbors = (x, y) => {
+      let count = 0;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          if (dx === 0 && dy === 0) continue;
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
+          if (cells[ny * cols + nx] === 1) count += 1;
+        }
+      }
+      return count;
+    };
+
+    const smooth = (iterations) => {
+      for (let i = 0; i < iterations; i += 1) {
+        cells = cells.map((value, index) => {
+          const x = index % cols;
+          const y = Math.floor(index / cols);
+          const neighbors = countNeighbors(x, y);
+          if (neighbors >= 5) return 1;
+          if (neighbors <= 2) return 0;
+          return value;
+        });
+      }
+    };
+
+    smooth(mode === 'x47' ? 4 : 3);
+
+    if (mode === 'x47') {
+      cells = cells.map((value, index) => {
+        if (!value) return 0;
+        const x = index % cols;
+        const y = Math.floor(index / cols);
+        const neighbors = countNeighbors(x, y);
+        if (neighbors >= 7 && Math.random() < 0.08) {
+          return 0;
+        }
+        return value;
+      });
+    }
+
+    return cells;
+  }
+
   const getDesignerKey = () => document.body.dataset.designer || 'tiles';
   const getCacheKey = () => `8bits-editor:${getDesignerKey()}`;
   let cacheTimer = null;
@@ -444,6 +574,7 @@
     width: state.grid.width,
     height: state.grid.height,
     pixelSize: state.grid.pixelSize,
+    wallMode: state.wallMode,
     grid: {
       width: state.grid.width,
       height: state.grid.height,
@@ -509,13 +640,13 @@
   const initializeState = () => {
     state.frames = [{ id: createId(), pixels: createEmptyPixels(state.grid.width, state.grid.height) }];
     state.activeFrameIndex = 0;
-    state.wallTiles = wallTileDefinitions.map((tile) => ({
+    state.wallTiles = getWallTileDefinitions().map((tile) => ({
       id: tile.id,
       label: tile.label,
       pixels: createEmptyPixels(state.grid.width, state.grid.height)
     }));
     state.activeWallTileIndex = 0;
-    state.wallLayout.cells = Array.from({ length: state.wallLayout.width * state.wallLayout.height }, () => 0);
+    state.wallLayout.cells = generateWallLayout(state.wallMode, state.wallLayout.width, state.wallLayout.height);
   };
 
   const createHeroAmbient = () => {
@@ -1336,6 +1467,8 @@
     const wallsRows = qs('#walls-rows');
     const wallsGridToggle = qs('#walls-grid-toggle');
     const wallsZoom = qs('#walls-zoom');
+    const wallModeSelect = qs('#wall-mode');
+    const wallsRandomize = qs('#walls-randomize');
 
     const applyWallsGrid = () => {
       const cols = clamp(Number.parseInt(wallsCols?.value, 10) || state.wallLayout.width, 2, 30);
@@ -1365,6 +1498,24 @@
       state.preview.walls.zoom = Number.parseInt(wallsZoom.value, 10);
       renderWallPaintGrid();
       renderWallsPreview();
+    });
+
+    wallModeSelect?.addEventListener('change', () => {
+      const mode = wallModeSelect.value || 'x13';
+      setWallMode(mode, { preserve: true });
+      state.wallLayout.cells = generateWallLayout(state.wallMode, state.wallLayout.width, state.wallLayout.height);
+      renderWallTilesGrid();
+      renderActivePixelGrid();
+      renderWallPaintGrid();
+      renderWallsPreview();
+      scheduleCacheSave(true);
+    });
+
+    wallsRandomize?.addEventListener('click', () => {
+      state.wallLayout.cells = generateWallLayout(state.wallMode, state.wallLayout.width, state.wallLayout.height);
+      renderWallPaintGrid();
+      renderWallsPreview();
+      scheduleCacheSave(true);
     });
   };
 
@@ -1440,6 +1591,7 @@
       payload.frames = state.frames.map((frame) => frame.pixels);
       payload.activeFrameIndex = state.activeFrameIndex;
     } else if (state.preview.mode === 'walls') {
+      payload.wallMode = state.wallMode;
       payload.wallTiles = state.wallTiles.map((tile) => ({
         id: tile.id,
         label: tile.label,
@@ -1493,9 +1645,14 @@
       state.activeFrameIndex = 0;
     }
 
+    if (payload.wallMode) {
+      setWallMode(payload.wallMode, { preserve: false });
+    }
+
+    const wallDefinitions = getWallTileDefinitions();
     if (Array.isArray(payload.wallTiles) && payload.wallTiles.length) {
       const tileMap = new Map(payload.wallTiles.map((tile) => [tile.id, tile]));
-      state.wallTiles = wallTileDefinitions.map((definition) => {
+      state.wallTiles = wallDefinitions.map((definition) => {
         const source = tileMap.get(definition.id);
         return {
           id: definition.id,
@@ -1509,7 +1666,7 @@
         state.wallTiles.length - 1
       );
     } else {
-      state.wallTiles = wallTileDefinitions.map((definition) => ({
+      state.wallTiles = wallDefinitions.map((definition) => ({
         id: definition.id,
         label: definition.label,
         pixels: resizePixelBuffer(
@@ -1547,6 +1704,9 @@
       const exportInput = qs('#export-name');
       if (exportInput) exportInput.value = payload.name;
     }
+
+    const wallModeSelect = qs('#wall-mode');
+    if (wallModeSelect) wallModeSelect.value = state.wallMode;
 
     const widthInput = qs('#grid-width');
     const heightInput = qs('#grid-height');
@@ -1707,7 +1867,7 @@
     }
   };
 
-  const getWallTileId = (x, y) => {
+  const getWallNeighbors = (x, y) => {
     const { width, height, cells } = state.wallLayout;
     const isWall = (cx, cy) => {
       if (cx < 0 || cy < 0 || cx >= width || cy >= height) return false;
@@ -1718,30 +1878,117 @@
     const s = isWall(x, y + 1);
     const w = isWall(x - 1, y);
     const e = isWall(x + 1, y);
-    const count = [n, s, w, e].filter(Boolean).length;
+    const nw = isWall(x - 1, y - 1);
+    const ne = isWall(x + 1, y - 1);
+    const sw = isWall(x - 1, y + 1);
+    const se = isWall(x + 1, y + 1);
+    return {
+      n, s, w, e, nw, ne, sw, se,
+      count: [n, s, w, e].filter(Boolean).length
+    };
+  };
 
-    if (count === 4) return 'cross';
+  const getWallTileIdX13 = ({ n, s, w, e, nw, ne, sw, se, count }) => {
+    if (count === 4) {
+      if (n && w && !nw && s && e) return 'corner-in-top-left';
+      if (n && e && !ne && s && w) return 'corner-in-top-right';
+      if (s && w && !sw && n && e) return 'corner-in-bottom-left';
+      if (s && e && !se && n && w) return 'corner-in-bottom-right';
+      return 'center';
+    }
     if (count === 3) {
-      if (!n) return 't-down';
-      if (!s) return 't-up';
-      if (!w) return 't-right';
-      return 't-left';
+      if (!n) return 'edge-top';
+      if (!s) return 'edge-bottom';
+      if (!w) return 'edge-left';
+      return 'edge-right';
     }
     if (count === 2) {
-      if (n && s) return x % 2 === 0 ? 'vertical-left' : 'vertical-right';
-      if (e && w) return y % 2 === 0 ? 'horizontal-top' : 'horizontal-bottom';
-      if (n && e) return 'corner-top-right';
-      if (n && w) return 'corner-top-left';
-      if (s && e) return 'corner-bottom-right';
-      return 'corner-bottom-left';
+      if (n && e) return 'corner-out-top-right';
+      if (n && w) return 'corner-out-top-left';
+      if (s && e) return 'corner-out-bottom-right';
+      if (s && w) return 'corner-out-bottom-left';
+      if (n && s) return 'edge-left';
+      if (e && w) return 'edge-top';
+    }
+    if (count === 1) {
+      if (n) return 'edge-bottom';
+      if (s) return 'edge-top';
+      if (w) return 'edge-right';
+      return 'edge-left';
+    }
+    return 'center';
+  };
+
+  const getWallTileIdX47 = ({ n, s, w, e, nw, ne, sw, se, count }, x, y) => {
+    if (count === 4) {
+      if (!nw) return 'corner-in-top-left';
+      if (!ne) return 'corner-in-top-right';
+      if (!sw) return 'corner-in-bottom-left';
+      if (!se) return 'corner-in-bottom-right';
+      if ((x + y) % 6 === 0) return 'center-alt';
+      if (x % 5 === 0) return 'separator-vertical';
+      if (y % 5 === 0) return 'separator-horizontal';
+      return 'center';
+    }
+    if (count === 3) {
+      if (!n) return 't-open-top';
+      if (!s) return 't-open-bottom';
+      if (!w) return 't-open-left';
+      return 't-open-right';
+    }
+    if (count === 2) {
+      if (n && s) return 'corridor-vertical';
+      if (e && w) return 'corridor-horizontal';
+      if (n && e) return 'corner-out-top-right';
+      if (n && w) return 'corner-out-top-left';
+      if (s && e) return 'corner-out-bottom-right';
+      return 'corner-out-bottom-left';
     }
     if (count === 1) {
       if (n) return 'cap-top';
       if (s) return 'cap-bottom';
-      if (e) return 'cap-right';
-      return 'cap-left';
+      if (w) return 'cap-left';
+      return 'cap-right';
     }
-    return 'cap-top';
+    return 'isolated';
+  };
+
+  const getHoleTileIdX47 = ({ n, s, w, e, nw, ne, sw, se, count }) => {
+    if (count === 4) {
+      if (nw && ne && sw && se) return 'hole-center';
+      if (!nw) return 'hole-corner-top-left';
+      if (!ne) return 'hole-corner-top-right';
+      if (!sw) return 'hole-corner-bottom-left';
+      if (!se) return 'hole-corner-bottom-right';
+      return 'hole-center';
+    }
+    if (count === 3) {
+      if (!n) return 'hole-edge-top';
+      if (!s) return 'hole-edge-bottom';
+      if (!w) return 'hole-edge-left';
+      return 'hole-edge-right';
+    }
+    if (count === 2) {
+      if (n && e) return 'hole-corner-top-right';
+      if (n && w) return 'hole-corner-top-left';
+      if (s && e) return 'hole-corner-bottom-right';
+      return 'hole-corner-bottom-left';
+    }
+    return null;
+  };
+
+  const getWallTileId = (x, y) => {
+    const neighbors = getWallNeighbors(x, y);
+    if (state.wallMode === 'x47') {
+      return getWallTileIdX47(neighbors, x, y);
+    }
+    return getWallTileIdX13(neighbors);
+  };
+
+  const getHoleTileId = (x, y) => {
+    if (state.wallMode !== 'x47') return null;
+    const neighbors = getWallNeighbors(x, y);
+    return getHoleTileIdX47(neighbors);
   };
 
   const renderWallPaintGrid = () => {
@@ -1814,8 +2061,9 @@
 
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
-        if (cells[y * width + x] !== 1) continue;
-        const tileId = getWallTileId(x, y);
+        const isWallCell = cells[y * width + x] === 1;
+        const tileId = isWallCell ? getWallTileId(x, y) : getHoleTileId(x, y);
+        if (!tileId) continue;
         const tile = tileMap.get(tileId);
         if (!tile) continue;
 
@@ -2141,6 +2389,8 @@
     updateActiveToolLabel();
     const designer = document.body.dataset.designer || 'tiles';
     setPreviewMode(designer);
+    const wallModeSelect = qs('#wall-mode');
+    if (wallModeSelect) wallModeSelect.value = state.wallMode;
     renderPreviews();
   });
 })();

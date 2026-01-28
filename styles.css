@@ -531,6 +531,20 @@ svg {
   gap: 12px;
 }
 
+.wall-mode-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wall-mode-select {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  padding: 6px 10px;
+}
+
 .wall-tiles-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
