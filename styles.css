@@ -21,6 +21,8 @@
   --transition-fast: 160ms ease;
   --transition-medium: 240ms ease;
   --pixel-size: 10px;
+  --grid-columns: 16;
+  --grid-rows: 16;
 }
 
 /* =============================
@@ -438,27 +440,6 @@ svg {
   max-width: 520px;
 }
 
-.workspace-meta {
-  display: flex;
-  gap: 16px;
-}
-
-.workspace-meta-item {
-  background: var(--color-panel);
-  border: 1px solid var(--color-border-soft);
-  border-radius: var(--radius-sm);
-  padding: 12px 14px;
-  min-width: 140px;
-}
-
-.workspace-meta-label {
-  font-size: 0.7rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--color-text-secondary);
-  display: block;
-  margin-bottom: 4px;
-}
 
 .workspace-layout {
   display: grid;
@@ -520,7 +501,7 @@ svg {
 .tool-selector-button.is-active {
   border-color: var(--color-accent-5);
   color: var(--color-text-primary);
-  box-shadow: 0 0 12px rgba(255, 187, 0, 0.18);
+  box-shadow: 0 0 12px rgba(255, 213, 0, 0.18);
   animation: glowPulse 2.4s ease-in-out infinite;
 }
 
@@ -547,6 +528,14 @@ svg {
   justify-content: space-between;
   align-items: center;
   gap: 20px;
+  flex-wrap: wrap;
+}
+
+.canvas-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .zoom-control {
@@ -563,6 +552,41 @@ svg {
   accent-color: var(--color-accent-4);
 }
 
+.grid-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+}
+
+.grid-inputs {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.grid-size-input {
+  width: 64px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.grid-size-input:focus-visible {
+  outline: 2px solid var(--color-accent-2);
+  outline-offset: 1px;
+}
+
+.grid-separator {
+  color: var(--color-text-secondary);
+}
+
 .canvas-grid-wrapper {
   background: var(--color-panel);
   border: 1px solid var(--color-border);
@@ -573,12 +597,13 @@ svg {
 
 .pixel-canvas-grid {
   display: grid;
-  grid-template-columns: repeat(16, var(--pixel-size));
-  grid-template-rows: repeat(16, var(--pixel-size));
+  grid-template-columns: repeat(var(--grid-columns), var(--pixel-size));
+  grid-template-rows: repeat(var(--grid-rows), var(--pixel-size));
   gap: 1px;
   width: fit-content;
   padding: 6px;
   border-radius: var(--radius-sm);
+  touch-action: none;
 }
 
 .pixel-cell {
@@ -586,6 +611,7 @@ svg {
   height: var(--pixel-size);
   background: #0d0d0d;
   border: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: crosshair;
 }
 
 .pixel-cell.is-checker-light {
@@ -611,18 +637,31 @@ svg {
 }
 
 .palette-swatch-group {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 22px);
+  grid-auto-rows: 22px;
+  gap: 8px;
 }
 
 .palette-color-swatch {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   cursor: pointer;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.palette-color-swatch.is-transparent,
+.active-color-chip.is-transparent {
+  background-color: #0f0f0f;
+  background-image:
+    linear-gradient(45deg, #1a1a1a 25%, transparent 25%),
+    linear-gradient(-45deg, #1a1a1a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1a1a1a 75%),
+    linear-gradient(-45deg, transparent 75%, #1a1a1a 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
 }
 
 .palette-color-swatch.is-active {
@@ -680,7 +719,7 @@ svg {
 
 .accent-outline-active {
   border-color: var(--color-accent-2);
-  box-shadow: 0 0 18px rgba(12, 108, 0, 0.18);
+  box-shadow: 0 0 18px rgba(0, 109, 156, 0.18);
 }
 
 /* =============================
@@ -704,7 +743,26 @@ svg {
 
 .button-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 0 18px rgba(255, 187, 0, 0.3);
+  box-shadow: 0 0 18px rgba(255, 213, 0, 0.3);
+}
+
+.button-secondary {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.button-secondary:hover,
+.button-secondary:focus-visible {
+  color: var(--color-text-primary);
+  border-color: var(--color-accent-2);
 }
 
 /* =============================
@@ -759,10 +817,10 @@ svg {
 @keyframes glowPulse {
   0%,
   100% {
-    box-shadow: 0 0 10px rgba(255, 187, 0, 0.18);
+    box-shadow: 0 0 10px rgba(255, 213, 0, 0.18);
   }
   50% {
-    box-shadow: 0 0 16px rgba(255, 187, 0, 0.32);
+    box-shadow: 0 0 16px rgba(255, 213, 0, 0.32);
   }
 }
 
@@ -770,7 +828,7 @@ svg {
 .workspace-panel-center:focus-within,
 .workspace-panel-right:focus-within {
   border-color: var(--color-accent-1);
-  box-shadow: 0 0 16px rgba(12, 108, 0, 0.2);
+  box-shadow: 0 0 16px rgba(0, 109, 156, 0.2);
 }
 
 /* =============================

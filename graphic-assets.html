@@ -60,16 +60,6 @@
         <h1 class="workspace-title" data-i18n="workspace.title">Graphic Assets Design</h1>
         <p class="workspace-subtitle" data-i18n="workspace.subtitle">Pixel editor workspace for sprites, tiles, and texture systems.</p>
       </div>
-      <div class="workspace-meta">
-        <div class="workspace-meta-item">
-          <span class="workspace-meta-label" data-i18n="workspace.meta.grid">Grid</span>
-          <span class="workspace-meta-value">16 x 16</span>
-        </div>
-        <div class="workspace-meta-item">
-          <span class="workspace-meta-label" data-i18n="workspace.meta.preview">Preview</span>
-          <span class="workspace-meta-value" data-i18n="workspace.meta.previewValue">Tiling enabled</span>
-        </div>
-      </div>
     </section>
 
     <section class="workspace-layout">
@@ -125,12 +115,23 @@
         <div class="canvas-header">
           <div>
             <h2 class="panel-title" data-i18n="panel.canvas">Pixel Canvas</h2>
-            <p class="panel-subtitle" data-i18n="panel.canvasSubtitle">Base grid 16x16. Each pixel is 10px.</p>
+            <p class="panel-subtitle" data-i18n="panel.canvasSubtitle">Adjustable grid. Pixel size follows zoom.</p>
           </div>
-          <div class="zoom-control">
-            <label class="panel-label" for="zoom-range" data-i18n="panel.zoom">Zoom</label>
-            <input type="range" id="zoom-range" min="8" max="20" value="10" />
-            <span class="panel-value" id="zoom-value">10px</span>
+          <div class="canvas-controls">
+            <div class="grid-control">
+              <label class="panel-label" for="grid-width" data-i18n="panel.grid">Grid</label>
+              <div class="grid-inputs">
+                <input class="grid-size-input" type="number" id="grid-width" min="1" max="128" value="16" aria-label="Grid width" />
+                <span class="grid-separator">x</span>
+                <input class="grid-size-input" type="number" id="grid-height" min="1" max="128" value="16" aria-label="Grid height" />
+                <button class="button-secondary" type="button" id="apply-grid" data-i18n="panel.gridApply">Apply</button>
+              </div>
+            </div>
+            <div class="zoom-control">
+              <label class="panel-label" for="zoom-range" data-i18n="panel.zoom">Zoom</label>
+              <input type="range" id="zoom-range" min="10" max="25" value="10" />
+              <span class="panel-value" id="zoom-value">10px</span>
+            </div>
           </div>
         </div>
         <div class="canvas-grid-wrapper">

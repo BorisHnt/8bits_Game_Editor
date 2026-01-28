@@ -36,9 +36,6 @@
       'footer.note': 'Prototype responsibly.',
       'workspace.title': 'Graphic Assets Design',
       'workspace.subtitle': 'Pixel editor workspace for sprites, tiles, and texture systems.',
-      'workspace.meta.grid': 'Grid',
-      'workspace.meta.preview': 'Preview',
-      'workspace.meta.previewValue': 'Tiling enabled',
       'panel.tools': 'Tools',
       'tool.pencil': 'Pencil',
       'tool.eraser': 'Eraser',
@@ -46,7 +43,9 @@
       'tool.fill': 'Fill Bucket',
       'panel.activeTool': 'Active Tool',
       'panel.canvas': 'Pixel Canvas',
-      'panel.canvasSubtitle': 'Base grid 16x16. Each pixel is 10px.',
+      'panel.canvasSubtitle': 'Adjustable grid. Pixel size follows zoom.',
+      'panel.grid': 'Grid',
+      'panel.gridApply': 'Apply',
       'panel.zoom': 'Zoom',
       'panel.palette': 'Palette',
       'panel.paletteSubtitle': 'Predefined pixel-art colors.',
@@ -96,9 +95,6 @@
       'footer.note': 'Prototyper avec soin.',
       'workspace.title': "Design d'assets graphiques",
       'workspace.subtitle': "Espace d'édition pixel pour sprites, tiles et systèmes de textures.",
-      'workspace.meta.grid': 'Grille',
-      'workspace.meta.preview': 'Aperçu',
-      'workspace.meta.previewValue': 'Répétition activée',
       'panel.tools': 'Outils',
       'tool.pencil': 'Crayon',
       'tool.eraser': 'Gomme',
@@ -106,7 +102,9 @@
       'tool.fill': 'Pot de remplissage',
       'panel.activeTool': 'Outil actif',
       'panel.canvas': 'Canvas pixel',
-      'panel.canvasSubtitle': 'Grille de base 16x16. Chaque pixel fait 10px.',
+      'panel.canvasSubtitle': "Grille ajustable. La taille suit le zoom.",
+      'panel.grid': 'Grille',
+      'panel.gridApply': 'Appliquer',
       'panel.zoom': 'Zoom',
       'panel.palette': 'Palette',
       'panel.paletteSubtitle': 'Couleurs pixel-art prédéfinies.',
@@ -123,6 +121,14 @@
   };
 
   let currentLanguage = 'en';
+  let gridWidth = 16;
+  let gridHeight = 16;
+  let pixelData = [];
+  let pixelCells = [];
+  let activeTool = 'pencil';
+  let activeColor = 'rgb(255,255,255)';
+  let paletteSwatchMap = new Map();
+  let transparentSwatch = null;
   const createHeroAmbient = () => {
     const linesContainer = document.querySelector('.hero-ambient-lines');
     const pixelsContainer = document.getElementById('hero-pixels');
@@ -152,18 +158,31 @@
     }
   };
 
-  const buildPixelCanvas = () => {
+  const buildPixelCanvas = (columns = gridWidth, rows = gridHeight) => {
     const canvas = document.getElementById('pixel-canvas');
     if (!canvas) return;
 
-    const gridSize = 16;
-    for (let row = 0; row < gridSize; row += 1) {
-      for (let col = 0; col < gridSize; col += 1) {
+    gridWidth = columns;
+    gridHeight = rows;
+    document.documentElement.style.setProperty('--grid-columns', gridWidth);
+    document.documentElement.style.setProperty('--grid-rows', gridHeight);
+
+    pixelData = Array.from({ length: gridWidth * gridHeight }, () => null);
+    pixelCells = [];
+    canvas.innerHTML = '';
+
+    for (let row = 0; row < gridHeight; row += 1) {
+      for (let col = 0; col < gridWidth; col += 1) {
+        const index = row * gridWidth + col;
         const cell = document.createElement('div');
         cell.className = 'pixel-cell';
+        cell.dataset.index = String(index);
+        cell.dataset.row = String(row);
+        cell.dataset.col = String(col);
         if ((row + col) % 2 === 0) {
           cell.classList.add('is-checker-light');
         }
+        pixelCells[index] = cell;
         canvas.appendChild(cell);
       }
     }
@@ -192,40 +211,199 @@
     if (!swatchContainer || !activeChip) return;
 
     const paletteColors = [
-      '#006d9c',
-      '#0094ae',
-      '#00b78f',
-      '#78cf4e',
-      '#ffd500',
-      '#f2f2f2',
-      '#b4b4b4',
-      '#7a7a7a',
-      '#3b3b3b',
-      '#151515'
+      { name: 'Black', value: 'rgb(0,0,0)' },
+      { name: 'Dark Gray', value: 'rgb(60,60,60)' },
+      { name: 'Gray', value: 'rgb(120,120,120)' },
+      { name: 'Medium Gray', value: 'rgb(170,170,170)' },
+      { name: 'Light Gray', value: 'rgb(210,210,210)' },
+      { name: 'White', value: 'rgb(255,255,255)' },
+      { name: 'Deep Red', value: 'rgb(96,0,24)' },
+      { name: 'Dark Red', value: 'rgb(165,14,30)' },
+      { name: 'Red', value: 'rgb(237,28,36)' },
+      { name: 'Light Red', value: 'rgb(250,128,114)' },
+      { name: 'Dark Orange', value: 'rgb(228,92,26)' },
+      { name: 'Orange', value: 'rgb(255,127,39)' },
+      { name: 'Gold', value: 'rgb(246,170,9)' },
+      { name: 'Yellow', value: 'rgb(249,221,59)' },
+      { name: 'Light Yellow', value: 'rgb(255,250,188)' },
+      { name: 'Dark Goldenrod', value: 'rgb(156,132,49)' },
+      { name: 'Goldenrod', value: 'rgb(197,173,49)' },
+      { name: 'Light Goldenrod', value: 'rgb(232,212,95)' },
+      { name: 'Dark Olive', value: 'rgb(74,107,58)' },
+      { name: 'Olive', value: 'rgb(90,148,74)' },
+      { name: 'Light Olive', value: 'rgb(132,197,115)' },
+      { name: 'Dark Green', value: 'rgb(14,185,104)' },
+      { name: 'Green', value: 'rgb(19,230,123)' },
+      { name: 'Light Green', value: 'rgb(135,255,94)' },
+      { name: 'Dark Teal', value: 'rgb(12,129,110)' },
+      { name: 'Teal', value: 'rgb(16,174,166)' },
+      { name: 'Light Teal', value: 'rgb(19,225,190)' },
+      { name: 'Dark Cyan', value: 'rgb(15,121,159)' },
+      { name: 'Cyan', value: 'rgb(96,247,242)' },
+      { name: 'Light Cyan', value: 'rgb(187,250,242)' },
+      { name: 'Dark Blue', value: 'rgb(40,80,158)' },
+      { name: 'Blue', value: 'rgb(64,147,228)' },
+      { name: 'Light Blue', value: 'rgb(125,199,255)' },
+      { name: 'Dark Indigo', value: 'rgb(77,49,184)' },
+      { name: 'Indigo', value: 'rgb(107,80,246)' },
+      { name: 'Light Indigo', value: 'rgb(153,177,251)' },
+      { name: 'Dark Slate Blue', value: 'rgb(74,66,132)' },
+      { name: 'Slate Blue', value: 'rgb(122,113,196)' },
+      { name: 'Light Slate Blue', value: 'rgb(181,174,241)' },
+      { name: 'Dark Purple', value: 'rgb(120,12,153)' },
+      { name: 'Purple', value: 'rgb(170,56,185)' },
+      { name: 'Light Purple', value: 'rgb(224,159,249)' },
+      { name: 'Dark Pink', value: 'rgb(203,0,122)' },
+      { name: 'Pink', value: 'rgb(236,31,128)' },
+      { name: 'Light Pink', value: 'rgb(243,141,169)' },
+      { name: 'Dark Peach', value: 'rgb(155,82,73)' },
+      { name: 'Peach', value: 'rgb(209,128,120)' },
+      { name: 'Light Peach', value: 'rgb(250,182,164)' },
+      { name: 'Dark Brown', value: 'rgb(104,70,52)' },
+      { name: 'Brown', value: 'rgb(149,104,42)' },
+      { name: 'Light Brown', value: 'rgb(219,164,99)' },
+      { name: 'Dark Tan', value: 'rgb(123,99,82)' },
+      { name: 'Tan', value: 'rgb(156,132,107)' },
+      { name: 'Light Tan', value: 'rgb(214,181,148)' },
+      { name: 'Dark Beige', value: 'rgb(209,128,81)' },
+      { name: 'Beige', value: 'rgb(248,178,119)' },
+      { name: 'Light Beige', value: 'rgb(255,197,165)' },
+      { name: 'Dark Stone', value: 'rgb(109,100,63)' },
+      { name: 'Stone', value: 'rgb(148,140,107)' },
+      { name: 'Light Stone', value: 'rgb(205,197,158)' },
+      { name: 'Dark Slate', value: 'rgb(51,57,65)' },
+      { name: 'Slate', value: 'rgb(109,117,141)' },
+      { name: 'Light Slate', value: 'rgb(179,185,209)' },
+      { name: 'Transparent', value: null, transparent: true }
     ];
 
-    paletteColors.forEach((color, index) => {
+    paletteSwatchMap = new Map();
+    transparentSwatch = null;
+    swatchContainer.innerHTML = '';
+
+    paletteColors.forEach((swatchInfo) => {
       const swatch = document.createElement('button');
       swatch.type = 'button';
       swatch.className = 'palette-color-swatch';
-      swatch.style.background = color;
-      swatch.dataset.color = color;
-      const labelText = translations[currentLanguage]?.['palette.selectColor'] ?? 'Select color';
-      swatch.setAttribute('aria-label', `${labelText} ${color}`);
-      if (index === 4) {
-        swatch.classList.add('is-active');
-        activeChip.style.background = color;
+      swatch.dataset.label = swatchInfo.name;
+
+      if (swatchInfo.transparent) {
+        swatch.classList.add('is-transparent');
+        swatch.dataset.transparent = 'true';
+        transparentSwatch = swatch;
+      } else {
+        swatch.style.background = swatchInfo.value;
+        swatch.dataset.color = swatchInfo.value;
+        paletteSwatchMap.set(swatchInfo.value, swatch);
       }
+
       swatch.addEventListener('click', () => {
-        const activeSwatch = swatchContainer.querySelector('.is-active');
-        if (activeSwatch) {
-          activeSwatch.classList.remove('is-active');
-        }
-        swatch.classList.add('is-active');
-        activeChip.style.background = color;
+        setActiveColor(swatchInfo.transparent ? null : swatchInfo.value);
       });
+
       swatchContainer.appendChild(swatch);
     });
+
+    setActiveColor(activeColor);
+    updatePaletteAriaLabels();
+  };
+
+  const updatePaletteAriaLabels = () => {
+    const labelText = translations[currentLanguage]?.['palette.selectColor'] ?? 'Select color';
+    document.querySelectorAll('.palette-color-swatch').forEach((swatch) => {
+      const label = swatch.dataset.label || swatch.dataset.color || '';
+      swatch.setAttribute('aria-label', `${labelText} ${label}`.trim());
+    });
+  };
+
+  const setActiveColor = (color) => {
+    activeColor = color;
+    const activeChip = document.getElementById('active-color-chip');
+    const activeSwatch = document.querySelector('.palette-color-swatch.is-active');
+    if (activeSwatch) {
+      activeSwatch.classList.remove('is-active');
+    }
+
+    if (color === null) {
+      if (transparentSwatch) {
+        transparentSwatch.classList.add('is-active');
+      }
+      if (activeChip) {
+        activeChip.classList.add('is-transparent');
+        activeChip.style.background = '';
+      }
+    } else {
+      const swatch = paletteSwatchMap.get(color);
+      if (swatch) {
+        swatch.classList.add('is-active');
+      }
+      if (activeChip) {
+        activeChip.classList.remove('is-transparent');
+        activeChip.style.background = color;
+      }
+    }
+  };
+
+  const paintCell = (index, color) => {
+    if (index < 0 || index >= pixelData.length) return;
+    if (pixelData[index] === color) return;
+
+    pixelData[index] = color;
+    const cell = pixelCells[index];
+    if (!cell) return;
+
+    if (color === null) {
+      cell.style.background = '';
+      cell.classList.remove('is-painted');
+      cell.removeAttribute('data-color');
+    } else {
+      cell.style.background = color;
+      cell.classList.add('is-painted');
+      cell.dataset.color = color;
+    }
+  };
+
+  const floodFill = (startIndex, newColor) => {
+    if (startIndex < 0 || startIndex >= pixelData.length) return;
+    const targetColor = pixelData[startIndex];
+    if (targetColor === newColor) return;
+
+    const visited = new Uint8Array(pixelData.length);
+    const stack = [startIndex];
+
+    while (stack.length) {
+      const index = stack.pop();
+      if (index < 0 || index >= pixelData.length) continue;
+      if (visited[index]) continue;
+      if (pixelData[index] !== targetColor) continue;
+
+      visited[index] = 1;
+      paintCell(index, newColor);
+
+      const row = Math.floor(index / gridWidth);
+      const col = index % gridWidth;
+
+      if (row > 0) stack.push(index - gridWidth);
+      if (row < gridHeight - 1) stack.push(index + gridWidth);
+      if (col > 0) stack.push(index - 1);
+      if (col < gridWidth - 1) stack.push(index + 1);
+    }
+  };
+
+  const applyToolToCell = (cell, { dragging = false } = {}) => {
+    if (!cell) return;
+    const index = Number(cell.dataset.index);
+    if (Number.isNaN(index)) return;
+
+    if (activeTool === 'pencil') {
+      paintCell(index, activeColor);
+    } else if (activeTool === 'eraser') {
+      paintCell(index, null);
+    } else if (activeTool === 'eyedropper' && !dragging) {
+      setActiveColor(pixelData[index] ?? null);
+    } else if (activeTool === 'fill' && !dragging) {
+      floodFill(index, activeColor);
+    }
   };
 
   const getActiveToolLabel = () => {
@@ -252,6 +430,7 @@
           activeButton.classList.remove('is-active');
         }
         button.classList.add('is-active');
+        activeTool = button.dataset.tool || 'pencil';
         updateActiveToolLabel();
       });
     });
@@ -270,6 +449,72 @@
 
     zoomRange.addEventListener('input', updateZoom);
     updateZoom();
+  };
+
+  const bindGridControls = () => {
+    const widthInput = document.getElementById('grid-width');
+    const heightInput = document.getElementById('grid-height');
+    const applyButton = document.getElementById('apply-grid');
+    if (!widthInput || !heightInput || !applyButton) return;
+
+    const applyGrid = () => {
+      const widthValue = Number.parseInt(widthInput.value, 10);
+      const heightValue = Number.parseInt(heightInput.value, 10);
+      const nextWidth = Number.isFinite(widthValue) ? Math.min(Math.max(widthValue, 1), 128) : gridWidth;
+      const nextHeight = Number.isFinite(heightValue) ? Math.min(Math.max(heightValue, 1), 128) : gridHeight;
+
+      widthInput.value = String(nextWidth);
+      heightInput.value = String(nextHeight);
+      buildPixelCanvas(nextWidth, nextHeight);
+    };
+
+    applyButton.addEventListener('click', applyGrid);
+    [widthInput, heightInput].forEach((input) => {
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          applyGrid();
+        }
+      });
+    });
+  };
+
+  const bindCanvasInteraction = () => {
+    const canvas = document.getElementById('pixel-canvas');
+    if (!canvas) return;
+
+    let isDrawing = false;
+
+    const handlePointerDown = (event) => {
+      const cell = event.target.closest('.pixel-cell');
+      if (!cell) return;
+      event.preventDefault();
+      isDrawing = true;
+      canvas.setPointerCapture(event.pointerId);
+      applyToolToCell(cell);
+    };
+
+    const handlePointerMove = (event) => {
+      if (!isDrawing) return;
+      if (activeTool !== 'pencil' && activeTool !== 'eraser') return;
+      const cell = event.target.closest('.pixel-cell');
+      if (!cell) return;
+      applyToolToCell(cell, { dragging: true });
+    };
+
+    const stopDrawing = (event) => {
+      if (!isDrawing) return;
+      isDrawing = false;
+      try {
+        canvas.releasePointerCapture(event.pointerId);
+      } catch (error) {
+        // Ignore if pointer is already released.
+      }
+    };
+
+    canvas.addEventListener('pointerdown', handlePointerDown);
+    canvas.addEventListener('pointermove', handlePointerMove);
+    canvas.addEventListener('pointerup', stopDrawing);
+    canvas.addEventListener('pointerleave', stopDrawing);
   };
 
   const applyTranslations = (language) => {
@@ -299,11 +544,7 @@
       button.setAttribute('aria-pressed', String(isActive));
     });
 
-    document.querySelectorAll('.palette-color-swatch').forEach((swatch) => {
-      const labelText = dictionary['palette.selectColor'] || 'Select color';
-      const color = swatch.dataset.color || '';
-      swatch.setAttribute('aria-label', `${labelText} ${color}`.trim());
-    });
+    updatePaletteAriaLabels();
 
     updateActiveToolLabel();
   };
@@ -328,6 +569,8 @@
     buildPalette();
     bindToolSelection();
     bindZoomControl();
+    bindGridControls();
+    bindCanvasInteraction();
     bindLanguageToggle();
     const storedLanguage = localStorage.getItem('preferredLanguage') || 'en';
     applyTranslations(storedLanguage);
