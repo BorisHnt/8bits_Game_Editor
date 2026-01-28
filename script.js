@@ -1119,6 +1119,29 @@
     }
   };
 
+  const exportActivePixels = () => {
+    const pixels = getActivePixels();
+    if (!pixels) return;
+    const { width, height } = state.grid;
+    const canvas = document.createElement('canvas');
+    drawPixelsToCanvas(pixels, canvas, width, height, 1);
+
+    const mode = state.preview.mode;
+    let name = `${mode}-${width}x${height}`;
+    if (mode === 'sprite') {
+      name += `-frame-${state.activeFrameIndex + 1}`;
+    }
+    if (mode === 'walls') {
+      const tileId = state.wallTiles[state.activeWallTileIndex]?.id || 'tile';
+      name += `-${tileId}`;
+    }
+
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = `8bits-${name}.png`;
+    link.click();
+  };
+
   const renderTilesPreview = () => {
     const canvas = qs('#tiles-preview-canvas');
     if (!canvas) return;
@@ -1467,6 +1490,12 @@
     updatePaletteAriaLabels();
   };
 
+  const bindExportButton = () => {
+    const exportButton = qs('#export-png');
+    if (!exportButton) return;
+    exportButton.addEventListener('click', exportActivePixels);
+  };
+
   const bindLanguageToggle = () => {
     qsa('.language-toggle-button').forEach((button) => {
       button.addEventListener('click', () => {
@@ -1494,6 +1523,7 @@
     bindPreviewModeTabs();
     bindPreviewControls();
     bindWallPaintInteraction();
+    bindExportButton();
     bindLanguageToggle();
 
     const storedLanguage = localStorage.getItem('preferredLanguage') || 'en';
