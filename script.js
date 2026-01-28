@@ -173,7 +173,7 @@
     const preview = document.getElementById('tile-preview');
     if (!preview) return;
 
-    const highlightPalette = ['#0c6c00', '#508300', '#889900', '#c2ab00'];
+    const highlightPalette = ['#006d9c', '#0094ae', '#00b78f', '#78cf4e'];
     for (let i = 0; i < 36; i += 1) {
       const cell = document.createElement('div');
       cell.className = 'tile-preview-cell';
@@ -192,11 +192,11 @@
     if (!swatchContainer || !activeChip) return;
 
     const paletteColors = [
-      '#0c6c00',
-      '#508300',
-      '#889900',
-      '#c2ab00',
-      '#ffbb00',
+      '#006d9c',
+      '#0094ae',
+      '#00b78f',
+      '#78cf4e',
+      '#ffd500',
       '#f2f2f2',
       '#b4b4b4',
       '#7a7a7a',
