@@ -286,6 +286,7 @@
       swatch.type = 'button';
       swatch.className = 'palette-color-swatch';
       swatch.dataset.label = swatchInfo.name;
+      swatch.title = swatchInfo.name;
 
       if (swatchInfo.transparent) {
         swatch.classList.add('is-transparent');
