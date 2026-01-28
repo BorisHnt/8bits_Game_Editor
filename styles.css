@@ -443,7 +443,7 @@ svg {
 
 .workspace-layout {
   display: grid;
-  grid-template-columns: 220px minmax(520px, 1fr) 240px;
+  grid-template-columns: 220px minmax(0, 1fr) minmax(0, 1fr);
   gap: 26px;
 }
 
