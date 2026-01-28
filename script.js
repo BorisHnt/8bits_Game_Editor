@@ -538,8 +538,12 @@
       }
 
       const blockCount = Math.max(2, Math.floor(total / 55));
-      const maxBlockWidth = Math.max(3, Math.min(6, cols - 2));
-      const maxBlockHeight = Math.max(3, Math.min(6, rows - 2));
+      const maxBlockWidth = Math.max(3, Math.min(6, cols - 4));
+      const maxBlockHeight = Math.max(3, Math.min(6, rows - 4));
+      const innerMinX = 2;
+      const innerMinY = 2;
+      const innerMaxX = cols - 3;
+      const innerMaxY = rows - 3;
 
       const canPlace = (startX, startY, width, height) => {
         for (let y = startY; y < startY + height; y += 1) {
@@ -550,24 +554,21 @@
         return true;
       };
 
-      for (let i = 0; i < blockCount; i += 1) {
-        const blockWidth = 3 + Math.floor(Math.random() * (maxBlockWidth - 2));
-        const blockHeight = 3 + Math.floor(Math.random() * (maxBlockHeight - 2));
-        let attempts = 12;
-        while (attempts > 0) {
-          const startX = 1 + Math.floor(Math.random() * Math.max(1, cols - blockWidth - 1));
-          const startY = 1 + Math.floor(Math.random() * Math.max(1, rows - blockHeight - 1));
-          if (canPlace(startX, startY, blockWidth, blockHeight)) {
-            fillRect(startX, startY, blockWidth, blockHeight, 1);
-            break;
+      if (innerMaxX - innerMinX + 1 >= 3 && innerMaxY - innerMinY + 1 >= 3) {
+        for (let i = 0; i < blockCount; i += 1) {
+          const blockWidth = 3 + Math.floor(Math.random() * Math.max(1, maxBlockWidth - 2));
+          const blockHeight = 3 + Math.floor(Math.random() * Math.max(1, maxBlockHeight - 2));
+          let attempts = 18;
+          while (attempts > 0) {
+            const startX = innerMinX + Math.floor(Math.random() * Math.max(1, innerMaxX - innerMinX - blockWidth + 2));
+            const startY = innerMinY + Math.floor(Math.random() * Math.max(1, innerMaxY - innerMinY - blockHeight + 2));
+            if (canPlace(startX, startY, blockWidth, blockHeight)) {
+              fillRect(startX, startY, blockWidth, blockHeight, 1);
+              break;
+            }
+            attempts -= 1;
           }
-          attempts -= 1;
         }
-      }
-
-      if (cols >= 7 && rows >= 7) {
-        fillRect(2, 2, cols - 4, rows - 4, 1);
-        fillRect(4, 4, cols - 8, rows - 8, 0);
       }
 
       const holeCount = Math.max(2, Math.floor(total / 75));
