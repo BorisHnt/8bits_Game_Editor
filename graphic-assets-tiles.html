@@ -191,7 +191,13 @@
           </div>
           <div class="export-controls">
             <input class="export-name-input" type="text" id="export-name" value="tile" aria-label="Export filename" />
-            <button class="button-primary" id="export-png" data-i18n="panel.exportButton">Export PNG</button>
+            <div class="export-actions">
+              <button class="button-primary" id="export-png" data-i18n="panel.exportButton">Export PNG</button>
+              <button class="button-secondary" id="export-json" data-i18n="panel.exportJson">Export JSON</button>
+              <button class="button-secondary" id="import-json" data-i18n="panel.importJson">Import JSON</button>
+              <button class="button-secondary" id="clear-canvas" data-i18n="panel.clearCanvas">Clear Canvas</button>
+              <input class="export-file-input" type="file" id="import-json-file" accept=".json" />
+            </div>
           </div>
         </div>
       </div>

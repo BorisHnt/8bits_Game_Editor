@@ -61,6 +61,9 @@
       'panel.export': 'Export',
       'panel.exportSubtitle': 'Ready for PNG output. Transparent background preserved.',
       'panel.exportButton': 'Export PNG',
+      'panel.exportJson': 'Export JSON',
+      'panel.importJson': 'Import JSON',
+      'panel.clearCanvas': 'Clear Canvas',
       'panel.exportSingle': 'Single frame',
       'panel.exportSequence': 'Sequence 001-999',
       'panel.addPalette': 'Add Palette',
@@ -161,6 +164,9 @@
       'panel.export': 'Export',
       'panel.exportSubtitle': "Prêt pour l'export PNG. Transparence préservée.",
       'panel.exportButton': 'Exporter PNG',
+      'panel.exportJson': 'Exporter JSON',
+      'panel.importJson': 'Importer JSON',
+      'panel.clearCanvas': 'Effacer le canvas',
       'panel.exportSingle': 'Une frame',
       'panel.exportSequence': 'Sequence 001-999',
       'panel.addPalette': 'Ajouter une palette',
@@ -422,6 +428,77 @@
       }
     }
     return resized;
+  };
+
+  const getDesignerKey = () => document.body.dataset.designer || 'tiles';
+  const getCacheKey = () => `8bits-editor:${getDesignerKey()}`;
+  let cacheTimer = null;
+
+  const buildCachePayload = () => ({
+    version: 1,
+    width: state.grid.width,
+    height: state.grid.height,
+    pixelSize: state.grid.pixelSize,
+    grid: {
+      width: state.grid.width,
+      height: state.grid.height,
+      pixelSize: state.grid.pixelSize
+    },
+    preview: state.preview,
+    frames: state.frames.map((frame) => ({ id: frame.id, pixels: frame.pixels })),
+    activeFrameIndex: state.activeFrameIndex,
+    wallTiles: state.wallTiles.map((tile) => ({
+      id: tile.id,
+      label: tile.label,
+      pixels: tile.pixels
+    })),
+    activeWallTileIndex: state.activeWallTileIndex,
+    wallLayout: {
+      width: state.wallLayout.width,
+      height: state.wallLayout.height,
+      cells: state.wallLayout.cells
+    },
+    exportName: qs('#export-name')?.value || ''
+  });
+
+  const saveCache = () => {
+    try {
+      localStorage.setItem(getCacheKey(), JSON.stringify(buildCachePayload()));
+    } catch (error) {
+      // Ignore storage errors.
+    }
+  };
+
+  const scheduleCacheSave = (immediate = false) => {
+    if (cacheTimer) {
+      window.clearTimeout(cacheTimer);
+      cacheTimer = null;
+    }
+    if (immediate) {
+      saveCache();
+      return;
+    }
+    cacheTimer = window.setTimeout(saveCache, 250);
+  };
+
+  const loadCachedState = () => {
+    try {
+      const raw = localStorage.getItem(getCacheKey());
+      if (!raw) return false;
+      const payload = JSON.parse(raw);
+      if (!payload) return false;
+      if (!payload.width && payload.grid?.width) {
+        payload.width = payload.grid.width;
+        payload.height = payload.grid.height;
+        payload.pixelSize = payload.grid.pixelSize;
+      }
+      if (!payload.name && payload.exportName) {
+        payload.name = payload.exportName;
+      }
+      return applyAssetPayload(payload, { fromCache: true });
+    } catch (error) {
+      return false;
+    }
   };
 
   const initializeState = () => {
@@ -695,6 +772,7 @@
     renderFrameThumbnail(state.activeFrameIndex);
     renderWallTileThumbnail(state.activeWallTileIndex);
     renderPreviews();
+    scheduleCacheSave();
   };
 
   const floodFill = (startIndex, newColor) => {
@@ -729,6 +807,7 @@
     renderFrameThumbnail(state.activeFrameIndex);
     renderWallTileThumbnail(state.activeWallTileIndex);
     renderPreviews();
+    scheduleCacheSave();
   };
 
   const applyToolToCell = (cell, { dragging = false } = {}) => {
@@ -842,6 +921,7 @@
       state.grid.pixelSize = Number.parseInt(zoomRange.value, 10);
       document.documentElement.style.setProperty('--pixel-size', size);
       zoomValue.textContent = size;
+      scheduleCacheSave();
     };
 
     zoomRange.addEventListener('input', updateZoom);
@@ -883,6 +963,7 @@
       renderFramesStrip();
       renderWallTilesGrid();
       renderPreviews();
+      scheduleCacheSave(true);
     };
 
     applyButton.addEventListener('click', applyGrid);
@@ -940,6 +1021,7 @@
         renderFramesStrip();
         renderActivePixelGrid();
         renderPreviews();
+        scheduleCacheSave();
       });
 
       const downButton = document.createElement('button');
@@ -956,6 +1038,7 @@
         renderFramesStrip();
         renderActivePixelGrid();
         renderPreviews();
+        scheduleCacheSave();
       });
 
       const duplicateButton = document.createElement('button');
@@ -973,6 +1056,7 @@
         renderFramesStrip();
         renderActivePixelGrid();
         renderPreviews();
+        scheduleCacheSave();
       });
 
       const deleteButton = document.createElement('button');
@@ -987,6 +1071,7 @@
         renderFramesStrip();
         renderActivePixelGrid();
         renderPreviews();
+        scheduleCacheSave();
       });
 
       controls.appendChild(upButton);
@@ -1001,6 +1086,7 @@
         renderFramesStrip();
         renderActivePixelGrid();
         renderPreviews();
+        scheduleCacheSave();
       });
 
       strip.appendChild(item);
@@ -1066,6 +1152,7 @@
         renderFramesStrip();
         renderActivePixelGrid();
         renderPreviews();
+        scheduleCacheSave();
       });
     }
 
@@ -1248,6 +1335,7 @@
     state.wallLayout.width = cols;
     state.wallLayout.height = rows;
     state.wallLayout.cells = resized;
+    scheduleCacheSave(true);
   };
 
   const drawPixelsToCanvas = (pixels, canvas, width, height, zoom) => {
@@ -1278,11 +1366,158 @@
   };
 
   const sanitizeFilename = (name) => name.replace(/[^a-z0-9-_]/gi, '_').replace(/_+/g, '_').trim() || 'export';
+  const getExportName = () => (qs('#export-name')?.value || '').trim() || 'export';
+  const getExportFilename = (extension) => `${sanitizeFilename(getExportName())}.${extension}`;
+
+  const normalizePixels = (pixels, width, height) => {
+    const size = width * height;
+    if (!Array.isArray(pixels)) {
+      return createEmptyPixels(width, height);
+    }
+    const normalized = pixels.slice(0, size).map((color) => (typeof color === 'string' ? color : null));
+    while (normalized.length < size) normalized.push(null);
+    return normalized;
+  };
+
+  const buildAssetPayload = () => {
+    const { width, height } = state.grid;
+    const payload = {
+      version: 1,
+      type: state.preview.mode,
+      name: getExportName(),
+      width,
+      height,
+      pixelSize: state.grid.pixelSize
+    };
+
+    if (state.preview.mode === 'sprite') {
+      payload.frames = state.frames.map((frame) => frame.pixels);
+      payload.activeFrameIndex = state.activeFrameIndex;
+    } else if (state.preview.mode === 'walls') {
+      payload.wallTiles = state.wallTiles.map((tile) => ({
+        id: tile.id,
+        label: tile.label,
+        pixels: tile.pixels
+      }));
+      payload.activeWallTileIndex = state.activeWallTileIndex;
+      payload.wallLayout = {
+        width: state.wallLayout.width,
+        height: state.wallLayout.height,
+        cells: state.wallLayout.cells
+      };
+      payload.pixels = getActivePixels();
+    } else {
+      payload.pixels = getActivePixels();
+    }
+
+    return payload;
+  };
+
+  const applyAssetPayload = (payload, { fromCache = false } = {}) => {
+    if (!payload || !payload.width || !payload.height) return false;
+    const width = clamp(Number.parseInt(payload.width, 10), 1, 128);
+    const height = clamp(Number.parseInt(payload.height, 10), 1, 128);
+
+    const oldWidth = state.grid.width;
+    const oldHeight = state.grid.height;
+    state.grid.width = width;
+    state.grid.height = height;
+
+    if (payload.pixelSize) {
+      const size = clamp(Number.parseInt(payload.pixelSize, 10), 6, 40);
+      state.grid.pixelSize = size;
+      document.documentElement.style.setProperty('--pixel-size', `${size}px`);
+      const zoomRange = qs('#zoom-range');
+      const zoomValue = qs('#zoom-value');
+      if (zoomRange) zoomRange.value = String(size);
+      if (zoomValue) zoomValue.textContent = `${size}px`;
+    }
+
+    if (Array.isArray(payload.frames) && payload.frames.length) {
+      state.frames = payload.frames.map((pixels) => ({
+        id: createId(),
+        pixels: normalizePixels(pixels, width, height)
+      }));
+      state.activeFrameIndex = clamp(Number.parseInt(payload.activeFrameIndex, 10) || 0, 0, state.frames.length - 1);
+    } else if (Array.isArray(payload.pixels)) {
+      state.frames = [{ id: createId(), pixels: normalizePixels(payload.pixels, width, height) }];
+      state.activeFrameIndex = 0;
+    } else {
+      state.frames = [{ id: createId(), pixels: resizePixelBuffer(state.frames[0]?.pixels || [], oldWidth, oldHeight, width, height) }];
+      state.activeFrameIndex = 0;
+    }
+
+    if (Array.isArray(payload.wallTiles) && payload.wallTiles.length) {
+      const tileMap = new Map(payload.wallTiles.map((tile) => [tile.id, tile]));
+      state.wallTiles = wallTileDefinitions.map((definition) => {
+        const source = tileMap.get(definition.id);
+        return {
+          id: definition.id,
+          label: definition.label,
+          pixels: normalizePixels(source?.pixels, width, height)
+        };
+      });
+      state.activeWallTileIndex = clamp(
+        Number.parseInt(payload.activeWallTileIndex, 10) || 0,
+        0,
+        state.wallTiles.length - 1
+      );
+    } else {
+      state.wallTiles = wallTileDefinitions.map((definition) => ({
+        id: definition.id,
+        label: definition.label,
+        pixels: resizePixelBuffer(
+          state.wallTiles.find((tile) => tile.id === definition.id)?.pixels || [],
+          oldWidth,
+          oldHeight,
+          width,
+          height
+        )
+      }));
+      state.activeWallTileIndex = 0;
+    }
+
+    if (payload.wallLayout?.cells) {
+      const layoutWidth = clamp(Number.parseInt(payload.wallLayout.width, 10) || state.wallLayout.width, 2, 40);
+      const layoutHeight = clamp(Number.parseInt(payload.wallLayout.height, 10) || state.wallLayout.height, 2, 40);
+      const size = layoutWidth * layoutHeight;
+      const cells = Array.isArray(payload.wallLayout.cells)
+        ? payload.wallLayout.cells.slice(0, size)
+        : [];
+      while (cells.length < size) cells.push(0);
+      state.wallLayout.width = layoutWidth;
+      state.wallLayout.height = layoutHeight;
+      state.wallLayout.cells = cells.map((value) => (value ? 1 : 0));
+    }
+
+    if (fromCache && payload.preview) {
+      state.preview = {
+        ...state.preview,
+        ...payload.preview
+      };
+    }
+
+    if (payload.name) {
+      const exportInput = qs('#export-name');
+      if (exportInput) exportInput.value = payload.name;
+    }
+
+    const widthInput = qs('#grid-width');
+    const heightInput = qs('#grid-height');
+    if (widthInput) widthInput.value = String(state.grid.width);
+    if (heightInput) heightInput.value = String(state.grid.height);
+
+    buildPixelCanvas();
+    renderActivePixelGrid();
+    renderFramesStrip();
+    renderWallTilesGrid();
+    renderPreviews();
+    return true;
+  };
 
   const exportActivePixels = () => {
     const { width, height } = state.grid;
-    const baseInput = qs('#export-name');
-    const baseName = sanitizeFilename(baseInput?.value || 'export');
+    const baseName = sanitizeFilename(getExportName());
 
     if (state.preview.mode === 'sprite') {
       const mode = qs('input[name=\"sprite-export\"]:checked')?.value || 'single';
@@ -1302,6 +1537,28 @@
     const canvas = document.createElement('canvas');
     drawPixelsToCanvas(pixels, canvas, width, height, 1);
     downloadCanvas(canvas, `${baseName}.png`);
+  };
+
+  const exportJson = () => {
+    const payload = buildAssetPayload();
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = getExportFilename('json');
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const clearActiveCanvas = () => {
+    const pixels = getActivePixels();
+    if (!pixels) return;
+    pixels.fill(null);
+    renderActivePixelGrid();
+    renderFrameThumbnail(state.activeFrameIndex);
+    renderWallTileThumbnail(state.activeWallTileIndex);
+    renderPreviews();
+    scheduleCacheSave(true);
   };
 
   const renderTilesPreview = () => {
@@ -1530,10 +1787,11 @@
       return { x, y };
     };
 
-    const paintWallCell = (x, y, value) => {
-      const index = y * state.wallLayout.width + x;
-      state.wallLayout.cells[index] = value;
-    };
+  const paintWallCell = (x, y, value) => {
+    const index = y * state.wallLayout.width + x;
+    state.wallLayout.cells[index] = value;
+    scheduleCacheSave();
+  };
 
     const handlePointerDown = (event) => {
       if (state.preview.mode !== 'walls') return;
@@ -1612,6 +1870,7 @@
       if (col > 0) stack.push(index - 1);
       if (col < width - 1) stack.push(index + 1);
     }
+    scheduleCacheSave();
   };
 
   const applyTranslations = (language) => {
@@ -1654,8 +1913,35 @@
 
   const bindExportButton = () => {
     const exportButton = qs('#export-png');
-    if (!exportButton) return;
-    exportButton.addEventListener('click', exportActivePixels);
+    const exportJsonButton = qs('#export-json');
+    const importJsonButton = qs('#import-json');
+    const importJsonFile = qs('#import-json-file');
+    const clearButton = qs('#clear-canvas');
+
+    exportButton?.addEventListener('click', exportActivePixels);
+    exportJsonButton?.addEventListener('click', exportJson);
+    clearButton?.addEventListener('click', clearActiveCanvas);
+
+    importJsonButton?.addEventListener('click', () => {
+      importJsonFile?.click();
+    });
+
+    importJsonFile?.addEventListener('change', () => {
+      const file = importJsonFile.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const payload = JSON.parse(String(reader.result || '{}'));
+          const applied = applyAssetPayload(payload);
+          if (applied) scheduleCacheSave(true);
+        } catch (error) {
+          // Ignore invalid JSON.
+        }
+      };
+      reader.readAsText(file);
+      importJsonFile.value = '';
+    });
   };
 
   const bindLanguageToggle = () => {
@@ -1767,10 +2053,13 @@
     initializeState();
     createHeroAmbient();
     buildPalette();
-    buildPixelCanvas();
-    renderActivePixelGrid();
-    renderFramesStrip();
-    renderWallTilesGrid();
+    const cacheLoaded = loadCachedState();
+    if (!cacheLoaded) {
+      buildPixelCanvas();
+      renderActivePixelGrid();
+      renderFramesStrip();
+      renderWallTilesGrid();
+    }
     bindCanvasInteraction();
     bindCtrlDrawing();
     bindToolSelection();

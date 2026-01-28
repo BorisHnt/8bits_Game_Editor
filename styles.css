@@ -888,6 +888,17 @@ svg {
   align-items: flex-end;
 }
 
+.export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.export-file-input {
+  display: none;
+}
+
 .export-name-input {
   min-width: 180px;
   background: transparent;
