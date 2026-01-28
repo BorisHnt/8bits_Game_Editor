@@ -530,24 +530,47 @@
     };
 
     if (mode === 'x13') {
-      const blockCount = Math.max(1, Math.floor(total / 60));
-      const maxBlockWidth = Math.max(3, Math.min(6, cols));
-      const maxBlockHeight = Math.max(3, Math.min(6, rows));
+      if (cols >= 3 && rows >= 3) {
+        fillRect(0, 0, cols, 1, 1);
+        fillRect(0, rows - 1, cols, 1, 1);
+        fillRect(0, 0, 1, rows, 1);
+        fillRect(cols - 1, 0, 1, rows, 1);
+      }
+
+      const blockCount = Math.max(2, Math.floor(total / 55));
+      const maxBlockWidth = Math.max(3, Math.min(6, cols - 2));
+      const maxBlockHeight = Math.max(3, Math.min(6, rows - 2));
+
+      const canPlace = (startX, startY, width, height) => {
+        for (let y = startY; y < startY + height; y += 1) {
+          for (let x = startX; x < startX + width; x += 1) {
+            if (cells[y * cols + x] === 1) return false;
+          }
+        }
+        return true;
+      };
 
       for (let i = 0; i < blockCount; i += 1) {
         const blockWidth = 3 + Math.floor(Math.random() * (maxBlockWidth - 2));
         const blockHeight = 3 + Math.floor(Math.random() * (maxBlockHeight - 2));
-        const startX = Math.floor(Math.random() * Math.max(1, cols - blockWidth));
-        const startY = Math.floor(Math.random() * Math.max(1, rows - blockHeight));
-        fillRect(startX, startY, blockWidth, blockHeight, 1);
+        let attempts = 12;
+        while (attempts > 0) {
+          const startX = 1 + Math.floor(Math.random() * Math.max(1, cols - blockWidth - 1));
+          const startY = 1 + Math.floor(Math.random() * Math.max(1, rows - blockHeight - 1));
+          if (canPlace(startX, startY, blockWidth, blockHeight)) {
+            fillRect(startX, startY, blockWidth, blockHeight, 1);
+            break;
+          }
+          attempts -= 1;
+        }
       }
 
       if (cols >= 7 && rows >= 7) {
-        fillRect(1, 1, cols - 2, rows - 2, 1);
-        fillRect(3, 3, cols - 6, rows - 6, 0);
+        fillRect(2, 2, cols - 4, rows - 4, 1);
+        fillRect(4, 4, cols - 8, rows - 8, 0);
       }
 
-      const holeCount = Math.max(1, Math.floor(total / 80));
+      const holeCount = Math.max(2, Math.floor(total / 75));
       for (let i = 0; i < holeCount; i += 1) {
         const holeX = 2 + Math.floor(Math.random() * Math.max(1, cols - 4));
         const holeY = 2 + Math.floor(Math.random() * Math.max(1, rows - 4));
