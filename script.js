@@ -345,6 +345,201 @@
     { name: 'Transparent', value: null, transparent: true }
   ];
 
+  const materialPalette = [
+    { label: 'Red 50', value: '#ffebee' },
+    { label: 'Red 100', value: '#ffcdd2' },
+    { label: 'Red 200', value: '#ef9a9a' },
+    { label: 'Red 300', value: '#e57373' },
+    { label: 'Red 400', value: '#ef5350' },
+    { label: 'Red 500', value: '#f44336' },
+    { label: 'Red 600', value: '#e53935' },
+    { label: 'Red 700', value: '#d32f2f' },
+    { label: 'Red 800', value: '#c62828' },
+    { label: 'Red 900', value: '#b71c1c' },
+    { label: 'Pink 50', value: '#fce4ec' },
+    { label: 'Pink 100', value: '#f8bbd0' },
+    { label: 'Pink 200', value: '#f48fb1' },
+    { label: 'Pink 300', value: '#f06292' },
+    { label: 'Pink 400', value: '#ec407a' },
+    { label: 'Pink 500', value: '#e91e63' },
+    { label: 'Pink 600', value: '#d81b60' },
+    { label: 'Pink 700', value: '#c2185b' },
+    { label: 'Pink 800', value: '#ad1457' },
+    { label: 'Pink 900', value: '#880e4f' },
+    { label: 'Purple 50', value: '#f3e5f5' },
+    { label: 'Purple 100', value: '#e1bee7' },
+    { label: 'Purple 200', value: '#ce93d8' },
+    { label: 'Purple 300', value: '#ba68c8' },
+    { label: 'Purple 400', value: '#ab47bc' },
+    { label: 'Purple 500', value: '#9c27b0' },
+    { label: 'Purple 600', value: '#8e24aa' },
+    { label: 'Purple 700', value: '#7b1fa2' },
+    { label: 'Purple 800', value: '#6a1b9a' },
+    { label: 'Purple 900', value: '#4a148c' },
+    { label: 'Deep Purple 50', value: '#ede7f6' },
+    { label: 'Deep Purple 100', value: '#d1c4e9' },
+    { label: 'Deep Purple 200', value: '#b39ddb' },
+    { label: 'Deep Purple 300', value: '#9575cd' },
+    { label: 'Deep Purple 400', value: '#7e57c2' },
+    { label: 'Deep Purple 500', value: '#673ab7' },
+    { label: 'Deep Purple 600', value: '#5e35b1' },
+    { label: 'Deep Purple 700', value: '#512da8' },
+    { label: 'Deep Purple 800', value: '#4527a0' },
+    { label: 'Deep Purple 900', value: '#311b92' },
+    { label: 'Indigo 50', value: '#e8eaf6' },
+    { label: 'Indigo 100', value: '#c5cae9' },
+    { label: 'Indigo 200', value: '#9fa8da' },
+    { label: 'Indigo 300', value: '#7986cb' },
+    { label: 'Indigo 400', value: '#5c6bc0' },
+    { label: 'Indigo 500', value: '#3f51b5' },
+    { label: 'Indigo 600', value: '#3949ab' },
+    { label: 'Indigo 700', value: '#303f9f' },
+    { label: 'Indigo 800', value: '#283593' },
+    { label: 'Indigo 900', value: '#1a237e' },
+    { label: 'Blue 50', value: '#e3f2fd' },
+    { label: 'Blue 100', value: '#bbdefb' },
+    { label: 'Blue 200', value: '#90caf9' },
+    { label: 'Blue 300', value: '#64b5f6' },
+    { label: 'Blue 400', value: '#42a5f5' },
+    { label: 'Blue 500', value: '#2196f3' },
+    { label: 'Blue 600', value: '#1e88e5' },
+    { label: 'Blue 700', value: '#1976d2' },
+    { label: 'Blue 800', value: '#1565c0' },
+    { label: 'Blue 900', value: '#0d47a1' },
+    { label: 'Light Blue 50', value: '#e1f5fe' },
+    { label: 'Light Blue 100', value: '#b3e5fc' },
+    { label: 'Light Blue 200', value: '#81d4fa' },
+    { label: 'Light Blue 300', value: '#4fc3f7' },
+    { label: 'Light Blue 400', value: '#29b6f6' },
+    { label: 'Light Blue 500', value: '#03a9f4' },
+    { label: 'Light Blue 600', value: '#039be5' },
+    { label: 'Light Blue 700', value: '#0288d1' },
+    { label: 'Light Blue 800', value: '#0277bd' },
+    { label: 'Light Blue 900', value: '#01579b' },
+    { label: 'Cyan 50', value: '#e0f7fa' },
+    { label: 'Cyan 100', value: '#b2ebf2' },
+    { label: 'Cyan 200', value: '#80deea' },
+    { label: 'Cyan 300', value: '#4dd0e1' },
+    { label: 'Cyan 400', value: '#26c6da' },
+    { label: 'Cyan 500', value: '#00bcd4' },
+    { label: 'Cyan 600', value: '#00acc1' },
+    { label: 'Cyan 700', value: '#0097a7' },
+    { label: 'Cyan 800', value: '#00838f' },
+    { label: 'Cyan 900', value: '#006064' },
+    { label: 'Teal 50', value: '#e0f2f1' },
+    { label: 'Teal 100', value: '#b2dfdb' },
+    { label: 'Teal 200', value: '#80cbc4' },
+    { label: 'Teal 300', value: '#4db6ac' },
+    { label: 'Teal 400', value: '#26a69a' },
+    { label: 'Teal 500', value: '#009688' },
+    { label: 'Teal 600', value: '#00897b' },
+    { label: 'Teal 700', value: '#00796b' },
+    { label: 'Teal 800', value: '#00695c' },
+    { label: 'Teal 900', value: '#004d40' },
+    { label: 'Green 50', value: '#e8f5e9' },
+    { label: 'Green 100', value: '#c8e6c9' },
+    { label: 'Green 200', value: '#a5d6a7' },
+    { label: 'Green 300', value: '#81c784' },
+    { label: 'Green 400', value: '#66bb6a' },
+    { label: 'Green 500', value: '#4caf50' },
+    { label: 'Green 600', value: '#43a047' },
+    { label: 'Green 700', value: '#388e3c' },
+    { label: 'Green 800', value: '#2e7d32' },
+    { label: 'Green 900', value: '#1b5e20' },
+    { label: 'Light Green 50', value: '#f1f8e9' },
+    { label: 'Light Green 100', value: '#dcedc8' },
+    { label: 'Light Green 200', value: '#c5e1a5' },
+    { label: 'Light Green 300', value: '#aed581' },
+    { label: 'Light Green 400', value: '#9ccc65' },
+    { label: 'Light Green 500', value: '#8bc34a' },
+    { label: 'Light Green 600', value: '#7cb342' },
+    { label: 'Light Green 700', value: '#689f38' },
+    { label: 'Light Green 800', value: '#558b2f' },
+    { label: 'Light Green 900', value: '#33691e' },
+    { label: 'Lime 50', value: '#f9fbe7' },
+    { label: 'Lime 100', value: '#f0f4c3' },
+    { label: 'Lime 200', value: '#e6ee9c' },
+    { label: 'Lime 300', value: '#dce775' },
+    { label: 'Lime 400', value: '#d4e157' },
+    { label: 'Lime 500', value: '#cddc39' },
+    { label: 'Lime 600', value: '#c0ca33' },
+    { label: 'Lime 700', value: '#afb42b' },
+    { label: 'Lime 800', value: '#9e9d24' },
+    { label: 'Lime 900', value: '#827717' },
+    { label: 'Yellow 50', value: '#fffde7' },
+    { label: 'Yellow 100', value: '#fff9c4' },
+    { label: 'Yellow 200', value: '#fff59d' },
+    { label: 'Yellow 300', value: '#fff176' },
+    { label: 'Yellow 400', value: '#ffee58' },
+    { label: 'Yellow 500', value: '#ffeb3b' },
+    { label: 'Yellow 600', value: '#fdd835' },
+    { label: 'Yellow 700', value: '#fbc02d' },
+    { label: 'Yellow 800', value: '#f9a825' },
+    { label: 'Yellow 900', value: '#f57f17' },
+    { label: 'Amber 50', value: '#fff8e1' },
+    { label: 'Amber 100', value: '#ffecb3' },
+    { label: 'Amber 200', value: '#ffe082' },
+    { label: 'Amber 300', value: '#ffd54f' },
+    { label: 'Amber 400', value: '#ffca28' },
+    { label: 'Amber 500', value: '#ffc107' },
+    { label: 'Amber 600', value: '#ffb300' },
+    { label: 'Amber 700', value: '#ffa000' },
+    { label: 'Amber 800', value: '#ff8f00' },
+    { label: 'Amber 900', value: '#ff6f00' },
+    { label: 'Orange 50', value: '#fff3e0' },
+    { label: 'Orange 100', value: '#ffe0b2' },
+    { label: 'Orange 200', value: '#ffcc80' },
+    { label: 'Orange 300', value: '#ffb74d' },
+    { label: 'Orange 400', value: '#ffa726' },
+    { label: 'Orange 500', value: '#ff9800' },
+    { label: 'Orange 600', value: '#fb8c00' },
+    { label: 'Orange 700', value: '#f57c00' },
+    { label: 'Orange 800', value: '#ef6c00' },
+    { label: 'Orange 900', value: '#e65100' },
+    { label: 'Deep Orange 50', value: '#fbe9e7' },
+    { label: 'Deep Orange 100', value: '#ffccbc' },
+    { label: 'Deep Orange 200', value: '#ffab91' },
+    { label: 'Deep Orange 300', value: '#ff8a65' },
+    { label: 'Deep Orange 400', value: '#ff7043' },
+    { label: 'Deep Orange 500', value: '#ff5722' },
+    { label: 'Deep Orange 600', value: '#f4511e' },
+    { label: 'Deep Orange 700', value: '#e64a19' },
+    { label: 'Deep Orange 800', value: '#d84315' },
+    { label: 'Deep Orange 900', value: '#bf360c' },
+    { label: 'Brown 50', value: '#efebe9' },
+    { label: 'Brown 100', value: '#d7ccc8' },
+    { label: 'Brown 200', value: '#bcaaa4' },
+    { label: 'Brown 300', value: '#a1887f' },
+    { label: 'Brown 400', value: '#8d6e63' },
+    { label: 'Brown 500', value: '#795548' },
+    { label: 'Brown 600', value: '#6d4c41' },
+    { label: 'Brown 700', value: '#5d4037' },
+    { label: 'Brown 800', value: '#4e342e' },
+    { label: 'Brown 900', value: '#3e2723' },
+    { label: 'Grey 50', value: '#fafafa' },
+    { label: 'Grey 100', value: '#f5f5f5' },
+    { label: 'Grey 200', value: '#eeeeee' },
+    { label: 'Grey 300', value: '#e0e0e0' },
+    { label: 'Grey 400', value: '#bdbdbd' },
+    { label: 'Grey 500', value: '#9e9e9e' },
+    { label: 'Grey 600', value: '#757575' },
+    { label: 'Grey 700', value: '#616161' },
+    { label: 'Grey 800', value: '#424242' },
+    { label: 'Grey 900', value: '#212121' },
+    { label: 'Blue Grey 50', value: '#eceff1' },
+    { label: 'Blue Grey 100', value: '#cfd8dc' },
+    { label: 'Blue Grey 200', value: '#b0bec5' },
+    { label: 'Blue Grey 300', value: '#90a4ae' },
+    { label: 'Blue Grey 400', value: '#78909c' },
+    { label: 'Blue Grey 500', value: '#607d8b' },
+    { label: 'Blue Grey 600', value: '#546e7a' },
+    { label: 'Blue Grey 700', value: '#455a64' },
+    { label: 'Blue Grey 800', value: '#37474f' },
+    { label: 'Blue Grey 900', value: '#263238' },
+    { label: 'Black', value: '#000000' },
+    { label: 'White', value: '#ffffff' }
+  ];
+
   const createEmptyPixels = (width, height) => Array.from({ length: width * height }, () => null);
 
   const normalizeColor = (value) => value.replace(/\s+/g, '').toLowerCase();
@@ -469,7 +664,21 @@
     if (!swatchContainer) return;
 
     if (!palettes.length) {
-      palettes = [{ name: 'Default 64', colors: paletteColors.filter((item) => !item.transparent).map((item) => item.value) }];
+      palettes = [
+        {
+          name: 'Default 64',
+          colors: paletteColors.filter((item) => !item.transparent).map((item) => ({
+            value: item.value,
+            label: item.name
+          })),
+          columns: 16
+        },
+        {
+          name: 'Material 19x10',
+          colors: materialPalette,
+          columns: 19
+        }
+      ];
       activePaletteIndex = 0;
     }
 
@@ -486,22 +695,37 @@
     }
 
     const selectedPalette = palettes[activePaletteIndex] || palettes[0];
+    const paletteColumns = selectedPalette?.columns || 16;
+    document.documentElement.style.setProperty('--palette-columns', paletteColumns);
 
     paletteSwatchMap = new Map();
     transparentSwatch = null;
     swatchContainer.innerHTML = '';
 
-    selectedPalette.colors.forEach((color) => {
+    const entries = (selectedPalette?.colors || [])
+      .map((entry) => {
+        if (typeof entry === 'string') {
+          return { value: entry, label: entry };
+        }
+        const value = entry.value || entry.color || '';
+        return {
+          value,
+          label: entry.label || entry.name || value
+        };
+      })
+      .filter((entry) => entry.value);
+
+    entries.forEach((entry) => {
       const swatch = document.createElement('button');
       swatch.type = 'button';
       swatch.className = 'palette-color-swatch';
-      swatch.dataset.label = color;
-      swatch.title = color;
-      swatch.style.background = color;
-      swatch.dataset.color = color;
-      paletteSwatchMap.set(color, swatch);
+      swatch.dataset.label = entry.label;
+      swatch.title = entry.label;
+      swatch.style.background = entry.value;
+      swatch.dataset.color = entry.value;
+      paletteSwatchMap.set(entry.value, swatch);
       swatch.addEventListener('click', () => {
-        setActiveColor(color);
+        setActiveColor(entry.value);
       });
       swatchContainer.appendChild(swatch);
     });
@@ -1644,7 +1868,7 @@
       const parsed = parsePaletteInput(values);
       const unique = Array.from(new Map(parsed.map((color) => [normalizeColor(color), color])).values());
       if (!unique.length) return;
-      palettes.push({ name, colors: unique });
+      palettes.push({ name, colors: unique, columns: 16 });
       activePaletteIndex = palettes.length - 1;
       buildPalette();
       if (paletteSelect) paletteSelect.value = String(activePaletteIndex);
@@ -1678,7 +1902,8 @@
       const palette = palettes[activePaletteIndex] || palettes[0];
       if (!palette) return;
       const name = sanitizeFilename(palette.name || 'palette');
-      const text = palette.colors.join(' ');
+      const colors = palette.colors.map((entry) => (typeof entry === 'string' ? entry : entry.value)).filter(Boolean);
+      const text = colors.join(' ');
       const blob = new Blob([text], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');

@@ -23,6 +23,7 @@
   --pixel-size: 10px;
   --grid-columns: 16;
   --grid-rows: 16;
+  --palette-columns: 16;
 }
 
 /* =============================
@@ -801,7 +802,7 @@ svg {
 
 .palette-swatch-group {
   display: grid;
-  grid-template-columns: repeat(16, 32px);
+  grid-template-columns: repeat(var(--palette-columns), 32px);
   grid-auto-rows: 32px;
   gap: 10px;
 }
