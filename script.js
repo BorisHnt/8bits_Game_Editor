@@ -66,6 +66,7 @@
       'panel.clearCanvas': 'Clear Canvas',
       'panel.exportSingle': 'Single frame',
       'panel.exportSequence': 'Sequence 001-999',
+      'panel.exportSheet': 'Spritesheet (single row)',
       'panel.addPalette': 'Add Palette',
       'panel.importPalette': 'Import TXT',
       'panel.exportPalette': 'Export TXT',
@@ -169,6 +170,7 @@
       'panel.clearCanvas': 'Effacer le canvas',
       'panel.exportSingle': 'Une frame',
       'panel.exportSequence': 'Sequence 001-999',
+      'panel.exportSheet': 'Spritesheet (ligne unique)',
       'panel.addPalette': 'Ajouter une palette',
       'panel.importPalette': 'Importer TXT',
       'panel.exportPalette': 'Exporter TXT',
@@ -1572,6 +1574,23 @@
           const number = String(index + 1).padStart(3, '0');
           downloadCanvas(canvas, `${baseName}_${number}.png`);
         });
+        return;
+      }
+      if (mode === 'sheet') {
+        const canvas = document.createElement('canvas');
+        const frameCount = Math.max(state.frames.length, 1);
+        canvas.width = width * frameCount;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.imageSmoothingEnabled = false;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        state.frames.forEach((frame, index) => {
+          const tempCanvas = document.createElement('canvas');
+          drawPixelsToCanvas(frame.pixels, tempCanvas, width, height, 1);
+          ctx.drawImage(tempCanvas, index * width, 0);
+        });
+        downloadCanvas(canvas, `${baseName}_sheet.png`);
         return;
       }
     }
