@@ -23,52 +23,58 @@
         </span>
         <span class="brand-text">8bits Game Editor</span>
       </a>
-      <nav class="navigation-links">
-        <a class="navigation-link" href="index.html">
-          <span class="navigation-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 12l7-7 7 7"></path>
-              <path d="M6 10v10h12V10"></path>
-            </svg>
-          </span>
-          Home
-        </a>
-        <a class="navigation-link" href="graphic-assets.html">
-          <span class="navigation-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="7" height="7"></rect>
-              <rect x="14" y="3" width="7" height="7"></rect>
-              <rect x="3" y="14" width="7" height="7"></rect>
-              <rect x="14" y="14" width="7" height="7"></rect>
-            </svg>
-          </span>
-          Graphic Assets Design
-        </a>
-      </nav>
+      <div class="navigation-right">
+        <nav class="navigation-links">
+          <a class="navigation-link" href="index.html">
+            <span class="navigation-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12l7-7 7 7"></path>
+                <path d="M6 10v10h12V10"></path>
+              </svg>
+            </span>
+            <span class="navigation-text" data-i18n="nav.home">Home</span>
+          </a>
+          <a class="navigation-link" href="graphic-assets.html">
+            <span class="navigation-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+              </svg>
+            </span>
+            <span class="navigation-text" data-i18n="nav.graphic">Graphic Assets Design</span>
+          </a>
+        </nav>
+        <div class="language-toggle" role="group" aria-label="Language switcher">
+          <button class="language-toggle-button is-active" type="button" data-lang="en" aria-pressed="true">EN</button>
+          <button class="language-toggle-button" type="button" data-lang="fr" aria-pressed="false">FR</button>
+        </div>
+      </div>
     </div>
   </header>
 
   <main class="workspace-page">
     <section class="workspace-header">
       <div>
-        <h1 class="workspace-title">Graphic Assets Design</h1>
-        <p class="workspace-subtitle">Pixel editor workspace for sprites, tiles, and texture systems.</p>
+        <h1 class="workspace-title" data-i18n="workspace.title">Graphic Assets Design</h1>
+        <p class="workspace-subtitle" data-i18n="workspace.subtitle">Pixel editor workspace for sprites, tiles, and texture systems.</p>
       </div>
       <div class="workspace-meta">
         <div class="workspace-meta-item">
-          <span class="workspace-meta-label">Grid</span>
+          <span class="workspace-meta-label" data-i18n="workspace.meta.grid">Grid</span>
           <span class="workspace-meta-value">16 x 16</span>
         </div>
         <div class="workspace-meta-item">
-          <span class="workspace-meta-label">Preview</span>
-          <span class="workspace-meta-value">Tiling enabled</span>
+          <span class="workspace-meta-label" data-i18n="workspace.meta.preview">Preview</span>
+          <span class="workspace-meta-value" data-i18n="workspace.meta.previewValue">Tiling enabled</span>
         </div>
       </div>
     </section>
 
     <section class="workspace-layout">
       <aside class="workspace-panel-left">
-        <h2 class="panel-title">Tools</h2>
+        <h2 class="panel-title" data-i18n="panel.tools">Tools</h2>
         <div class="tool-selector">
           <button class="tool-selector-button is-active" data-tool="pencil">
             <span class="tool-icon" aria-hidden="true">
@@ -77,7 +83,7 @@
                 <path d="M16.5 3.5l4 4L8 20H4v-4L16.5 3.5z"></path>
               </svg>
             </span>
-            Pencil
+            <span class="tool-label" data-i18n="tool.pencil">Pencil</span>
           </button>
           <button class="tool-selector-button" data-tool="eraser">
             <span class="tool-icon" aria-hidden="true">
@@ -85,7 +91,7 @@
                 <path d="M18 13l-5 5H7l-4-4 9-9 6 6z"></path>
               </svg>
             </span>
-            Eraser
+            <span class="tool-label" data-i18n="tool.eraser">Eraser</span>
           </button>
           <button class="tool-selector-button" data-tool="eyedropper">
             <span class="tool-icon" aria-hidden="true">
@@ -96,7 +102,7 @@
                 <path d="M14 15l4 4"></path>
               </svg>
             </span>
-            Eyedropper
+            <span class="tool-label" data-i18n="tool.eyedropper">Eyedropper</span>
           </button>
           <button class="tool-selector-button" data-tool="fill">
             <span class="tool-icon" aria-hidden="true">
@@ -105,12 +111,12 @@
                 <path d="M5 11h14v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"></path>
               </svg>
             </span>
-            Fill Bucket
+            <span class="tool-label" data-i18n="tool.fill">Fill Bucket</span>
           </button>
         </div>
         <div class="panel-divider"></div>
         <div class="tool-info">
-          <p class="panel-label">Active Tool</p>
+          <p class="panel-label" data-i18n="panel.activeTool">Active Tool</p>
           <p class="panel-value" id="active-tool-label">Pencil</p>
         </div>
       </aside>
@@ -118,11 +124,11 @@
       <div class="workspace-panel-center">
         <div class="canvas-header">
           <div>
-            <h2 class="panel-title">Pixel Canvas</h2>
-            <p class="panel-subtitle">Base grid 16x16. Each pixel is 10px.</p>
+            <h2 class="panel-title" data-i18n="panel.canvas">Pixel Canvas</h2>
+            <p class="panel-subtitle" data-i18n="panel.canvasSubtitle">Base grid 16x16. Each pixel is 10px.</p>
           </div>
           <div class="zoom-control">
-            <label class="panel-label" for="zoom-range">Zoom</label>
+            <label class="panel-label" for="zoom-range" data-i18n="panel.zoom">Zoom</label>
             <input type="range" id="zoom-range" min="8" max="20" value="10" />
             <span class="panel-value" id="zoom-value">10px</span>
           </div>
@@ -132,34 +138,34 @@
         </div>
         <div class="palette-panel">
           <div>
-            <h2 class="panel-title">Palette</h2>
-            <p class="panel-subtitle">Predefined pixel-art colors.</p>
+            <h2 class="panel-title" data-i18n="panel.palette">Palette</h2>
+            <p class="panel-subtitle" data-i18n="panel.paletteSubtitle">Predefined pixel-art colors.</p>
           </div>
           <div class="palette-row">
             <div class="palette-swatch-group" id="palette-swatches"></div>
             <div class="active-color-preview">
-              <span class="panel-label">Active</span>
+              <span class="panel-label" data-i18n="panel.activeColor">Active</span>
               <div class="active-color-chip" id="active-color-chip"></div>
             </div>
           </div>
         </div>
         <div class="export-panel accent-outline-active">
           <div>
-            <h2 class="panel-title">Export</h2>
-            <p class="panel-subtitle">Ready for PNG output. Transparent background preserved.</p>
+            <h2 class="panel-title" data-i18n="panel.export">Export</h2>
+            <p class="panel-subtitle" data-i18n="panel.exportSubtitle">Ready for PNG output. Transparent background preserved.</p>
           </div>
-          <button class="button-primary">Export PNG</button>
+          <button class="button-primary" data-i18n="panel.exportButton">Export PNG</button>
         </div>
       </div>
 
       <aside class="workspace-panel-right">
-        <h2 class="panel-title">Tile Preview</h2>
-        <p class="panel-subtitle">See repetition at scale.</p>
+        <h2 class="panel-title" data-i18n="panel.preview">Tile Preview</h2>
+        <p class="panel-subtitle" data-i18n="panel.previewSubtitle">See repetition at scale.</p>
         <div class="tile-preview-grid" id="tile-preview"></div>
         <div class="panel-divider"></div>
         <div class="preview-notes">
-          <p class="panel-label">Mode</p>
-          <p class="panel-value">Walls / Floors / Continuous</p>
+          <p class="panel-label" data-i18n="panel.previewMode">Mode</p>
+          <p class="panel-value" data-i18n="panel.previewModeValue">Walls / Floors / Continuous</p>
         </div>
       </aside>
     </section>
