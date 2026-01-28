@@ -61,6 +61,15 @@
       'panel.export': 'Export',
       'panel.exportSubtitle': 'Ready for PNG output. Transparent background preserved.',
       'panel.exportButton': 'Export PNG',
+      'panel.exportSingle': 'Single frame',
+      'panel.exportSequence': 'Sequence 001-999',
+      'panel.addPalette': 'Add Palette',
+      'panel.paletteModalTitle': 'Add Palette',
+      'panel.paletteName': 'Palette Name',
+      'panel.paletteValues': 'Colors',
+      'panel.paletteHint': 'Use spaces between colors. Accepts rgb(x,y,z) or #hex.',
+      'panel.save': 'Save Palette',
+      'panel.cancel': 'Cancel',
       'panel.preview': 'Preview',
       'panel.previewTilesTitle': 'Tiles Preview',
       'panel.previewSpriteTitle': 'Sprite Preview',
@@ -150,6 +159,15 @@
       'panel.export': 'Export',
       'panel.exportSubtitle': "Prêt pour l'export PNG. Transparence préservée.",
       'panel.exportButton': 'Exporter PNG',
+      'panel.exportSingle': 'Une frame',
+      'panel.exportSequence': 'Sequence 001-999',
+      'panel.addPalette': 'Ajouter une palette',
+      'panel.paletteModalTitle': 'Ajouter une palette',
+      'panel.paletteName': 'Nom de palette',
+      'panel.paletteValues': 'Couleurs',
+      'panel.paletteHint': 'Utiliser des espaces. Accepte rgb(x,y,z) ou #hex.',
+      'panel.save': 'Enregistrer',
+      'panel.cancel': 'Annuler',
       'panel.preview': 'Aperçu',
       'panel.previewTilesTitle': 'Aperçu Tiles',
       'panel.previewSpriteTitle': 'Aperçu Sprite',
@@ -191,6 +209,8 @@
   let activeColor = 'rgb(255,255,255)';
   let paletteSwatchMap = new Map();
   let transparentSwatch = null;
+  let palettes = [];
+  let activePaletteIndex = 0;
   let spriteTimerId = null;
   let isCtrlDrawing = false;
 
@@ -323,6 +343,34 @@
 
   const createEmptyPixels = (width, height) => Array.from({ length: width * height }, () => null);
 
+  const normalizeColor = (value) => value.replace(/\s+/g, '').toLowerCase();
+
+  const parseColorToken = (token) => {
+    const trimmed = token.trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith('#')) {
+      const hex = trimmed.slice(1);
+      if (![3, 6].includes(hex.length)) return null;
+      return `#${hex}`.toLowerCase();
+    }
+    const rgbMatch = trimmed.match(/^rgb\\((\\d{1,3}),(\\d{1,3}),(\\d{1,3})\\)$/i);
+    if (rgbMatch) {
+      const parts = rgbMatch.slice(1).map((value) => clamp(Number.parseInt(value, 10), 0, 255));
+      return `rgb(${parts[0]},${parts[1]},${parts[2]})`;
+    }
+    return null;
+  };
+
+  const parsePaletteInput = (input) => {
+    const tokens = input.split(/\\s+/).filter(Boolean);
+    const colors = [];
+    tokens.forEach((token) => {
+      const parsed = parseColorToken(token);
+      if (parsed) colors.push(parsed);
+    });
+    return colors;
+  };
+
   const resizePixelBuffer = (pixels, oldWidth, oldHeight, newWidth, newHeight) => {
     const resized = createEmptyPixels(newWidth, newHeight);
     const copyWidth = Math.min(oldWidth, newWidth);
@@ -416,33 +464,59 @@
     const swatchContainer = qs('#palette-swatches');
     if (!swatchContainer) return;
 
+    if (!palettes.length) {
+      palettes = [{ name: 'Default 64', colors: paletteColors.filter((item) => !item.transparent).map((item) => item.value) }];
+      activePaletteIndex = 0;
+    }
+
+    const paletteSelect = qs('#palette-select');
+    if (paletteSelect) {
+      paletteSelect.innerHTML = '';
+      palettes.forEach((palette, index) => {
+        const option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = palette.name;
+        if (index === activePaletteIndex) option.selected = true;
+        paletteSelect.appendChild(option);
+      });
+    }
+
+    const selectedPalette = palettes[activePaletteIndex] || palettes[0];
+
     paletteSwatchMap = new Map();
     transparentSwatch = null;
     swatchContainer.innerHTML = '';
 
-    paletteColors.forEach((swatchInfo) => {
+    selectedPalette.colors.forEach((color) => {
       const swatch = document.createElement('button');
       swatch.type = 'button';
       swatch.className = 'palette-color-swatch';
-      swatch.dataset.label = swatchInfo.name;
-      swatch.title = swatchInfo.name;
-
-      if (swatchInfo.transparent) {
-        swatch.classList.add('is-transparent');
-        swatch.dataset.transparent = 'true';
-        transparentSwatch = swatch;
-      } else {
-        swatch.style.background = swatchInfo.value;
-        swatch.dataset.color = swatchInfo.value;
-        paletteSwatchMap.set(swatchInfo.value, swatch);
-      }
-
+      swatch.dataset.label = color;
+      swatch.title = color;
+      swatch.style.background = color;
+      swatch.dataset.color = color;
+      paletteSwatchMap.set(color, swatch);
       swatch.addEventListener('click', () => {
-        setActiveColor(swatchInfo.transparent ? null : swatchInfo.value);
+        setActiveColor(color);
       });
-
       swatchContainer.appendChild(swatch);
     });
+
+    const transparentInfo = paletteColors.find((item) => item.transparent);
+    if (transparentInfo) {
+      const swatch = document.createElement('button');
+      swatch.type = 'button';
+      swatch.className = 'palette-color-swatch';
+      swatch.dataset.label = transparentInfo.name;
+      swatch.title = transparentInfo.name;
+      swatch.classList.add('is-transparent');
+      swatch.dataset.transparent = 'true';
+      transparentSwatch = swatch;
+      swatch.addEventListener('click', () => {
+        setActiveColor(null);
+      });
+      swatchContainer.appendChild(swatch);
+    }
 
     setActiveColor(activeColor);
     updatePaletteAriaLabels();
@@ -1119,27 +1193,38 @@
     }
   };
 
-  const exportActivePixels = () => {
-    const pixels = getActivePixels();
-    if (!pixels) return;
-    const { width, height } = state.grid;
-    const canvas = document.createElement('canvas');
-    drawPixelsToCanvas(pixels, canvas, width, height, 1);
-
-    const mode = state.preview.mode;
-    let name = `${mode}-${width}x${height}`;
-    if (mode === 'sprite') {
-      name += `-frame-${state.activeFrameIndex + 1}`;
-    }
-    if (mode === 'walls') {
-      const tileId = state.wallTiles[state.activeWallTileIndex]?.id || 'tile';
-      name += `-${tileId}`;
-    }
-
+  const downloadCanvas = (canvas, filename) => {
     const link = document.createElement('a');
     link.href = canvas.toDataURL('image/png');
-    link.download = `8bits-${name}.png`;
+    link.download = filename;
     link.click();
+  };
+
+  const sanitizeFilename = (name) => name.replace(/[^a-z0-9-_]/gi, '_').replace(/_+/g, '_').trim() || 'export';
+
+  const exportActivePixels = () => {
+    const { width, height } = state.grid;
+    const baseInput = qs('#export-name');
+    const baseName = sanitizeFilename(baseInput?.value || 'export');
+
+    if (state.preview.mode === 'sprite') {
+      const mode = qs('input[name=\"sprite-export\"]:checked')?.value || 'single';
+      if (mode === 'sequence') {
+        state.frames.forEach((frame, index) => {
+          const canvas = document.createElement('canvas');
+          drawPixelsToCanvas(frame.pixels, canvas, width, height, 1);
+          const number = String(index + 1).padStart(3, '0');
+          downloadCanvas(canvas, `${baseName}_${number}.png`);
+        });
+        return;
+      }
+    }
+
+    const pixels = getActivePixels();
+    if (!pixels) return;
+    const canvas = document.createElement('canvas');
+    drawPixelsToCanvas(pixels, canvas, width, height, 1);
+    downloadCanvas(canvas, `${baseName}.png`);
   };
 
   const renderTilesPreview = () => {
@@ -1506,6 +1591,56 @@
     });
   };
 
+  const bindPaletteControls = () => {
+    const paletteSelect = qs('#palette-select');
+    const addButton = qs('#add-palette');
+    const modal = qs('#palette-modal');
+    const closeButton = qs('#palette-modal-close');
+    const cancelButton = qs('#palette-modal-cancel');
+    const saveButton = qs('#palette-modal-save');
+    const nameInput = qs('#palette-name');
+    const valuesInput = qs('#palette-values');
+
+    if (paletteSelect) {
+      paletteSelect.addEventListener('change', () => {
+        activePaletteIndex = Number.parseInt(paletteSelect.value, 10) || 0;
+        buildPalette();
+      });
+    }
+
+    const openModal = () => {
+      if (!modal) return;
+      modal.classList.remove('is-hidden');
+      modal.setAttribute('aria-hidden', 'false');
+      if (nameInput) nameInput.focus();
+    };
+
+    const closeModal = () => {
+      if (!modal) return;
+      modal.classList.add('is-hidden');
+      modal.setAttribute('aria-hidden', 'true');
+    };
+
+    addButton?.addEventListener('click', openModal);
+    closeButton?.addEventListener('click', closeModal);
+    cancelButton?.addEventListener('click', closeModal);
+
+    saveButton?.addEventListener('click', () => {
+      const name = (nameInput?.value || '').trim() || 'Custom Palette';
+      const values = valuesInput?.value || '';
+      const parsed = parsePaletteInput(values);
+      const unique = Array.from(new Map(parsed.map((color) => [normalizeColor(color), color])).values());
+      if (!unique.length) return;
+      palettes.push({ name, colors: unique });
+      activePaletteIndex = palettes.length - 1;
+      buildPalette();
+      if (paletteSelect) paletteSelect.value = String(activePaletteIndex);
+      if (nameInput) nameInput.value = '';
+      if (valuesInput) valuesInput.value = '';
+      closeModal();
+    });
+  };
+
   document.addEventListener('DOMContentLoaded', () => {
     initializeState();
     createHeroAmbient();
@@ -1524,6 +1659,7 @@
     bindPreviewControls();
     bindWallPaintInteraction();
     bindExportButton();
+    bindPaletteControls();
     bindLanguageToggle();
 
     const storedLanguage = localStorage.getItem('preferredLanguage') || 'en';

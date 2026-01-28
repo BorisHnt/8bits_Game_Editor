@@ -173,6 +173,10 @@
             <h2 class="panel-title" data-i18n="panel.palette">Palette</h2>
             <p class="panel-subtitle" data-i18n="panel.paletteSubtitle">Predefined pixel-art colors.</p>
           </div>
+          <div class="palette-controls">
+            <select class="palette-select" id="palette-select" aria-label="Palette selector"></select>
+            <button class="button-secondary" type="button" id="add-palette" data-i18n="panel.addPalette">Add Palette</button>
+          </div>
           <div class="palette-row">
             <div class="palette-swatch-group" id="palette-swatches"></div>
             <div class="active-color-preview">
@@ -186,7 +190,10 @@
             <h2 class="panel-title" data-i18n="panel.export">Export</h2>
             <p class="panel-subtitle" data-i18n="panel.exportSubtitle">Ready for PNG output. Transparent background preserved.</p>
           </div>
-          <button class="button-primary" id="export-png" data-i18n="panel.exportButton">Export PNG</button>
+          <div class="export-controls">
+            <input class="export-name-input" type="text" id="export-name" value="wall-tile" aria-label="Export filename" />
+            <button class="button-primary" id="export-png" data-i18n="panel.exportButton">Export PNG</button>
+          </div>
         </div>
       </div>
 
@@ -237,5 +244,24 @@
   </main>
 
   <script src="script.js"></script>
+  <div class="modal-overlay is-hidden" id="palette-modal" aria-hidden="true">
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="palette-modal-title">
+      <div class="modal-header">
+        <h2 class="panel-title" id="palette-modal-title" data-i18n="panel.paletteModalTitle">Add Palette</h2>
+        <button class="button-secondary" type="button" id="palette-modal-close" aria-label="Close">Close</button>
+      </div>
+      <div class="modal-body">
+        <label class="panel-label" for="palette-name" data-i18n="panel.paletteName">Palette Name</label>
+        <input class="export-name-input" type="text" id="palette-name" placeholder="Neon City" />
+        <label class="panel-label" for="palette-values" data-i18n="panel.paletteValues">Colors</label>
+        <textarea class="palette-textarea" id="palette-values" rows="5" placeholder=\"rgb(255,0,0) #00ff88 #123456\"></textarea>
+        <p class="panel-subtitle" data-i18n="panel.paletteHint">Use spaces between colors. Accepts rgb(x,y,z) or #hex.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="button-secondary" type="button" id="palette-modal-cancel" data-i18n="panel.cancel">Cancel</button>
+        <button class="button-primary" type="button" id="palette-modal-save" data-i18n="panel.save">Save Palette</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

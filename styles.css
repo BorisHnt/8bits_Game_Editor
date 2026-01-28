@@ -752,6 +752,34 @@ svg {
   gap: 16px;
 }
 
+.palette-controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.palette-select {
+  min-width: 200px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  padding: 6px 10px;
+}
+
+.palette-textarea {
+  width: 100%;
+  min-height: 120px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  padding: 10px;
+  resize: vertical;
+}
+
 .palette-row {
   display: flex;
   justify-content: space-between;
@@ -839,6 +867,49 @@ svg {
   align-items: center;
   justify-content: space-between;
   gap: 18px;
+}
+
+.export-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.export-name-input {
+  min-width: 180px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  padding: 6px 10px;
+}
+
+.export-name-input:focus-visible {
+  outline: 2px solid var(--color-accent-2);
+  outline-offset: 1px;
+}
+
+.export-options {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-text-secondary);
+}
+
+.export-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.export-option input {
+  accent-color: var(--color-accent-4);
 }
 
 .preview-header {
@@ -992,6 +1063,47 @@ svg {
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: transparent;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 200;
+}
+
+.modal-panel {
+  width: min(520px, 90vw);
+  background: var(--color-panel-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .accent-outline-active {
