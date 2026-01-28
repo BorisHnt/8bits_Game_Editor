@@ -528,6 +528,10 @@ svg {
   color: var(--color-accent-3);
 }
 
+.tool-selector-button.is-active .tool-icon {
+  color: var(--color-accent-5);
+}
+
 .tool-info {
   background: var(--color-panel-elevated);
   border: 1px solid var(--color-border);
