@@ -518,7 +518,46 @@
 
   function generateWallLayout(mode, cols, rows) {
     const total = cols * rows;
-    let cells = Array.from({ length: total }, () => (Math.random() > (mode === 'x47' ? 0.45 : 0.5) ? 1 : 0));
+    let cells = Array.from({ length: total }, () => 0);
+
+    const fillRect = (startX, startY, width, height, value) => {
+      for (let y = startY; y < startY + height; y += 1) {
+        for (let x = startX; x < startX + width; x += 1) {
+          if (x < 0 || y < 0 || x >= cols || y >= rows) continue;
+          cells[y * cols + x] = value;
+        }
+      }
+    };
+
+    if (mode === 'x13') {
+      const blockCount = Math.max(1, Math.floor(total / 60));
+      const maxBlockWidth = Math.max(3, Math.min(6, cols));
+      const maxBlockHeight = Math.max(3, Math.min(6, rows));
+
+      for (let i = 0; i < blockCount; i += 1) {
+        const blockWidth = 3 + Math.floor(Math.random() * (maxBlockWidth - 2));
+        const blockHeight = 3 + Math.floor(Math.random() * (maxBlockHeight - 2));
+        const startX = Math.floor(Math.random() * Math.max(1, cols - blockWidth));
+        const startY = Math.floor(Math.random() * Math.max(1, rows - blockHeight));
+        fillRect(startX, startY, blockWidth, blockHeight, 1);
+      }
+
+      if (cols >= 7 && rows >= 7) {
+        fillRect(1, 1, cols - 2, rows - 2, 1);
+        fillRect(3, 3, cols - 6, rows - 6, 0);
+      }
+
+      const holeCount = Math.max(1, Math.floor(total / 80));
+      for (let i = 0; i < holeCount; i += 1) {
+        const holeX = 2 + Math.floor(Math.random() * Math.max(1, cols - 4));
+        const holeY = 2 + Math.floor(Math.random() * Math.max(1, rows - 4));
+        fillRect(holeX, holeY, 2, 2, 0);
+      }
+
+      return cells;
+    }
+
+    cells = Array.from({ length: total }, () => (Math.random() > 0.45 ? 1 : 0));
 
     const countNeighbors = (x, y) => {
       let count = 0;
@@ -547,20 +586,18 @@
       }
     };
 
-    smooth(mode === 'x47' ? 4 : 3);
+    smooth(4);
 
-    if (mode === 'x47') {
-      cells = cells.map((value, index) => {
-        if (!value) return 0;
-        const x = index % cols;
-        const y = Math.floor(index / cols);
-        const neighbors = countNeighbors(x, y);
-        if (neighbors >= 7 && Math.random() < 0.08) {
-          return 0;
-        }
-        return value;
-      });
-    }
+    cells = cells.map((value, index) => {
+      if (!value) return 0;
+      const x = index % cols;
+      const y = Math.floor(index / cols);
+      const neighbors = countNeighbors(x, y);
+      if (neighbors >= 7 && Math.random() < 0.08) {
+        return 0;
+      }
+      return value;
+    });
 
     return cells;
   }
