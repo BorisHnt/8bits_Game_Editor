@@ -721,7 +721,11 @@
       const color = pixels[index] ?? null;
       setCellColor(cell, color);
       cell.style.boxShadow = '';
-      if (!color && onionFrame?.pixels?.[index]) {
+      cell.style.opacity = '';
+      const onionColor = onionFrame?.pixels?.[index];
+      if (!color && onionColor) {
+        cell.style.background = onionColor;
+        cell.style.opacity = '0.45';
         cell.style.boxShadow = 'inset 0 0 0 2px var(--color-accent-2)';
       }
     });

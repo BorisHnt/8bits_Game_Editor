@@ -670,7 +670,7 @@ svg {
 
 .frames-strip {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -682,6 +682,7 @@ svg {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 140px;
 }
 
 .frame-item.is-active {
