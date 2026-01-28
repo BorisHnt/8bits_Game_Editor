@@ -644,8 +644,8 @@ svg {
 }
 
 .palette-color-swatch {
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   cursor: pointer;
