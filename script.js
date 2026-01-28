@@ -578,6 +578,25 @@
         fillRect(holeX, holeY, 2, 2, 0);
       }
 
+      const pruneThinCells = () => {
+        const next = cells.slice();
+        for (let y = 1; y < rows - 1; y += 1) {
+          for (let x = 1; x < cols - 1; x += 1) {
+            const index = y * cols + x;
+            if (cells[index] !== 1) continue;
+            const h = cells[index - 1] === 1 || cells[index + 1] === 1;
+            const v = cells[index - cols] === 1 || cells[index + cols] === 1;
+            if (!(h && v)) {
+              next[index] = 0;
+            }
+          }
+        }
+        cells = next;
+      };
+
+      pruneThinCells();
+      pruneThinCells();
+
       return cells;
     }
 
