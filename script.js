@@ -3,8 +3,13 @@
     en: {
       'title.home': '8bits Game Editor — Creative Lab for Pixel Makers',
       'title.graphic': '8bits Game Editor — Graphic Assets Design',
+      'title.tiles': '8bits Game Editor — Tiles Designer',
+      'title.sprite': '8bits Game Editor — Sprite Designer',
+      'title.walls': '8bits Game Editor — Walls Designer',
       'nav.home': 'Home',
-      'nav.graphic': 'Graphic Assets Design',
+      'nav.tiles': 'Tiles Designer',
+      'nav.sprite': 'Sprite Designer',
+      'nav.walls': 'Walls Designer',
       'hero.kicker': 'Experimental Studio / Creative Workshop',
       'hero.subtitle': 'A professional digital workshop for pixel makers, indie developers, and sound architects.',
       'section.toolchain.title': 'Toolchain',
@@ -35,6 +40,9 @@
       'footer.main': '8bits Game Editor — Creative Lab for Indie Makers',
       'footer.note': 'Prototype responsibly.',
       'workspace.title': 'Graphic Assets Design',
+      'workspace.titleTiles': 'Tiles Designer',
+      'workspace.titleSprite': 'Sprite Designer',
+      'workspace.titleWalls': 'Walls Designer',
       'workspace.subtitle': 'Pixel editor workspace for sprites, tiles, and texture systems.',
       'panel.tools': 'Tools',
       'tool.pencil': 'Pencil',
@@ -54,6 +62,9 @@
       'panel.exportSubtitle': 'Ready for PNG output. Transparent background preserved.',
       'panel.exportButton': 'Export PNG',
       'panel.preview': 'Preview',
+      'panel.previewTilesTitle': 'Tiles Preview',
+      'panel.previewSpriteTitle': 'Sprite Preview',
+      'panel.previewWallsTitle': 'Walls Preview',
       'panel.previewTiles': 'Tiles',
       'panel.previewSprite': 'Sprite',
       'panel.previewWalls': 'Walls',
@@ -81,8 +92,13 @@
     fr: {
       'title.home': "8bits Game Editor — Laboratoire créatif pour makers indés",
       'title.graphic': "8bits Game Editor — Design d'assets graphiques",
+      'title.tiles': "8bits Game Editor — Design de tiles",
+      'title.sprite': "8bits Game Editor — Design de sprites",
+      'title.walls': "8bits Game Editor — Design de murs",
       'nav.home': 'Accueil',
-      'nav.graphic': "Design d'assets graphiques",
+      'nav.tiles': 'Designer Tiles',
+      'nav.sprite': 'Designer Sprite',
+      'nav.walls': 'Designer Murs',
       'hero.kicker': 'Atelier expérimental / Studio de création',
       'hero.subtitle': 'Un atelier numérique professionnel pour pixel artists, développeurs indés et designers sonores.',
       'section.toolchain.title': 'Chaîne de production',
@@ -113,6 +129,9 @@
       'footer.main': "8bits Game Editor — Laboratoire créatif pour makers indés",
       'footer.note': 'Prototyper avec soin.',
       'workspace.title': "Design d'assets graphiques",
+      'workspace.titleTiles': 'Designer Tiles',
+      'workspace.titleSprite': 'Designer Sprite',
+      'workspace.titleWalls': 'Designer Murs',
       'workspace.subtitle': "Espace d'édition pixel pour sprites, tiles et systèmes de textures.",
       'panel.tools': 'Outils',
       'tool.pencil': 'Crayon',
@@ -132,6 +151,9 @@
       'panel.exportSubtitle': "Prêt pour l'export PNG. Transparence préservée.",
       'panel.exportButton': 'Exporter PNG',
       'panel.preview': 'Aperçu',
+      'panel.previewTilesTitle': 'Aperçu Tiles',
+      'panel.previewSpriteTitle': 'Aperçu Sprite',
+      'panel.previewWallsTitle': 'Aperçu Murs',
       'panel.previewTiles': 'Tiles',
       'panel.previewSprite': 'Sprite',
       'panel.previewWalls': 'Murs',
@@ -170,6 +192,7 @@
   let paletteSwatchMap = new Map();
   let transparentSwatch = null;
   let spriteTimerId = null;
+  let isCtrlDrawing = false;
 
   const state = {
     grid: {
@@ -590,11 +613,19 @@
     };
 
     const handlePointerMove = (event) => {
-      if (!isDrawing) return;
-      if (activeTool !== 'pencil' && activeTool !== 'eraser') return;
       const cell = event.target.closest('.pixel-cell');
       if (!cell) return;
-      applyToolToCell(cell, { dragging: true });
+      const allowDragTool = activeTool === 'pencil' || activeTool === 'eraser';
+
+      if (isDrawing) {
+        if (!allowDragTool) return;
+        applyToolToCell(cell, { dragging: true });
+        return;
+      }
+
+      if ((isCtrlDrawing || event.ctrlKey) && allowDragTool) {
+        applyToolToCell(cell, { dragging: true });
+      }
     };
 
     const stopDrawing = (event) => {
@@ -607,10 +638,30 @@
       }
     };
 
-    canvas.addEventListener('pointerdown', handlePointerDown);
-    canvas.addEventListener('pointermove', handlePointerMove);
-    canvas.addEventListener('pointerup', stopDrawing);
-    canvas.addEventListener('pointerleave', stopDrawing);
+  canvas.addEventListener('pointerdown', handlePointerDown);
+  canvas.addEventListener('pointermove', handlePointerMove);
+  canvas.addEventListener('pointerup', stopDrawing);
+  canvas.addEventListener('pointerleave', stopDrawing);
+  };
+
+  const bindCtrlDrawing = () => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Control') {
+        isCtrlDrawing = true;
+      }
+    };
+
+    const handleKeyUp = (event) => {
+      if (event.key === 'Control') {
+        isCtrlDrawing = false;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', () => {
+      isCtrlDrawing = false;
+    });
   };
 
   const bindToolSelection = () => {
@@ -1318,10 +1369,13 @@
     };
 
     const handlePointerMove = (event) => {
-      if (!isDrawing) return;
-      if (activeTool !== 'pencil' && activeTool !== 'eraser') return;
       const cell = getCellFromEvent(event);
       if (!cell) return;
+      const allowDragTool = activeTool === 'pencil' || activeTool === 'eraser';
+
+      if (!isDrawing && !(isCtrlDrawing || event.ctrlKey)) return;
+      if (!allowDragTool) return;
+
       if (activeTool === 'eraser') {
         paintWallCell(cell.x, cell.y, 0);
       } else {
@@ -1387,7 +1441,15 @@
       }
     });
 
-    const pageTitleKey = document.body.classList.contains('page-home') ? 'title.home' : 'title.graphic';
+    let pageTitleKey = 'title.graphic';
+    if (document.body.classList.contains('page-home')) {
+      pageTitleKey = 'title.home';
+    } else {
+      const designer = document.body.dataset.designer;
+      if (designer === 'tiles') pageTitleKey = 'title.tiles';
+      if (designer === 'sprite') pageTitleKey = 'title.sprite';
+      if (designer === 'walls') pageTitleKey = 'title.walls';
+    }
     if (dictionary[pageTitleKey]) {
       document.title = dictionary[pageTitleKey];
     }
@@ -1424,6 +1486,7 @@
     renderFramesStrip();
     renderWallTilesGrid();
     bindCanvasInteraction();
+    bindCtrlDrawing();
     bindToolSelection();
     bindZoomControl();
     bindGridControls();
@@ -1436,7 +1499,8 @@
     const storedLanguage = localStorage.getItem('preferredLanguage') || 'en';
     applyTranslations(storedLanguage);
     updateActiveToolLabel();
-    setPreviewMode('tiles');
+    const designer = document.body.dataset.designer || 'tiles';
+    setPreviewMode(designer);
     renderPreviews();
   });
 })();

@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>8bits Game Editor — Tiles Designer</title>
+  <title>8bits Game Editor — Sprite Designer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="page-graphic-assets" data-designer="tiles">
+<body class="page-graphic-assets" data-designer="sprite">
   <header class="navigation-bar-sticky">
     <div class="navigation-bar-inner">
       <a class="brand-lockup" href="index.html" aria-label="8bits Game Editor home">
@@ -78,7 +78,7 @@
   <main class="workspace-page">
     <section class="workspace-header">
       <div>
-        <h1 class="workspace-title" data-i18n="workspace.titleTiles">Tiles Designer</h1>
+        <h1 class="workspace-title" data-i18n="workspace.titleSprite">Sprite Designer</h1>
         <p class="workspace-subtitle" data-i18n="workspace.subtitle">Pixel editor workspace for sprites, tiles, and texture systems.</p>
       </div>
     </section>
@@ -158,6 +158,19 @@
         <div class="canvas-grid-wrapper">
           <div class="pixel-canvas-grid" id="pixel-canvas"></div>
         </div>
+        <div class="frames-panel" id="frames-panel">
+          <div class="frames-header">
+            <div>
+              <h2 class="panel-title" data-i18n="panel.frames">Frames</h2>
+              <p class="panel-subtitle" data-i18n="panel.framesSubtitle">Add, reorder, and preview animation frames.</p>
+            </div>
+            <div class="frames-actions">
+              <button class="button-secondary" type="button" id="toggle-onion" data-i18n="panel.onionSkin" aria-pressed="false">Onion Skin</button>
+              <button class="button-secondary" type="button" id="add-frame" data-i18n="panel.addFrame">Add Frame</button>
+            </div>
+          </div>
+          <div class="frames-strip" id="frames-strip"></div>
+        </div>
         <div class="palette-panel">
           <div>
             <h2 class="panel-title" data-i18n="panel.palette">Palette</h2>
@@ -182,37 +195,29 @@
 
       <aside class="workspace-panel-right">
         <div class="preview-header">
-          <h2 class="panel-title" data-i18n="panel.previewTilesTitle">Tiles Preview</h2>
+          <h2 class="panel-title" data-i18n="panel.previewSpriteTitle">Sprite Preview</h2>
         </div>
         <div class="preview-panel">
           <div class="preview-controls">
             <div class="preview-control-group">
-              <label class="panel-label" for="tiles-cols" data-i18n="panel.previewGrid">Grid</label>
-              <div class="grid-inputs">
-                <input class="grid-size-input" type="number" id="tiles-cols" min="1" max="30" value="10" aria-label="Tile columns" />
-                <span class="grid-separator">x</span>
-                <input class="grid-size-input" type="number" id="tiles-rows" min="1" max="30" value="10" aria-label="Tile rows" />
-                <button class="button-secondary" type="button" id="tiles-apply" data-i18n="panel.previewApply">Apply</button>
+              <label class="panel-label" data-i18n="panel.previewPlayback">Playback</label>
+              <div class="preview-button-group">
+                <button class="button-secondary" type="button" id="sprite-play" data-i18n="panel.previewPlay">Play</button>
+                <button class="button-secondary" type="button" id="sprite-pause" data-i18n="panel.previewPause">Pause</button>
+                <button class="button-secondary" type="button" id="sprite-step" data-i18n="panel.previewStep">Step</button>
               </div>
             </div>
             <div class="preview-control-group">
-              <label class="panel-label" data-i18n="panel.previewOverlay">Overlay</label>
-              <label class="toggle-switch">
-                <input type="checkbox" id="tiles-grid-toggle" checked />
-                <span class="toggle-slider"></span>
-              </label>
+              <label class="panel-label" for="sprite-fps" data-i18n="panel.previewFps">FPS</label>
+              <input class="grid-size-input" type="number" id="sprite-fps" min="1" max="24" value="6" />
             </div>
             <div class="preview-control-group">
-              <label class="panel-label" for="tiles-zoom" data-i18n="panel.previewZoom">Zoom</label>
-              <input type="range" id="tiles-zoom" min="1" max="6" value="3" />
-            </div>
-            <div class="preview-control-group">
-              <label class="panel-label" for="tiles-bg" data-i18n="panel.previewBackground">Background</label>
-              <input class="color-input" type="color" id="tiles-bg" value="#050505" />
+              <label class="panel-label" for="sprite-zoom" data-i18n="panel.previewZoom">Zoom</label>
+              <input type="range" id="sprite-zoom" min="1" max="6" value="3" />
             </div>
           </div>
           <div class="preview-canvas-wrapper">
-            <canvas class="preview-canvas" id="tiles-preview-canvas" width="420" height="420"></canvas>
+            <canvas class="preview-canvas" id="sprite-preview-canvas" width="320" height="320"></canvas>
           </div>
         </div>
       </aside>
