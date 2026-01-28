@@ -109,6 +109,12 @@
           <p class="panel-label" data-i18n="panel.activeTool">Active Tool</p>
           <p class="panel-value" id="active-tool-label">Pencil</p>
         </div>
+        <div class="panel-divider"></div>
+        <div class="wall-tiles-panel is-hidden" id="wall-tiles-panel">
+          <h2 class="panel-title" data-i18n="panel.wallTiles">Wall Tiles</h2>
+          <p class="panel-subtitle" data-i18n="panel.wallTilesSubtitle">Select a wall segment to edit.</p>
+          <div class="wall-tiles-grid" id="wall-tiles-grid"></div>
+        </div>
       </aside>
 
       <div class="workspace-panel-center">
@@ -137,6 +143,19 @@
         <div class="canvas-grid-wrapper">
           <div class="pixel-canvas-grid" id="pixel-canvas"></div>
         </div>
+        <div class="frames-panel is-hidden" id="frames-panel">
+          <div class="frames-header">
+            <div>
+              <h2 class="panel-title" data-i18n="panel.frames">Frames</h2>
+              <p class="panel-subtitle" data-i18n="panel.framesSubtitle">Add, reorder, and preview animation frames.</p>
+            </div>
+            <div class="frames-actions">
+              <button class="button-secondary" type="button" id="toggle-onion" data-i18n="panel.onionSkin" aria-pressed="false">Onion Skin</button>
+              <button class="button-secondary" type="button" id="add-frame" data-i18n="panel.addFrame">Add Frame</button>
+            </div>
+          </div>
+          <div class="frames-strip" id="frames-strip"></div>
+        </div>
         <div class="palette-panel">
           <div>
             <h2 class="panel-title" data-i18n="panel.palette">Palette</h2>
@@ -160,13 +179,107 @@
       </div>
 
       <aside class="workspace-panel-right">
-        <h2 class="panel-title" data-i18n="panel.preview">Tile Preview</h2>
-        <p class="panel-subtitle" data-i18n="panel.previewSubtitle">See repetition at scale.</p>
-        <div class="tile-preview-grid" id="tile-preview"></div>
-        <div class="panel-divider"></div>
-        <div class="preview-notes">
-          <p class="panel-label" data-i18n="panel.previewMode">Mode</p>
-          <p class="panel-value" data-i18n="panel.previewModeValue">Walls / Floors / Continuous</p>
+        <div class="preview-header">
+          <h2 class="panel-title" data-i18n="panel.preview">Preview</h2>
+          <div class="preview-mode-tabs" role="tablist" aria-label="Preview modes">
+            <button class="preview-mode-tab is-active" type="button" role="tab" aria-selected="true" data-preview-mode="tiles" data-i18n="panel.previewTiles">Tiles</button>
+            <button class="preview-mode-tab" type="button" role="tab" aria-selected="false" data-preview-mode="sprite" data-i18n="panel.previewSprite">Sprite</button>
+            <button class="preview-mode-tab" type="button" role="tab" aria-selected="false" data-preview-mode="walls" data-i18n="panel.previewWalls">Walls</button>
+          </div>
+        </div>
+        <div class="preview-panel">
+          <div class="preview-mode-panel is-active" data-preview-panel="tiles">
+            <div class="preview-controls">
+              <div class="preview-control-group">
+                <label class="panel-label" for="tiles-cols" data-i18n="panel.previewGrid">Grid</label>
+                <div class="grid-inputs">
+                  <input class="grid-size-input" type="number" id="tiles-cols" min="1" max="30" value="10" aria-label="Tile columns" />
+                  <span class="grid-separator">x</span>
+                  <input class="grid-size-input" type="number" id="tiles-rows" min="1" max="30" value="10" aria-label="Tile rows" />
+                  <button class="button-secondary" type="button" id="tiles-apply" data-i18n="panel.previewApply">Apply</button>
+                </div>
+              </div>
+              <div class="preview-control-group">
+                <label class="panel-label" data-i18n="panel.previewOverlay">Overlay</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="tiles-grid-toggle" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="preview-control-group">
+                <label class="panel-label" for="tiles-zoom" data-i18n="panel.previewZoom">Zoom</label>
+                <input type="range" id="tiles-zoom" min="1" max="6" value="3" />
+              </div>
+              <div class="preview-control-group">
+                <label class="panel-label" for="tiles-bg" data-i18n="panel.previewBackground">Background</label>
+                <input class="color-input" type="color" id="tiles-bg" value="#050505" />
+              </div>
+            </div>
+            <div class="preview-canvas-wrapper">
+              <canvas class="preview-canvas" id="tiles-preview-canvas" width="420" height="420"></canvas>
+            </div>
+          </div>
+          <div class="preview-mode-panel" data-preview-panel="sprite">
+            <div class="preview-controls">
+              <div class="preview-control-group">
+                <label class="panel-label" data-i18n="panel.previewPlayback">Playback</label>
+                <div class="preview-button-group">
+                  <button class="button-secondary" type="button" id="sprite-play" data-i18n="panel.previewPlay">Play</button>
+                  <button class="button-secondary" type="button" id="sprite-pause" data-i18n="panel.previewPause">Pause</button>
+                  <button class="button-secondary" type="button" id="sprite-step" data-i18n="panel.previewStep">Step</button>
+                </div>
+              </div>
+              <div class="preview-control-group">
+                <label class="panel-label" for="sprite-fps" data-i18n="panel.previewFps">FPS</label>
+                <input class="grid-size-input" type="number" id="sprite-fps" min="1" max="24" value="6" />
+              </div>
+              <div class="preview-control-group">
+                <label class="panel-label" for="sprite-zoom" data-i18n="panel.previewZoom">Zoom</label>
+                <input type="range" id="sprite-zoom" min="1" max="6" value="3" />
+              </div>
+            </div>
+            <div class="preview-canvas-wrapper">
+              <canvas class="preview-canvas" id="sprite-preview-canvas" width="320" height="320"></canvas>
+            </div>
+          </div>
+          <div class="preview-mode-panel" data-preview-panel="walls">
+            <div class="preview-controls">
+              <div class="preview-control-group">
+                <label class="panel-label" for="walls-cols" data-i18n="panel.wallGrid">Wall Grid</label>
+                <div class="grid-inputs">
+                  <input class="grid-size-input" type="number" id="walls-cols" min="2" max="30" value="12" aria-label="Wall grid columns" />
+                  <span class="grid-separator">x</span>
+                  <input class="grid-size-input" type="number" id="walls-rows" min="2" max="30" value="8" aria-label="Wall grid rows" />
+                  <button class="button-secondary" type="button" id="walls-apply" data-i18n="panel.previewApply">Apply</button>
+                </div>
+              </div>
+              <div class="preview-control-group">
+                <label class="panel-label" data-i18n="panel.previewOverlay">Overlay</label>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="walls-grid-toggle" checked />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+              <div class="preview-control-group">
+                <label class="panel-label" for="walls-zoom" data-i18n="panel.previewZoom">Zoom</label>
+                <input type="range" id="walls-zoom" min="1" max="5" value="2" />
+              </div>
+            </div>
+            <div class="preview-stack">
+              <div class="preview-stack-item">
+                <p class="panel-label" data-i18n="panel.wallPaint">Wall Paint Grid</p>
+                <div class="preview-canvas-wrapper">
+                  <canvas class="preview-canvas" id="walls-paint-canvas" width="360" height="220"></canvas>
+                </div>
+              </div>
+              <div class="preview-stack-item">
+                <p class="panel-label" data-i18n="panel.wallResult">Rendered Walls</p>
+                <div class="preview-canvas-wrapper">
+                  <canvas class="preview-canvas" id="walls-preview-canvas" width="360" height="220"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </aside>
     </section>

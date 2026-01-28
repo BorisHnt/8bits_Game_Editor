@@ -53,10 +53,29 @@
       'panel.export': 'Export',
       'panel.exportSubtitle': 'Ready for PNG output. Transparent background preserved.',
       'panel.exportButton': 'Export PNG',
-      'panel.preview': 'Tile Preview',
-      'panel.previewSubtitle': 'See repetition at scale.',
-      'panel.previewMode': 'Mode',
-      'panel.previewModeValue': 'Walls / Floors / Continuous',
+      'panel.preview': 'Preview',
+      'panel.previewTiles': 'Tiles',
+      'panel.previewSprite': 'Sprite',
+      'panel.previewWalls': 'Walls',
+      'panel.previewGrid': 'Grid',
+      'panel.previewApply': 'Apply',
+      'panel.previewOverlay': 'Overlay',
+      'panel.previewZoom': 'Zoom',
+      'panel.previewBackground': 'Background',
+      'panel.previewPlayback': 'Playback',
+      'panel.previewPlay': 'Play',
+      'panel.previewPause': 'Pause',
+      'panel.previewStep': 'Step',
+      'panel.previewFps': 'FPS',
+      'panel.wallGrid': 'Wall Grid',
+      'panel.wallPaint': 'Wall Paint Grid',
+      'panel.wallResult': 'Rendered Walls',
+      'panel.frames': 'Frames',
+      'panel.framesSubtitle': 'Add, reorder, and preview animation frames.',
+      'panel.onionSkin': 'Onion Skin',
+      'panel.addFrame': 'Add Frame',
+      'panel.wallTiles': 'Wall Tiles',
+      'panel.wallTilesSubtitle': 'Select a wall segment to edit.',
       'palette.selectColor': 'Select color'
     },
     fr: {
@@ -102,7 +121,7 @@
       'tool.fill': 'Pot de remplissage',
       'panel.activeTool': 'Outil actif',
       'panel.canvas': 'Canvas pixel',
-      'panel.canvasSubtitle': "Grille ajustable. La taille suit le zoom.",
+      'panel.canvasSubtitle': 'Grille ajustable. La taille suit le zoom.',
       'panel.grid': 'Grille',
       'panel.gridApply': 'Appliquer',
       'panel.zoom': 'Zoom',
@@ -112,26 +131,202 @@
       'panel.export': 'Export',
       'panel.exportSubtitle': "Prêt pour l'export PNG. Transparence préservée.",
       'panel.exportButton': 'Exporter PNG',
-      'panel.preview': 'Aperçu de tiling',
-      'panel.previewSubtitle': "Voir la répétition à l'échelle.",
-      'panel.previewMode': 'Mode',
-      'panel.previewModeValue': 'Murs / Sols / Continu',
+      'panel.preview': 'Aperçu',
+      'panel.previewTiles': 'Tiles',
+      'panel.previewSprite': 'Sprite',
+      'panel.previewWalls': 'Murs',
+      'panel.previewGrid': 'Grille',
+      'panel.previewApply': 'Appliquer',
+      'panel.previewOverlay': 'Overlay',
+      'panel.previewZoom': 'Zoom',
+      'panel.previewBackground': 'Fond',
+      'panel.previewPlayback': 'Lecture',
+      'panel.previewPlay': 'Lecture',
+      'panel.previewPause': 'Pause',
+      'panel.previewStep': 'Step',
+      'panel.previewFps': 'FPS',
+      'panel.wallGrid': 'Grille murs',
+      'panel.wallPaint': 'Grille de peinture',
+      'panel.wallResult': 'Rendu des murs',
+      'panel.frames': 'Frames',
+      'panel.framesSubtitle': 'Ajouter, réordonner, prévisualiser les frames.',
+      'panel.onionSkin': 'Onion Skin',
+      'panel.addFrame': 'Ajouter',
+      'panel.wallTiles': 'Tiles de mur',
+      'panel.wallTilesSubtitle': 'Sélectionner un segment à éditer.',
       'palette.selectColor': 'Sélectionner la couleur'
     }
   };
 
+  const qs = (selector, scope = document) => scope.querySelector(selector);
+  const qsa = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
+  const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+  const createId = () => `id-${Math.random().toString(36).slice(2, 9)}`;
+
   let currentLanguage = 'en';
-  let gridWidth = 16;
-  let gridHeight = 16;
-  let pixelData = [];
   let pixelCells = [];
   let activeTool = 'pencil';
   let activeColor = 'rgb(255,255,255)';
   let paletteSwatchMap = new Map();
   let transparentSwatch = null;
+  let spriteTimerId = null;
+
+  const state = {
+    grid: {
+      width: 16,
+      height: 16,
+      pixelSize: 10
+    },
+    frames: [],
+    activeFrameIndex: 0,
+    wallTiles: [],
+    activeWallTileIndex: 0,
+    wallLayout: {
+      width: 12,
+      height: 8,
+      cells: []
+    },
+    preview: {
+      mode: 'tiles',
+      tile: {
+        cols: 10,
+        rows: 10,
+        zoom: 3,
+        showGrid: true,
+        background: '#050505'
+      },
+      sprite: {
+        fps: 6,
+        zoom: 3,
+        playing: true,
+        currentFrame: 0
+      },
+      walls: {
+        cols: 12,
+        rows: 8,
+        zoom: 2,
+        showGrid: true
+      }
+    },
+    onionSkin: false
+  };
+
+  const wallTileDefinitions = [
+    { id: 'horizontal-top', label: 'Horizontal Top' },
+    { id: 'horizontal-bottom', label: 'Horizontal Bottom' },
+    { id: 'vertical-left', label: 'Vertical Left' },
+    { id: 'vertical-right', label: 'Vertical Right' },
+    { id: 'cap-top', label: 'Cap Top' },
+    { id: 'cap-bottom', label: 'Cap Bottom' },
+    { id: 'cap-left', label: 'Cap Left' },
+    { id: 'cap-right', label: 'Cap Right' },
+    { id: 'corner-top-left', label: 'Corner Top Left' },
+    { id: 'corner-top-right', label: 'Corner Top Right' },
+    { id: 'corner-bottom-left', label: 'Corner Bottom Left' },
+    { id: 'corner-bottom-right', label: 'Corner Bottom Right' },
+    { id: 't-up', label: 'T Up' },
+    { id: 't-down', label: 'T Down' },
+    { id: 't-left', label: 'T Left' },
+    { id: 't-right', label: 'T Right' },
+    { id: 'cross', label: 'Cross' }
+  ];
+
+  const paletteColors = [
+    { name: 'Black', value: 'rgb(0,0,0)' },
+    { name: 'Dark Gray', value: 'rgb(60,60,60)' },
+    { name: 'Gray', value: 'rgb(120,120,120)' },
+    { name: 'Medium Gray', value: 'rgb(170,170,170)' },
+    { name: 'Light Gray', value: 'rgb(210,210,210)' },
+    { name: 'White', value: 'rgb(255,255,255)' },
+    { name: 'Deep Red', value: 'rgb(96,0,24)' },
+    { name: 'Dark Red', value: 'rgb(165,14,30)' },
+    { name: 'Red', value: 'rgb(237,28,36)' },
+    { name: 'Light Red', value: 'rgb(250,128,114)' },
+    { name: 'Dark Orange', value: 'rgb(228,92,26)' },
+    { name: 'Orange', value: 'rgb(255,127,39)' },
+    { name: 'Gold', value: 'rgb(246,170,9)' },
+    { name: 'Yellow', value: 'rgb(249,221,59)' },
+    { name: 'Light Yellow', value: 'rgb(255,250,188)' },
+    { name: 'Dark Goldenrod', value: 'rgb(156,132,49)' },
+    { name: 'Goldenrod', value: 'rgb(197,173,49)' },
+    { name: 'Light Goldenrod', value: 'rgb(232,212,95)' },
+    { name: 'Dark Olive', value: 'rgb(74,107,58)' },
+    { name: 'Olive', value: 'rgb(90,148,74)' },
+    { name: 'Light Olive', value: 'rgb(132,197,115)' },
+    { name: 'Dark Green', value: 'rgb(14,185,104)' },
+    { name: 'Green', value: 'rgb(19,230,123)' },
+    { name: 'Light Green', value: 'rgb(135,255,94)' },
+    { name: 'Dark Teal', value: 'rgb(12,129,110)' },
+    { name: 'Teal', value: 'rgb(16,174,166)' },
+    { name: 'Light Teal', value: 'rgb(19,225,190)' },
+    { name: 'Dark Cyan', value: 'rgb(15,121,159)' },
+    { name: 'Cyan', value: 'rgb(96,247,242)' },
+    { name: 'Light Cyan', value: 'rgb(187,250,242)' },
+    { name: 'Dark Blue', value: 'rgb(40,80,158)' },
+    { name: 'Blue', value: 'rgb(64,147,228)' },
+    { name: 'Light Blue', value: 'rgb(125,199,255)' },
+    { name: 'Dark Indigo', value: 'rgb(77,49,184)' },
+    { name: 'Indigo', value: 'rgb(107,80,246)' },
+    { name: 'Light Indigo', value: 'rgb(153,177,251)' },
+    { name: 'Dark Slate Blue', value: 'rgb(74,66,132)' },
+    { name: 'Slate Blue', value: 'rgb(122,113,196)' },
+    { name: 'Light Slate Blue', value: 'rgb(181,174,241)' },
+    { name: 'Dark Purple', value: 'rgb(120,12,153)' },
+    { name: 'Purple', value: 'rgb(170,56,185)' },
+    { name: 'Light Purple', value: 'rgb(224,159,249)' },
+    { name: 'Dark Pink', value: 'rgb(203,0,122)' },
+    { name: 'Pink', value: 'rgb(236,31,128)' },
+    { name: 'Light Pink', value: 'rgb(243,141,169)' },
+    { name: 'Dark Peach', value: 'rgb(155,82,73)' },
+    { name: 'Peach', value: 'rgb(209,128,120)' },
+    { name: 'Light Peach', value: 'rgb(250,182,164)' },
+    { name: 'Dark Brown', value: 'rgb(104,70,52)' },
+    { name: 'Brown', value: 'rgb(149,104,42)' },
+    { name: 'Light Brown', value: 'rgb(219,164,99)' },
+    { name: 'Dark Tan', value: 'rgb(123,99,82)' },
+    { name: 'Tan', value: 'rgb(156,132,107)' },
+    { name: 'Light Tan', value: 'rgb(214,181,148)' },
+    { name: 'Dark Beige', value: 'rgb(209,128,81)' },
+    { name: 'Beige', value: 'rgb(248,178,119)' },
+    { name: 'Light Beige', value: 'rgb(255,197,165)' },
+    { name: 'Dark Stone', value: 'rgb(109,100,63)' },
+    { name: 'Stone', value: 'rgb(148,140,107)' },
+    { name: 'Light Stone', value: 'rgb(205,197,158)' },
+    { name: 'Dark Slate', value: 'rgb(51,57,65)' },
+    { name: 'Slate', value: 'rgb(109,117,141)' },
+    { name: 'Light Slate', value: 'rgb(179,185,209)' },
+    { name: 'Transparent', value: null, transparent: true }
+  ];
+
+  const createEmptyPixels = (width, height) => Array.from({ length: width * height }, () => null);
+
+  const resizePixelBuffer = (pixels, oldWidth, oldHeight, newWidth, newHeight) => {
+    const resized = createEmptyPixels(newWidth, newHeight);
+    const copyWidth = Math.min(oldWidth, newWidth);
+    const copyHeight = Math.min(oldHeight, newHeight);
+    for (let row = 0; row < copyHeight; row += 1) {
+      for (let col = 0; col < copyWidth; col += 1) {
+        resized[row * newWidth + col] = pixels[row * oldWidth + col];
+      }
+    }
+    return resized;
+  };
+
+  const initializeState = () => {
+    state.frames = [{ id: createId(), pixels: createEmptyPixels(state.grid.width, state.grid.height) }];
+    state.activeFrameIndex = 0;
+    state.wallTiles = wallTileDefinitions.map((tile) => ({
+      id: tile.id,
+      label: tile.label,
+      pixels: createEmptyPixels(state.grid.width, state.grid.height)
+    }));
+    state.activeWallTileIndex = 0;
+    state.wallLayout.cells = Array.from({ length: state.wallLayout.width * state.wallLayout.height }, () => 0);
+  };
+
   const createHeroAmbient = () => {
-    const linesContainer = document.querySelector('.hero-ambient-lines');
-    const pixelsContainer = document.getElementById('hero-pixels');
+    const linesContainer = qs('.hero-ambient-lines');
+    const pixelsContainer = qs('#hero-pixels');
 
     if (linesContainer) {
       const lineCount = 12;
@@ -158,124 +353,45 @@
     }
   };
 
-  const buildPixelCanvas = (columns = gridWidth, rows = gridHeight) => {
-    const canvas = document.getElementById('pixel-canvas');
-    if (!canvas) return;
+  const setActiveColor = (color) => {
+    activeColor = color;
+    const activeChip = qs('#active-color-chip');
+    const activeSwatch = qs('.palette-color-swatch.is-active');
+    if (activeSwatch) {
+      activeSwatch.classList.remove('is-active');
+    }
 
-    gridWidth = columns;
-    gridHeight = rows;
-    document.documentElement.style.setProperty('--grid-columns', gridWidth);
-    document.documentElement.style.setProperty('--grid-rows', gridHeight);
-
-    pixelData = Array.from({ length: gridWidth * gridHeight }, () => null);
-    pixelCells = [];
-    canvas.innerHTML = '';
-
-    for (let row = 0; row < gridHeight; row += 1) {
-      for (let col = 0; col < gridWidth; col += 1) {
-        const index = row * gridWidth + col;
-        const cell = document.createElement('div');
-        cell.className = 'pixel-cell';
-        cell.dataset.index = String(index);
-        cell.dataset.row = String(row);
-        cell.dataset.col = String(col);
-        if ((row + col) % 2 === 0) {
-          cell.classList.add('is-checker-light');
-        }
-        pixelCells[index] = cell;
-        canvas.appendChild(cell);
+    if (color === null) {
+      if (transparentSwatch) {
+        transparentSwatch.classList.add('is-active');
+      }
+      if (activeChip) {
+        activeChip.classList.add('is-transparent');
+        activeChip.style.background = '';
+      }
+    } else {
+      const swatch = paletteSwatchMap.get(color);
+      if (swatch) {
+        swatch.classList.add('is-active');
+      }
+      if (activeChip) {
+        activeChip.classList.remove('is-transparent');
+        activeChip.style.background = color;
       }
     }
   };
 
-  const buildTilePreview = () => {
-    const preview = document.getElementById('tile-preview');
-    if (!preview) return;
-
-    const highlightPalette = ['#006d9c', '#0094ae', '#00b78f', '#78cf4e'];
-    for (let i = 0; i < 36; i += 1) {
-      const cell = document.createElement('div');
-      cell.className = 'tile-preview-cell';
-      if (i % 7 === 0 || i % 11 === 0) {
-        const color = highlightPalette[i % highlightPalette.length];
-        cell.style.background = color;
-        cell.style.borderColor = color;
-      }
-      preview.appendChild(cell);
-    }
+  const updatePaletteAriaLabels = () => {
+    const labelText = translations[currentLanguage]?.['palette.selectColor'] ?? 'Select color';
+    qsa('.palette-color-swatch').forEach((swatch) => {
+      const label = swatch.dataset.label || swatch.dataset.color || '';
+      swatch.setAttribute('aria-label', `${labelText} ${label}`.trim());
+    });
   };
 
   const buildPalette = () => {
-    const swatchContainer = document.getElementById('palette-swatches');
-    const activeChip = document.getElementById('active-color-chip');
-    if (!swatchContainer || !activeChip) return;
-
-    const paletteColors = [
-      { name: 'Black', value: 'rgb(0,0,0)' },
-      { name: 'Dark Gray', value: 'rgb(60,60,60)' },
-      { name: 'Gray', value: 'rgb(120,120,120)' },
-      { name: 'Medium Gray', value: 'rgb(170,170,170)' },
-      { name: 'Light Gray', value: 'rgb(210,210,210)' },
-      { name: 'White', value: 'rgb(255,255,255)' },
-      { name: 'Deep Red', value: 'rgb(96,0,24)' },
-      { name: 'Dark Red', value: 'rgb(165,14,30)' },
-      { name: 'Red', value: 'rgb(237,28,36)' },
-      { name: 'Light Red', value: 'rgb(250,128,114)' },
-      { name: 'Dark Orange', value: 'rgb(228,92,26)' },
-      { name: 'Orange', value: 'rgb(255,127,39)' },
-      { name: 'Gold', value: 'rgb(246,170,9)' },
-      { name: 'Yellow', value: 'rgb(249,221,59)' },
-      { name: 'Light Yellow', value: 'rgb(255,250,188)' },
-      { name: 'Dark Goldenrod', value: 'rgb(156,132,49)' },
-      { name: 'Goldenrod', value: 'rgb(197,173,49)' },
-      { name: 'Light Goldenrod', value: 'rgb(232,212,95)' },
-      { name: 'Dark Olive', value: 'rgb(74,107,58)' },
-      { name: 'Olive', value: 'rgb(90,148,74)' },
-      { name: 'Light Olive', value: 'rgb(132,197,115)' },
-      { name: 'Dark Green', value: 'rgb(14,185,104)' },
-      { name: 'Green', value: 'rgb(19,230,123)' },
-      { name: 'Light Green', value: 'rgb(135,255,94)' },
-      { name: 'Dark Teal', value: 'rgb(12,129,110)' },
-      { name: 'Teal', value: 'rgb(16,174,166)' },
-      { name: 'Light Teal', value: 'rgb(19,225,190)' },
-      { name: 'Dark Cyan', value: 'rgb(15,121,159)' },
-      { name: 'Cyan', value: 'rgb(96,247,242)' },
-      { name: 'Light Cyan', value: 'rgb(187,250,242)' },
-      { name: 'Dark Blue', value: 'rgb(40,80,158)' },
-      { name: 'Blue', value: 'rgb(64,147,228)' },
-      { name: 'Light Blue', value: 'rgb(125,199,255)' },
-      { name: 'Dark Indigo', value: 'rgb(77,49,184)' },
-      { name: 'Indigo', value: 'rgb(107,80,246)' },
-      { name: 'Light Indigo', value: 'rgb(153,177,251)' },
-      { name: 'Dark Slate Blue', value: 'rgb(74,66,132)' },
-      { name: 'Slate Blue', value: 'rgb(122,113,196)' },
-      { name: 'Light Slate Blue', value: 'rgb(181,174,241)' },
-      { name: 'Dark Purple', value: 'rgb(120,12,153)' },
-      { name: 'Purple', value: 'rgb(170,56,185)' },
-      { name: 'Light Purple', value: 'rgb(224,159,249)' },
-      { name: 'Dark Pink', value: 'rgb(203,0,122)' },
-      { name: 'Pink', value: 'rgb(236,31,128)' },
-      { name: 'Light Pink', value: 'rgb(243,141,169)' },
-      { name: 'Dark Peach', value: 'rgb(155,82,73)' },
-      { name: 'Peach', value: 'rgb(209,128,120)' },
-      { name: 'Light Peach', value: 'rgb(250,182,164)' },
-      { name: 'Dark Brown', value: 'rgb(104,70,52)' },
-      { name: 'Brown', value: 'rgb(149,104,42)' },
-      { name: 'Light Brown', value: 'rgb(219,164,99)' },
-      { name: 'Dark Tan', value: 'rgb(123,99,82)' },
-      { name: 'Tan', value: 'rgb(156,132,107)' },
-      { name: 'Light Tan', value: 'rgb(214,181,148)' },
-      { name: 'Dark Beige', value: 'rgb(209,128,81)' },
-      { name: 'Beige', value: 'rgb(248,178,119)' },
-      { name: 'Light Beige', value: 'rgb(255,197,165)' },
-      { name: 'Dark Stone', value: 'rgb(109,100,63)' },
-      { name: 'Stone', value: 'rgb(148,140,107)' },
-      { name: 'Light Stone', value: 'rgb(205,197,158)' },
-      { name: 'Dark Slate', value: 'rgb(51,57,65)' },
-      { name: 'Slate', value: 'rgb(109,117,141)' },
-      { name: 'Light Slate', value: 'rgb(179,185,209)' },
-      { name: 'Transparent', value: null, transparent: true }
-    ];
+    const swatchContainer = qs('#palette-swatches');
+    if (!swatchContainer) return;
 
     paletteSwatchMap = new Map();
     transparentSwatch = null;
@@ -309,50 +425,16 @@
     updatePaletteAriaLabels();
   };
 
-  const updatePaletteAriaLabels = () => {
-    const labelText = translations[currentLanguage]?.['palette.selectColor'] ?? 'Select color';
-    document.querySelectorAll('.palette-color-swatch').forEach((swatch) => {
-      const label = swatch.dataset.label || swatch.dataset.color || '';
-      swatch.setAttribute('aria-label', `${labelText} ${label}`.trim());
-    });
+  const updateActiveToolLabel = () => {
+    const activeLabel = qs('#active-tool-label');
+    const activeButton = qs('.tool-selector-button.is-active');
+    if (!activeLabel || !activeButton) return;
+    const label = activeButton.querySelector('.tool-label');
+    activeLabel.textContent = label ? label.textContent.trim() : activeButton.textContent.trim();
   };
 
-  const setActiveColor = (color) => {
-    activeColor = color;
-    const activeChip = document.getElementById('active-color-chip');
-    const activeSwatch = document.querySelector('.palette-color-swatch.is-active');
-    if (activeSwatch) {
-      activeSwatch.classList.remove('is-active');
-    }
-
-    if (color === null) {
-      if (transparentSwatch) {
-        transparentSwatch.classList.add('is-active');
-      }
-      if (activeChip) {
-        activeChip.classList.add('is-transparent');
-        activeChip.style.background = '';
-      }
-    } else {
-      const swatch = paletteSwatchMap.get(color);
-      if (swatch) {
-        swatch.classList.add('is-active');
-      }
-      if (activeChip) {
-        activeChip.classList.remove('is-transparent');
-        activeChip.style.background = color;
-      }
-    }
-  };
-
-  const paintCell = (index, color) => {
-    if (index < 0 || index >= pixelData.length) return;
-    if (pixelData[index] === color) return;
-
-    pixelData[index] = color;
-    const cell = pixelCells[index];
+  const setCellColor = (cell, color) => {
     if (!cell) return;
-
     if (color === null) {
       cell.style.background = '';
       cell.classList.remove('is-painted');
@@ -364,31 +446,115 @@
     }
   };
 
+  const getActivePixels = () => {
+    if (state.preview.mode === 'walls') {
+      return state.wallTiles[state.activeWallTileIndex]?.pixels;
+    }
+    return state.frames[state.activeFrameIndex]?.pixels;
+  };
+
+  const renderActivePixelGrid = () => {
+    const pixels = getActivePixels();
+    if (!pixels || pixelCells.length === 0) return;
+
+    const prevFrame = state.preview.mode === 'sprite' && state.onionSkin && state.frames.length > 1
+      ? state.frames[Math.max(state.activeFrameIndex - 1, 0)]
+      : null;
+    const nextFrame = state.preview.mode === 'sprite' && state.onionSkin && state.frames.length > 1
+      ? state.frames[Math.min(state.activeFrameIndex + 1, state.frames.length - 1)]
+      : null;
+
+    pixelCells.forEach((cell, index) => {
+      const color = pixels[index] ?? null;
+      setCellColor(cell, color);
+      cell.style.boxShadow = '';
+      if (!color && (prevFrame || nextFrame)) {
+        const prevColor = prevFrame?.pixels[index];
+        const nextColor = nextFrame?.pixels[index];
+        const shadows = [];
+        if (prevColor) {
+          shadows.push('inset 0 0 0 2px rgba(0, 148, 174, 0.35)');
+        }
+        if (nextColor) {
+          shadows.push('inset 0 0 0 2px rgba(255, 213, 0, 0.35)');
+        }
+        cell.style.boxShadow = shadows.join(', ');
+      }
+    });
+  };
+
+  const buildPixelCanvas = () => {
+    const canvas = qs('#pixel-canvas');
+    if (!canvas) return;
+
+    const { width, height } = state.grid;
+    document.documentElement.style.setProperty('--grid-columns', width);
+    document.documentElement.style.setProperty('--grid-rows', height);
+
+    pixelCells = [];
+    canvas.innerHTML = '';
+
+    for (let row = 0; row < height; row += 1) {
+      for (let col = 0; col < width; col += 1) {
+        const index = row * width + col;
+        const cell = document.createElement('div');
+        cell.className = 'pixel-cell';
+        cell.dataset.index = String(index);
+        cell.dataset.row = String(row);
+        cell.dataset.col = String(col);
+        if ((row + col) % 2 === 0) {
+          cell.classList.add('is-checker-light');
+        }
+        pixelCells[index] = cell;
+        canvas.appendChild(cell);
+      }
+    }
+  };
+
+  const paintCell = (index, color) => {
+    const pixels = getActivePixels();
+    if (!pixels || index < 0 || index >= pixels.length) return;
+    if (pixels[index] === color) return;
+
+    pixels[index] = color;
+    setCellColor(pixelCells[index], color);
+    renderFrameThumbnail(state.activeFrameIndex);
+    renderWallTileThumbnail(state.activeWallTileIndex);
+    renderPreviews();
+  };
+
   const floodFill = (startIndex, newColor) => {
-    if (startIndex < 0 || startIndex >= pixelData.length) return;
-    const targetColor = pixelData[startIndex];
+    const pixels = getActivePixels();
+    if (!pixels || startIndex < 0 || startIndex >= pixels.length) return;
+    const targetColor = pixels[startIndex];
     if (targetColor === newColor) return;
 
-    const visited = new Uint8Array(pixelData.length);
+    const visited = new Uint8Array(pixels.length);
     const stack = [startIndex];
+    const { width, height } = state.grid;
 
     while (stack.length) {
       const index = stack.pop();
-      if (index < 0 || index >= pixelData.length) continue;
+      if (index < 0 || index >= pixels.length) continue;
       if (visited[index]) continue;
-      if (pixelData[index] !== targetColor) continue;
+      if (pixels[index] !== targetColor) continue;
 
       visited[index] = 1;
-      paintCell(index, newColor);
+      pixels[index] = newColor;
+      setCellColor(pixelCells[index], newColor);
 
-      const row = Math.floor(index / gridWidth);
-      const col = index % gridWidth;
+      const row = Math.floor(index / width);
+      const col = index % width;
 
-      if (row > 0) stack.push(index - gridWidth);
-      if (row < gridHeight - 1) stack.push(index + gridWidth);
+      if (row > 0) stack.push(index - width);
+      if (row < height - 1) stack.push(index + width);
       if (col > 0) stack.push(index - 1);
-      if (col < gridWidth - 1) stack.push(index + 1);
+      if (col < width - 1) stack.push(index + 1);
     }
+
+    renderFrameThumbnail(state.activeFrameIndex);
+    renderWallTileThumbnail(state.activeWallTileIndex);
+    renderPreviews();
   };
 
   const applyToolToCell = (cell, { dragging = false } = {}) => {
@@ -401,86 +567,15 @@
     } else if (activeTool === 'eraser') {
       paintCell(index, null);
     } else if (activeTool === 'eyedropper' && !dragging) {
-      setActiveColor(pixelData[index] ?? null);
+      const pixels = getActivePixels();
+      setActiveColor(pixels?.[index] ?? null);
     } else if (activeTool === 'fill' && !dragging) {
       floodFill(index, activeColor);
     }
   };
 
-  const getActiveToolLabel = () => {
-    const activeButton = document.querySelector('.tool-selector-button.is-active');
-    if (!activeButton) return '';
-    const label = activeButton.querySelector('.tool-label');
-    return label ? label.textContent.trim() : activeButton.textContent.trim();
-  };
-
-  const updateActiveToolLabel = () => {
-    const activeLabel = document.getElementById('active-tool-label');
-    if (!activeLabel) return;
-    activeLabel.textContent = getActiveToolLabel();
-  };
-
-  const bindToolSelection = () => {
-    const toolButtons = document.querySelectorAll('.tool-selector-button');
-    if (!toolButtons.length) return;
-
-    toolButtons.forEach((button) => {
-      button.addEventListener('click', () => {
-        const activeButton = document.querySelector('.tool-selector-button.is-active');
-        if (activeButton) {
-          activeButton.classList.remove('is-active');
-        }
-        button.classList.add('is-active');
-        activeTool = button.dataset.tool || 'pencil';
-        updateActiveToolLabel();
-      });
-    });
-  };
-
-  const bindZoomControl = () => {
-    const zoomRange = document.getElementById('zoom-range');
-    const zoomValue = document.getElementById('zoom-value');
-    if (!zoomRange || !zoomValue) return;
-
-    const updateZoom = () => {
-      const size = `${zoomRange.value}px`;
-      document.documentElement.style.setProperty('--pixel-size', size);
-      zoomValue.textContent = size;
-    };
-
-    zoomRange.addEventListener('input', updateZoom);
-    updateZoom();
-  };
-
-  const bindGridControls = () => {
-    const widthInput = document.getElementById('grid-width');
-    const heightInput = document.getElementById('grid-height');
-    const applyButton = document.getElementById('apply-grid');
-    if (!widthInput || !heightInput || !applyButton) return;
-
-    const applyGrid = () => {
-      const widthValue = Number.parseInt(widthInput.value, 10);
-      const heightValue = Number.parseInt(heightInput.value, 10);
-      const nextWidth = Number.isFinite(widthValue) ? Math.min(Math.max(widthValue, 1), 128) : gridWidth;
-      const nextHeight = Number.isFinite(heightValue) ? Math.min(Math.max(heightValue, 1), 128) : gridHeight;
-
-      widthInput.value = String(nextWidth);
-      heightInput.value = String(nextHeight);
-      buildPixelCanvas(nextWidth, nextHeight);
-    };
-
-    applyButton.addEventListener('click', applyGrid);
-    [widthInput, heightInput].forEach((input) => {
-      input.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-          applyGrid();
-        }
-      });
-    });
-  };
-
   const bindCanvasInteraction = () => {
-    const canvas = document.getElementById('pixel-canvas');
+    const canvas = qs('#pixel-canvas');
     if (!canvas) return;
 
     let isDrawing = false;
@@ -518,12 +613,774 @@
     canvas.addEventListener('pointerleave', stopDrawing);
   };
 
+  const bindToolSelection = () => {
+    const toolButtons = qsa('.tool-selector-button');
+    if (!toolButtons.length) return;
+
+    toolButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const activeButton = qs('.tool-selector-button.is-active');
+        if (activeButton) {
+          activeButton.classList.remove('is-active');
+        }
+        button.classList.add('is-active');
+        activeTool = button.dataset.tool || 'pencil';
+        updateActiveToolLabel();
+      });
+    });
+  };
+
+  const bindZoomControl = () => {
+    const zoomRange = qs('#zoom-range');
+    const zoomValue = qs('#zoom-value');
+    if (!zoomRange || !zoomValue) return;
+
+    const updateZoom = () => {
+      const size = `${zoomRange.value}px`;
+      state.grid.pixelSize = Number.parseInt(zoomRange.value, 10);
+      document.documentElement.style.setProperty('--pixel-size', size);
+      zoomValue.textContent = size;
+    };
+
+    zoomRange.addEventListener('input', updateZoom);
+    updateZoom();
+  };
+
+  const bindGridControls = () => {
+    const widthInput = qs('#grid-width');
+    const heightInput = qs('#grid-height');
+    const applyButton = qs('#apply-grid');
+    if (!widthInput || !heightInput || !applyButton) return;
+
+    const applyGrid = () => {
+      const widthValue = Number.parseInt(widthInput.value, 10);
+      const heightValue = Number.parseInt(heightInput.value, 10);
+      const nextWidth = clamp(Number.isFinite(widthValue) ? widthValue : state.grid.width, 1, 128);
+      const nextHeight = clamp(Number.isFinite(heightValue) ? heightValue : state.grid.height, 1, 128);
+
+      widthInput.value = String(nextWidth);
+      heightInput.value = String(nextHeight);
+
+      const oldWidth = state.grid.width;
+      const oldHeight = state.grid.height;
+      state.grid.width = nextWidth;
+      state.grid.height = nextHeight;
+
+      state.frames = state.frames.map((frame) => ({
+        ...frame,
+        pixels: resizePixelBuffer(frame.pixels, oldWidth, oldHeight, nextWidth, nextHeight)
+      }));
+
+      state.wallTiles = state.wallTiles.map((tile) => ({
+        ...tile,
+        pixels: resizePixelBuffer(tile.pixels, oldWidth, oldHeight, nextWidth, nextHeight)
+      }));
+
+      buildPixelCanvas();
+      renderActivePixelGrid();
+      renderFramesStrip();
+      renderWallTilesGrid();
+      renderPreviews();
+    };
+
+    applyButton.addEventListener('click', applyGrid);
+    [widthInput, heightInput].forEach((input) => {
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          applyGrid();
+        }
+      });
+    });
+  };
+
+  const renderFrameThumbnail = (frameIndex) => {
+    const frame = state.frames[frameIndex];
+    const frameItem = qs(`.frame-item[data-frame-index="${frameIndex}"]`);
+    if (!frame || !frameItem) return;
+    const canvas = frameItem.querySelector('canvas');
+    if (!canvas) return;
+    drawPixelsToCanvas(frame.pixels, canvas, state.grid.width, state.grid.height, 1);
+  };
+
+  const renderFramesStrip = () => {
+    const strip = qs('#frames-strip');
+    if (!strip) return;
+    strip.innerHTML = '';
+
+    state.frames.forEach((frame, index) => {
+      const item = document.createElement('div');
+      item.className = 'frame-item';
+      item.dataset.frameIndex = String(index);
+      if (index === state.activeFrameIndex) {
+        item.classList.add('is-active');
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.className = 'frame-thumb';
+      canvas.width = state.grid.width;
+      canvas.height = state.grid.height;
+      item.appendChild(canvas);
+
+      const controls = document.createElement('div');
+      controls.className = 'frame-controls';
+
+      const upButton = document.createElement('button');
+      upButton.type = 'button';
+      upButton.className = 'frame-control-button';
+      upButton.textContent = 'Up';
+      upButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (index === 0) return;
+        const temp = state.frames[index - 1];
+        state.frames[index - 1] = state.frames[index];
+        state.frames[index] = temp;
+        state.activeFrameIndex = index - 1;
+        renderFramesStrip();
+        renderActivePixelGrid();
+        renderPreviews();
+      });
+
+      const downButton = document.createElement('button');
+      downButton.type = 'button';
+      downButton.className = 'frame-control-button';
+      downButton.textContent = 'Down';
+      downButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (index === state.frames.length - 1) return;
+        const temp = state.frames[index + 1];
+        state.frames[index + 1] = state.frames[index];
+        state.frames[index] = temp;
+        state.activeFrameIndex = index + 1;
+        renderFramesStrip();
+        renderActivePixelGrid();
+        renderPreviews();
+      });
+
+      const duplicateButton = document.createElement('button');
+      duplicateButton.type = 'button';
+      duplicateButton.className = 'frame-control-button';
+      duplicateButton.textContent = 'Dup';
+      duplicateButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const copy = {
+          id: createId(),
+          pixels: frame.pixels.slice()
+        };
+        state.frames.splice(index + 1, 0, copy);
+        state.activeFrameIndex = index + 1;
+        renderFramesStrip();
+        renderActivePixelGrid();
+        renderPreviews();
+      });
+
+      const deleteButton = document.createElement('button');
+      deleteButton.type = 'button';
+      deleteButton.className = 'frame-control-button';
+      deleteButton.textContent = 'Del';
+      deleteButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        if (state.frames.length === 1) return;
+        state.frames.splice(index, 1);
+        state.activeFrameIndex = clamp(state.activeFrameIndex, 0, state.frames.length - 1);
+        renderFramesStrip();
+        renderActivePixelGrid();
+        renderPreviews();
+      });
+
+      controls.appendChild(upButton);
+      controls.appendChild(downButton);
+      controls.appendChild(duplicateButton);
+      controls.appendChild(deleteButton);
+      item.appendChild(controls);
+
+      item.addEventListener('click', () => {
+        state.activeFrameIndex = index;
+        state.preview.sprite.currentFrame = index;
+        renderFramesStrip();
+        renderActivePixelGrid();
+        renderPreviews();
+      });
+
+      strip.appendChild(item);
+      drawPixelsToCanvas(frame.pixels, canvas, state.grid.width, state.grid.height, 1);
+    });
+  };
+
+  const renderWallTileThumbnail = (tileIndex) => {
+    const tile = state.wallTiles[tileIndex];
+    const tileItem = qs(`.wall-tile-item[data-tile-index="${tileIndex}"]`);
+    if (!tile || !tileItem) return;
+    const canvas = tileItem.querySelector('canvas');
+    if (!canvas) return;
+    drawPixelsToCanvas(tile.pixels, canvas, state.grid.width, state.grid.height, 1);
+  };
+
+  const renderWallTilesGrid = () => {
+    const grid = qs('#wall-tiles-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    state.wallTiles.forEach((tile, index) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'wall-tile-item';
+      item.dataset.tileIndex = String(index);
+      if (index === state.activeWallTileIndex) {
+        item.classList.add('is-active');
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.className = 'wall-tile-canvas';
+      canvas.width = state.grid.width;
+      canvas.height = state.grid.height;
+
+      const label = document.createElement('span');
+      label.className = 'wall-tile-label';
+      label.textContent = tile.label;
+
+      item.appendChild(canvas);
+      item.appendChild(label);
+
+      item.addEventListener('click', () => {
+        state.activeWallTileIndex = index;
+        renderWallTilesGrid();
+        renderActivePixelGrid();
+        renderPreviews();
+      });
+
+      grid.appendChild(item);
+      drawPixelsToCanvas(tile.pixels, canvas, state.grid.width, state.grid.height, 1);
+    });
+  };
+
+  const bindFramesControls = () => {
+    const addButton = qs('#add-frame');
+    const onionButton = qs('#toggle-onion');
+    if (addButton) {
+      addButton.addEventListener('click', () => {
+        state.frames.push({ id: createId(), pixels: createEmptyPixels(state.grid.width, state.grid.height) });
+        state.activeFrameIndex = state.frames.length - 1;
+        state.preview.sprite.currentFrame = state.activeFrameIndex;
+        renderFramesStrip();
+        renderActivePixelGrid();
+        renderPreviews();
+      });
+    }
+
+    if (onionButton) {
+      onionButton.addEventListener('click', () => {
+        state.onionSkin = !state.onionSkin;
+        onionButton.setAttribute('aria-pressed', String(state.onionSkin));
+        onionButton.classList.toggle('is-active', state.onionSkin);
+        renderActivePixelGrid();
+      });
+    }
+  };
+
+  const setPreviewMode = (mode) => {
+    state.preview.mode = mode;
+    qsa('.preview-mode-tab').forEach((tab) => {
+      const isActive = tab.dataset.previewMode === mode;
+      tab.classList.toggle('is-active', isActive);
+      tab.setAttribute('aria-selected', String(isActive));
+    });
+
+    qsa('.preview-mode-panel').forEach((panel) => {
+      panel.classList.toggle('is-active', panel.dataset.previewPanel === mode);
+    });
+
+    const framesPanel = qs('#frames-panel');
+    const wallTilesPanel = qs('#wall-tiles-panel');
+    if (framesPanel) {
+      framesPanel.classList.toggle('is-hidden', mode !== 'sprite');
+    }
+    if (wallTilesPanel) {
+      wallTilesPanel.classList.toggle('is-hidden', mode !== 'walls');
+    }
+
+    if (mode === 'sprite') {
+      state.preview.sprite.currentFrame = state.activeFrameIndex;
+      startSpritePlayback();
+    } else {
+      stopSpritePlayback();
+    }
+
+    renderActivePixelGrid();
+    renderPreviews();
+  };
+
+  const bindPreviewModeTabs = () => {
+    qsa('.preview-mode-tab').forEach((button) => {
+      button.addEventListener('click', () => {
+        setPreviewMode(button.dataset.previewMode || 'tiles');
+      });
+    });
+  };
+
+  const bindPreviewControls = () => {
+    const tilesApply = qs('#tiles-apply');
+    const tilesCols = qs('#tiles-cols');
+    const tilesRows = qs('#tiles-rows');
+    const tilesGridToggle = qs('#tiles-grid-toggle');
+    const tilesZoom = qs('#tiles-zoom');
+    const tilesBg = qs('#tiles-bg');
+
+    const applyTilesGrid = () => {
+      const cols = clamp(Number.parseInt(tilesCols?.value, 10) || state.preview.tile.cols, 1, 30);
+      const rows = clamp(Number.parseInt(tilesRows?.value, 10) || state.preview.tile.rows, 1, 30);
+      state.preview.tile.cols = cols;
+      state.preview.tile.rows = rows;
+      if (tilesCols) tilesCols.value = String(cols);
+      if (tilesRows) tilesRows.value = String(rows);
+      renderTilesPreview();
+    };
+
+    tilesApply?.addEventListener('click', applyTilesGrid);
+
+    tilesCols?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') applyTilesGrid();
+    });
+    tilesRows?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') applyTilesGrid();
+    });
+
+    tilesGridToggle?.addEventListener('change', () => {
+      state.preview.tile.showGrid = tilesGridToggle.checked;
+      renderTilesPreview();
+    });
+
+    tilesZoom?.addEventListener('input', () => {
+      state.preview.tile.zoom = Number.parseInt(tilesZoom.value, 10);
+      renderTilesPreview();
+    });
+
+    tilesBg?.addEventListener('input', () => {
+      state.preview.tile.background = tilesBg.value;
+      renderTilesPreview();
+    });
+
+    const spritePlay = qs('#sprite-play');
+    const spritePause = qs('#sprite-pause');
+    const spriteStep = qs('#sprite-step');
+    const spriteFps = qs('#sprite-fps');
+    const spriteZoom = qs('#sprite-zoom');
+
+    spritePlay?.addEventListener('click', () => {
+      state.preview.sprite.playing = true;
+      startSpritePlayback();
+    });
+
+    spritePause?.addEventListener('click', () => {
+      state.preview.sprite.playing = false;
+      stopSpritePlayback();
+      renderSpritePreview();
+    });
+
+    spriteStep?.addEventListener('click', () => {
+      state.preview.sprite.playing = false;
+      stopSpritePlayback();
+      stepSpriteFrame();
+      renderSpritePreview();
+    });
+
+    spriteFps?.addEventListener('change', () => {
+      state.preview.sprite.fps = clamp(Number.parseInt(spriteFps.value, 10) || 6, 1, 24);
+      spriteFps.value = String(state.preview.sprite.fps);
+      if (state.preview.sprite.playing) {
+        startSpritePlayback();
+      }
+    });
+
+    spriteZoom?.addEventListener('input', () => {
+      state.preview.sprite.zoom = Number.parseInt(spriteZoom.value, 10);
+      renderSpritePreview();
+    });
+
+    const wallsApply = qs('#walls-apply');
+    const wallsCols = qs('#walls-cols');
+    const wallsRows = qs('#walls-rows');
+    const wallsGridToggle = qs('#walls-grid-toggle');
+    const wallsZoom = qs('#walls-zoom');
+
+    const applyWallsGrid = () => {
+      const cols = clamp(Number.parseInt(wallsCols?.value, 10) || state.wallLayout.width, 2, 30);
+      const rows = clamp(Number.parseInt(wallsRows?.value, 10) || state.wallLayout.height, 2, 30);
+      resizeWallLayout(cols, rows);
+      if (wallsCols) wallsCols.value = String(cols);
+      if (wallsRows) wallsRows.value = String(rows);
+      renderWallsPreview();
+      renderWallPaintGrid();
+    };
+
+    wallsApply?.addEventListener('click', applyWallsGrid);
+
+    wallsCols?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') applyWallsGrid();
+    });
+    wallsRows?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') applyWallsGrid();
+    });
+
+    wallsGridToggle?.addEventListener('change', () => {
+      state.preview.walls.showGrid = wallsGridToggle.checked;
+      renderWallPaintGrid();
+    });
+
+    wallsZoom?.addEventListener('input', () => {
+      state.preview.walls.zoom = Number.parseInt(wallsZoom.value, 10);
+      renderWallPaintGrid();
+      renderWallsPreview();
+    });
+  };
+
+  const resizeWallLayout = (cols, rows) => {
+    const { width, height, cells } = state.wallLayout;
+    const resized = Array.from({ length: cols * rows }, () => 0);
+    const copyWidth = Math.min(width, cols);
+    const copyHeight = Math.min(height, rows);
+    for (let row = 0; row < copyHeight; row += 1) {
+      for (let col = 0; col < copyWidth; col += 1) {
+        resized[row * cols + col] = cells[row * width + col];
+      }
+    }
+    state.wallLayout.width = cols;
+    state.wallLayout.height = rows;
+    state.wallLayout.cells = resized;
+  };
+
+  const drawPixelsToCanvas = (pixels, canvas, width, height, zoom) => {
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width = width * zoom;
+    canvas.height = height * zoom;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let row = 0; row < height; row += 1) {
+      for (let col = 0; col < width; col += 1) {
+        const color = pixels[row * width + col];
+        if (!color) continue;
+        ctx.fillStyle = color;
+        ctx.fillRect(col * zoom, row * zoom, zoom, zoom);
+      }
+    }
+  };
+
+  const renderTilesPreview = () => {
+    const canvas = qs('#tiles-preview-canvas');
+    if (!canvas) return;
+
+    const { width, height } = state.grid;
+    const pixels = state.frames[state.activeFrameIndex]?.pixels || [];
+    const { cols, rows, zoom, showGrid, background } = state.preview.tile;
+
+    const tileCanvas = document.createElement('canvas');
+    tileCanvas.width = width;
+    tileCanvas.height = height;
+    drawPixelsToCanvas(pixels, tileCanvas, width, height, 1);
+
+    const tileWidth = width * zoom;
+    const tileHeight = height * zoom;
+    canvas.width = tileWidth * cols;
+    canvas.height = tileHeight * rows;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        ctx.drawImage(tileCanvas, col * tileWidth, row * tileHeight, tileWidth, tileHeight);
+      }
+    }
+
+    if (showGrid) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      for (let x = 0; x <= cols; x += 1) {
+        ctx.beginPath();
+        ctx.moveTo(x * tileWidth, 0);
+        ctx.lineTo(x * tileWidth, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= rows; y += 1) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * tileHeight);
+        ctx.lineTo(canvas.width, y * tileHeight);
+        ctx.stroke();
+      }
+    }
+  };
+
+  const stepSpriteFrame = () => {
+    if (state.frames.length === 0) return;
+    state.preview.sprite.currentFrame = (state.preview.sprite.currentFrame + 1) % state.frames.length;
+  };
+
+  const renderSpritePreview = () => {
+    const canvas = qs('#sprite-preview-canvas');
+    if (!canvas) return;
+
+    const { width, height } = state.grid;
+    const { zoom } = state.preview.sprite;
+    const frameIndex = clamp(state.preview.sprite.currentFrame, 0, state.frames.length - 1);
+    const pixels = state.frames[frameIndex]?.pixels || [];
+
+    drawPixelsToCanvas(pixels, canvas, width, height, zoom);
+  };
+
+  const startSpritePlayback = () => {
+    if (!state.preview.sprite.playing) return;
+    if (spriteTimerId) {
+      clearInterval(spriteTimerId);
+    }
+    const interval = Math.max(1, Math.floor(1000 / state.preview.sprite.fps));
+    spriteTimerId = setInterval(() => {
+      stepSpriteFrame();
+      renderSpritePreview();
+    }, interval);
+  };
+
+  const stopSpritePlayback = () => {
+    if (spriteTimerId) {
+      clearInterval(spriteTimerId);
+      spriteTimerId = null;
+    }
+  };
+
+  const getWallTileId = (x, y) => {
+    const { width, height, cells } = state.wallLayout;
+    const isWall = (cx, cy) => {
+      if (cx < 0 || cy < 0 || cx >= width || cy >= height) return false;
+      return cells[cy * width + cx] === 1;
+    };
+
+    const n = isWall(x, y - 1);
+    const s = isWall(x, y + 1);
+    const w = isWall(x - 1, y);
+    const e = isWall(x + 1, y);
+    const count = [n, s, w, e].filter(Boolean).length;
+
+    if (count === 4) return 'cross';
+    if (count === 3) {
+      if (!n) return 't-down';
+      if (!s) return 't-up';
+      if (!w) return 't-right';
+      return 't-left';
+    }
+    if (count === 2) {
+      if (n && s) return x % 2 === 0 ? 'vertical-left' : 'vertical-right';
+      if (e && w) return y % 2 === 0 ? 'horizontal-top' : 'horizontal-bottom';
+      if (n && e) return 'corner-top-right';
+      if (n && w) return 'corner-top-left';
+      if (s && e) return 'corner-bottom-right';
+      return 'corner-bottom-left';
+    }
+    if (count === 1) {
+      if (n) return 'cap-top';
+      if (s) return 'cap-bottom';
+      if (e) return 'cap-right';
+      return 'cap-left';
+    }
+    return 'cap-top';
+  };
+
+  const renderWallPaintGrid = () => {
+    const canvas = qs('#walls-paint-canvas');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const { width, height, cells } = state.wallLayout;
+    const zoom = state.preview.walls.zoom;
+    const cellSize = Math.max(4, zoom * 6);
+
+    canvas.width = width * cellSize;
+    canvas.height = height * cellSize;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#0b0b0b';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const isWall = cells[y * width + x] === 1;
+        if (isWall) {
+          ctx.fillStyle = 'rgba(0, 148, 174, 0.7)';
+          ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+
+    if (state.preview.walls.showGrid) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      for (let x = 0; x <= width; x += 1) {
+        ctx.beginPath();
+        ctx.moveTo(x * cellSize, 0);
+        ctx.lineTo(x * cellSize, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= height; y += 1) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * cellSize);
+        ctx.lineTo(canvas.width, y * cellSize);
+        ctx.stroke();
+      }
+    }
+  };
+
+  const renderWallsPreview = () => {
+    const canvas = qs('#walls-preview-canvas');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const { width: gridWidth, height: gridHeight } = state.grid;
+    const { width, height, cells } = state.wallLayout;
+    const zoom = state.preview.walls.zoom;
+
+    const tileWidth = gridWidth * zoom;
+    const tileHeight = gridHeight * zoom;
+
+    canvas.width = width * tileWidth;
+    canvas.height = height * tileHeight;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#0b0b0b';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const tileMap = new Map(state.wallTiles.map((tile) => [tile.id, tile]));
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        if (cells[y * width + x] !== 1) continue;
+        const tileId = getWallTileId(x, y);
+        const tile = tileMap.get(tileId);
+        if (!tile) continue;
+
+        const tempCanvas = document.createElement('canvas');
+        drawPixelsToCanvas(tile.pixels, tempCanvas, gridWidth, gridHeight, zoom);
+        ctx.drawImage(tempCanvas, x * tileWidth, y * tileHeight);
+      }
+    }
+  };
+
+  const renderPreviews = () => {
+    renderTilesPreview();
+    renderSpritePreview();
+    renderWallPaintGrid();
+    renderWallsPreview();
+  };
+
+  const bindWallPaintInteraction = () => {
+    const canvas = qs('#walls-paint-canvas');
+    if (!canvas) return;
+
+    let isDrawing = false;
+
+    const getCellFromEvent = (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const { width, height } = state.wallLayout;
+      const zoom = state.preview.walls.zoom;
+      const cellSize = Math.max(4, zoom * 6);
+      const x = Math.floor((event.clientX - rect.left) / cellSize);
+      const y = Math.floor((event.clientY - rect.top) / cellSize);
+      if (x < 0 || y < 0 || x >= width || y >= height) return null;
+      return { x, y };
+    };
+
+    const paintWallCell = (x, y, value) => {
+      const index = y * state.wallLayout.width + x;
+      state.wallLayout.cells[index] = value;
+    };
+
+    const handlePointerDown = (event) => {
+      if (state.preview.mode !== 'walls') return;
+      const cell = getCellFromEvent(event);
+      if (!cell) return;
+      event.preventDefault();
+      isDrawing = true;
+      canvas.setPointerCapture(event.pointerId);
+      if (activeTool === 'eraser') {
+        paintWallCell(cell.x, cell.y, 0);
+      } else if (activeTool === 'fill') {
+        floodFillWall(cell.x, cell.y, 1);
+      } else {
+        paintWallCell(cell.x, cell.y, 1);
+      }
+      renderWallPaintGrid();
+      renderWallsPreview();
+    };
+
+    const handlePointerMove = (event) => {
+      if (!isDrawing) return;
+      if (activeTool !== 'pencil' && activeTool !== 'eraser') return;
+      const cell = getCellFromEvent(event);
+      if (!cell) return;
+      if (activeTool === 'eraser') {
+        paintWallCell(cell.x, cell.y, 0);
+      } else {
+        paintWallCell(cell.x, cell.y, 1);
+      }
+      renderWallPaintGrid();
+      renderWallsPreview();
+    };
+
+    const stopDrawing = (event) => {
+      if (!isDrawing) return;
+      isDrawing = false;
+      try {
+        canvas.releasePointerCapture(event.pointerId);
+      } catch (error) {
+        // ignore
+      }
+    };
+
+    canvas.addEventListener('pointerdown', handlePointerDown);
+    canvas.addEventListener('pointermove', handlePointerMove);
+    canvas.addEventListener('pointerup', stopDrawing);
+    canvas.addEventListener('pointerleave', stopDrawing);
+  };
+
+  const floodFillWall = (startX, startY, fillValue) => {
+    const { width, height, cells } = state.wallLayout;
+    const startIndex = startY * width + startX;
+    const target = cells[startIndex];
+    if (target === fillValue) return;
+
+    const stack = [startIndex];
+    const visited = new Uint8Array(cells.length);
+
+    while (stack.length) {
+      const index = stack.pop();
+      if (index < 0 || index >= cells.length) continue;
+      if (visited[index]) continue;
+      if (cells[index] !== target) continue;
+
+      visited[index] = 1;
+      cells[index] = fillValue;
+
+      const row = Math.floor(index / width);
+      const col = index % width;
+
+      if (row > 0) stack.push(index - width);
+      if (row < height - 1) stack.push(index + width);
+      if (col > 0) stack.push(index - 1);
+      if (col < width - 1) stack.push(index + 1);
+    }
+  };
+
   const applyTranslations = (language) => {
     currentLanguage = language;
     document.documentElement.lang = language;
 
     const dictionary = translations[language] || {};
-    document.querySelectorAll('[data-i18n]').forEach((element) => {
+    qsa('[data-i18n]').forEach((element) => {
       const key = element.dataset.i18n;
       if (dictionary[key]) {
         element.textContent = dictionary[key];
@@ -535,26 +1392,21 @@
       document.title = dictionary[pageTitleKey];
     }
 
-    document.querySelectorAll('[data-lang-block]').forEach((block) => {
+    qsa('[data-lang-block]').forEach((block) => {
       block.classList.toggle('is-active', block.dataset.langBlock === language);
     });
 
-    document.querySelectorAll('.language-toggle-button').forEach((button) => {
+    qsa('.language-toggle-button').forEach((button) => {
       const isActive = button.dataset.lang === language;
       button.classList.toggle('is-active', isActive);
       button.setAttribute('aria-pressed', String(isActive));
     });
 
     updatePaletteAriaLabels();
-
-    updateActiveToolLabel();
   };
 
   const bindLanguageToggle = () => {
-    const toggleButtons = document.querySelectorAll('.language-toggle-button');
-    if (!toggleButtons.length) return;
-
-    toggleButtons.forEach((button) => {
+    qsa('.language-toggle-button').forEach((button) => {
       button.addEventListener('click', () => {
         const language = button.dataset.lang || 'en';
         localStorage.setItem('preferredLanguage', language);
@@ -564,16 +1416,27 @@
   };
 
   document.addEventListener('DOMContentLoaded', () => {
+    initializeState();
     createHeroAmbient();
-    buildPixelCanvas();
-    buildTilePreview();
     buildPalette();
+    buildPixelCanvas();
+    renderActivePixelGrid();
+    renderFramesStrip();
+    renderWallTilesGrid();
+    bindCanvasInteraction();
     bindToolSelection();
     bindZoomControl();
     bindGridControls();
-    bindCanvasInteraction();
+    bindFramesControls();
+    bindPreviewModeTabs();
+    bindPreviewControls();
+    bindWallPaintInteraction();
     bindLanguageToggle();
+
     const storedLanguage = localStorage.getItem('preferredLanguage') || 'en';
     applyTranslations(storedLanguage);
+    updateActiveToolLabel();
+    setPreviewMode('tiles');
+    renderPreviews();
   });
 })();
