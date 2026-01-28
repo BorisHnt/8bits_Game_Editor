@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8bits Game Editor — Graphic Assets Design</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geo&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="page-graphic-assets">
+  <header class="navigation-bar-sticky">
+    <div class="navigation-bar-inner">
+      <a class="brand-lockup" href="index.html" aria-label="8bits Game Editor home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter">
+            <rect x="2" y="2" width="8" height="8"></rect>
+            <rect x="14" y="2" width="8" height="8"></rect>
+            <rect x="2" y="14" width="8" height="8"></rect>
+            <rect x="14" y="14" width="8" height="8"></rect>
+          </svg>
+        </span>
+        <span class="brand-text">8bits Game Editor</span>
+      </a>
+      <nav class="navigation-links">
+        <a class="navigation-link" href="index.html">
+          <span class="navigation-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12l7-7 7 7"></path>
+              <path d="M6 10v10h12V10"></path>
+            </svg>
+          </span>
+          Home
+        </a>
+        <a class="navigation-link" href="graphic-assets.html">
+          <span class="navigation-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+            </svg>
+          </span>
+          Graphic Assets Design
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="workspace-page">
+    <section class="workspace-header">
+      <div>
+        <h1 class="workspace-title">Graphic Assets Design</h1>
+        <p class="workspace-subtitle">Pixel editor workspace for sprites, tiles, and texture systems.</p>
+      </div>
+      <div class="workspace-meta">
+        <div class="workspace-meta-item">
+          <span class="workspace-meta-label">Grid</span>
+          <span class="workspace-meta-value">16 x 16</span>
+        </div>
+        <div class="workspace-meta-item">
+          <span class="workspace-meta-label">Preview</span>
+          <span class="workspace-meta-value">Tiling enabled</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="workspace-layout">
+      <aside class="workspace-panel-left">
+        <h2 class="panel-title">Tools</h2>
+        <div class="tool-selector">
+          <button class="tool-selector-button is-active" data-tool="pencil">
+            <span class="tool-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5l4 4L8 20H4v-4L16.5 3.5z"></path>
+              </svg>
+            </span>
+            Pencil
+          </button>
+          <button class="tool-selector-button" data-tool="eraser">
+            <span class="tool-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 13l-5 5H7l-4-4 9-9 6 6z"></path>
+              </svg>
+            </span>
+            Eraser
+          </button>
+          <button class="tool-selector-button" data-tool="eyedropper">
+            <span class="tool-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 2l3 3"></path>
+                <path d="M8 5l9 9"></path>
+                <path d="M7 6l-2 2a2.8 2.8 0 0 0 0 4l6 6a2.8 2.8 0 0 0 4 0l2-2"></path>
+                <path d="M14 15l4 4"></path>
+              </svg>
+            </span>
+            Eyedropper
+          </button>
+          <button class="tool-selector-button" data-tool="fill">
+            <span class="tool-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 11l-7-7-7 7"></path>
+                <path d="M5 11h14v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"></path>
+              </svg>
+            </span>
+            Fill Bucket
+          </button>
+        </div>
+        <div class="panel-divider"></div>
+        <div class="tool-info">
+          <p class="panel-label">Active Tool</p>
+          <p class="panel-value" id="active-tool-label">Pencil</p>
+        </div>
+      </aside>
+
+      <div class="workspace-panel-center">
+        <div class="canvas-header">
+          <div>
+            <h2 class="panel-title">Pixel Canvas</h2>
+            <p class="panel-subtitle">Base grid 16x16. Each pixel is 10px.</p>
+          </div>
+          <div class="zoom-control">
+            <label class="panel-label" for="zoom-range">Zoom</label>
+            <input type="range" id="zoom-range" min="8" max="20" value="10" />
+            <span class="panel-value" id="zoom-value">10px</span>
+          </div>
+        </div>
+        <div class="canvas-grid-wrapper">
+          <div class="pixel-canvas-grid" id="pixel-canvas"></div>
+        </div>
+        <div class="palette-panel">
+          <div>
+            <h2 class="panel-title">Palette</h2>
+            <p class="panel-subtitle">Predefined pixel-art colors.</p>
+          </div>
+          <div class="palette-row">
+            <div class="palette-swatch-group" id="palette-swatches"></div>
+            <div class="active-color-preview">
+              <span class="panel-label">Active</span>
+              <div class="active-color-chip" id="active-color-chip"></div>
+            </div>
+          </div>
+        </div>
+        <div class="export-panel accent-outline-active">
+          <div>
+            <h2 class="panel-title">Export</h2>
+            <p class="panel-subtitle">Ready for PNG output. Transparent background preserved.</p>
+          </div>
+          <button class="button-primary">Export PNG</button>
+        </div>
+      </div>
+
+      <aside class="workspace-panel-right">
+        <h2 class="panel-title">Tile Preview</h2>
+        <p class="panel-subtitle">See repetition at scale.</p>
+        <div class="tile-preview-grid" id="tile-preview"></div>
+        <div class="panel-divider"></div>
+        <div class="preview-notes">
+          <p class="panel-label">Mode</p>
+          <p class="panel-value">Walls / Floors / Continuous</p>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
