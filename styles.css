@@ -1087,6 +1087,10 @@ svg {
   z-index: 200;
 }
 
+.modal-overlay.is-hidden {
+  display: none;
+}
+
 .modal-panel {
   width: min(520px, 90vw);
   background: var(--color-panel-elevated);
