@@ -760,6 +760,13 @@ svg {
   justify-content: space-between;
 }
 
+.palette-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 .palette-select {
   min-width: 200px;
   background: transparent;
@@ -778,6 +785,10 @@ svg {
   color: var(--color-text-primary);
   padding: 10px;
   resize: vertical;
+}
+
+.palette-file-input {
+  display: none;
 }
 
 .palette-row {

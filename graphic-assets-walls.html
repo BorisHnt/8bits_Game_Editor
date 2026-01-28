@@ -175,7 +175,12 @@
           </div>
           <div class="palette-controls">
             <select class="palette-select" id="palette-select" aria-label="Palette selector"></select>
-            <button class="button-secondary" type="button" id="add-palette" data-i18n="panel.addPalette">Add Palette</button>
+            <div class="palette-actions">
+              <button class="button-secondary" type="button" id="add-palette" data-i18n="panel.addPalette">Add Palette</button>
+              <button class="button-secondary" type="button" id="import-palette" data-i18n="panel.importPalette">Import TXT</button>
+              <button class="button-secondary" type="button" id="export-palette" data-i18n="panel.exportPalette">Export TXT</button>
+              <input class="palette-file-input" type="file" id="palette-file" accept=".txt" />
+            </div>
           </div>
           <div class="palette-row">
             <div class="palette-swatch-group" id="palette-swatches"></div>

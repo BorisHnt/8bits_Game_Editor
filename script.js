@@ -64,6 +64,8 @@
       'panel.exportSingle': 'Single frame',
       'panel.exportSequence': 'Sequence 001-999',
       'panel.addPalette': 'Add Palette',
+      'panel.importPalette': 'Import TXT',
+      'panel.exportPalette': 'Export TXT',
       'panel.paletteModalTitle': 'Add Palette',
       'panel.paletteName': 'Palette Name',
       'panel.paletteValues': 'Colors',
@@ -162,6 +164,8 @@
       'panel.exportSingle': 'Une frame',
       'panel.exportSequence': 'Sequence 001-999',
       'panel.addPalette': 'Ajouter une palette',
+      'panel.importPalette': 'Importer TXT',
+      'panel.exportPalette': 'Exporter TXT',
       'panel.paletteModalTitle': 'Ajouter une palette',
       'panel.paletteName': 'Nom de palette',
       'panel.paletteValues': 'Couleurs',
@@ -1594,6 +1598,9 @@
   const bindPaletteControls = () => {
     const paletteSelect = qs('#palette-select');
     const addButton = qs('#add-palette');
+    const importButton = qs('#import-palette');
+    const exportButton = qs('#export-palette');
+    const fileInput = qs('#palette-file');
     const modal = qs('#palette-modal');
     const closeButton = qs('#palette-modal-close');
     const cancelButton = qs('#palette-modal-cancel');
@@ -1624,9 +1631,15 @@
     addButton?.addEventListener('click', openModal);
     closeButton?.addEventListener('click', closeModal);
     cancelButton?.addEventListener('click', closeModal);
+    modal?.addEventListener('click', (event) => {
+      if (event.target === modal) closeModal();
+    });
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeModal();
+    });
 
-    saveButton?.addEventListener('click', () => {
-      const name = (nameInput?.value || '').trim() || 'Custom Palette';
+    const savePalette = (nameOverride = '') => {
+      const name = (nameInput?.value || '').trim() || nameOverride || 'Custom Palette';
       const values = valuesInput?.value || '';
       const parsed = parsePaletteInput(values);
       const unique = Array.from(new Map(parsed.map((color) => [normalizeColor(color), color])).values());
@@ -1638,6 +1651,41 @@
       if (nameInput) nameInput.value = '';
       if (valuesInput) valuesInput.value = '';
       closeModal();
+    };
+
+    saveButton?.addEventListener('click', () => savePalette());
+
+    importButton?.addEventListener('click', () => {
+      fileInput?.click();
+    });
+
+    fileInput?.addEventListener('change', () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const content = String(reader.result || '');
+        const name = file.name.replace(/\.[^/.]+$/, '');
+        if (nameInput) nameInput.value = name;
+        if (valuesInput) valuesInput.value = content.trim();
+        openModal();
+      };
+      reader.readAsText(file);
+      fileInput.value = '';
+    });
+
+    exportButton?.addEventListener('click', () => {
+      const palette = palettes[activePaletteIndex] || palettes[0];
+      if (!palette) return;
+      const name = sanitizeFilename(palette.name || 'palette');
+      const text = palette.colors.join(' ');
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${name}.txt`;
+      link.click();
+      URL.revokeObjectURL(url);
     });
   };
 
