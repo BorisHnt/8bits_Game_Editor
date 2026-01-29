@@ -2099,6 +2099,54 @@
     const patterns = [
       {
         id: 'corner-in-bottom-right',
+        mask: patternFromRows(['OX+', 'XXX', '+X+'])
+      },
+      {
+        id: 'corner-in-bottom-left',
+        mask: patternFromRows(['+XO', 'XXX', '+X+'])
+      },
+      {
+        id: 'corner-in-top-right',
+        mask: patternFromRows(['+X+', 'XXX', 'OX+'])
+      },
+      {
+        id: 'corner-in-top-left',
+        mask: patternFromRows(['+X+', 'XXX', '+XO'])
+      },
+      {
+        id: 'corner-out-top-left',
+        mask: patternFromRows(['+O+', 'OXX', '+XX'])
+      },
+      {
+        id: 'corner-out-top-right',
+        mask: patternFromRows(['+O+', 'XXO', '+X+'])
+      },
+      {
+        id: 'corner-out-bottom-left',
+        mask: patternFromRows(['+X+', 'OXX', '+O+'])
+      },
+      {
+        id: 'corner-out-bottom-right',
+        mask: patternFromRows(['+X+', 'XXO', '+O+'])
+      },
+      {
+        id: 'edge-top',
+        mask: patternFromRows(['+O+', 'XXX', '+++'])
+      },
+      {
+        id: 'edge-bottom',
+        mask: patternFromRows(['+++', 'XXX', '+O+'])
+      },
+      {
+        id: 'edge-left',
+        mask: patternFromRows(['+X+', 'OX+', '+X+'])
+      },
+      {
+        id: 'edge-right',
+        mask: patternFromRows(['+X+', '+XO', '+X+'])
+      },
+      {
+        id: 'corner-in-bottom-right',
         mask: patternFromRows(['OX+', 'XXX', '+XX'])
       },
       {
