@@ -1968,7 +1968,21 @@
     };
   };
 
-  const getWallTileIdX13 = ({ n, s, w, e, nw, ne, sw, se, count }) => {
+  const getWallTileIdX13 = ({ n, s, w, e, nw, ne, sw, se, count }, x, y) => {
+    const { width, height } = state.wallLayout;
+    const isBorder = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+
+    if (isBorder) {
+      if (x === 0 && y === 0) return 'corner-in-top-left';
+      if (x === width - 1 && y === 0) return 'corner-in-top-right';
+      if (x === 0 && y === height - 1) return 'corner-in-bottom-left';
+      if (x === width - 1 && y === height - 1) return 'corner-in-bottom-right';
+      if (y === 0) return 'edge-bottom';
+      if (y === height - 1) return 'edge-top';
+      if (x === 0) return 'edge-right';
+      if (x === width - 1) return 'edge-left';
+    }
+
     if (count === 4) {
       if (n && w && !nw && s && e) return 'corner-in-top-left';
       if (n && e && !ne && s && w) return 'corner-in-top-right';
@@ -1977,22 +1991,22 @@
       return 'center';
     }
     if (count === 3) {
-      if (!n) return 'edge-bottom';
-      if (!s) return 'edge-top';
-      if (!w) return 'edge-right';
-      return 'edge-left';
+      if (!n) return 'edge-top';
+      if (!s) return 'edge-bottom';
+      if (!w) return 'edge-left';
+      return 'edge-right';
     }
     if (count === 2) {
-      if (s && e) return 'corner-in-top-left';
-      if (s && w) return 'corner-in-top-right';
-      if (n && e) return 'corner-in-bottom-left';
-      if (n && w) return 'corner-in-bottom-right';
-      if (n && s) return 'edge-right';
-      if (e && w) return 'edge-bottom';
+      if (s && e) return 'corner-out-top-left';
+      if (s && w) return 'corner-out-top-right';
+      if (n && e) return 'corner-out-bottom-left';
+      if (n && w) return 'corner-out-bottom-right';
+      if (n && s) return 'edge-left';
+      if (e && w) return 'edge-top';
     }
     if (count === 1) {
-      if (n) return 'edge-top';
-      if (s) return 'edge-bottom';
+      if (n) return 'edge-bottom';
+      if (s) return 'edge-top';
       if (w) return 'edge-right';
       return 'edge-left';
     }
@@ -2062,7 +2076,7 @@
     if (state.wallMode === 'x47') {
       return getWallTileIdX47(neighbors, x, y);
     }
-    return getWallTileIdX13(neighbors);
+    return getWallTileIdX13(neighbors, x, y);
   };
 
   const getHoleTileId = (x, y) => {
