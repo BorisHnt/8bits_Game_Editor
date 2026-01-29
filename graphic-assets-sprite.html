@@ -157,6 +157,13 @@
               <input type="range" id="zoom-range" min="10" max="25" value="10" />
               <span class="panel-value" id="zoom-value">10px</span>
             </div>
+            <div class="grid-control">
+              <label class="panel-label" data-i18n="panel.checker">Checker</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="checker-toggle" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
           </div>
         </div>
         <div class="canvas-grid-wrapper">
@@ -250,6 +257,17 @@
             <div class="preview-control-group">
               <label class="panel-label" for="sprite-zoom" data-i18n="panel.previewZoom">Zoom</label>
               <input type="range" id="sprite-zoom" min="1" max="6" value="3" />
+            </div>
+            <div class="preview-control-group">
+              <label class="panel-label" for="sprite-bg" data-i18n="panel.previewBackground">Background</label>
+              <select class="preview-select" id="sprite-bg" aria-label="Sprite preview background">
+                <option value="transparent" data-i18n="panel.previewBackgroundTransparent">Transparent</option>
+                <option value="#000000" data-i18n="panel.previewBackgroundBlack">Black</option>
+                <option value="#ffffff" data-i18n="panel.previewBackgroundWhite">White</option>
+                <option value="#1a1a1a" data-i18n="panel.previewBackgroundDark">Dark Gray</option>
+                <option value="#666666" data-i18n="panel.previewBackgroundMid">Mid Gray</option>
+                <option value="#cccccc" data-i18n="panel.previewBackgroundLight">Light Gray</option>
+              </select>
             </div>
           </div>
           <div class="preview-canvas-wrapper">

@@ -55,6 +55,7 @@
       'panel.grid': 'Grid',
       'panel.gridApply': 'Apply',
       'panel.zoom': 'Zoom',
+      'panel.checker': 'Checker White',
       'panel.palette': 'Palette',
       'panel.paletteSubtitle': 'Predefined pixel-art colors.',
       'panel.activeColor': 'Active',
@@ -89,6 +90,12 @@
       'panel.previewOverlay': 'Overlay',
       'panel.previewZoom': 'Zoom',
       'panel.previewBackground': 'Background',
+      'panel.previewBackgroundTransparent': 'Transparent',
+      'panel.previewBackgroundBlack': 'Black',
+      'panel.previewBackgroundWhite': 'White',
+      'panel.previewBackgroundDark': 'Dark Gray',
+      'panel.previewBackgroundMid': 'Mid Gray',
+      'panel.previewBackgroundLight': 'Light Gray',
       'panel.previewPlayback': 'Playback',
       'panel.previewPlay': 'Play',
       'panel.previewPause': 'Pause',
@@ -165,6 +172,7 @@
       'panel.grid': 'Grille',
       'panel.gridApply': 'Appliquer',
       'panel.zoom': 'Zoom',
+      'panel.checker': 'Damier blanc',
       'panel.palette': 'Palette',
       'panel.paletteSubtitle': 'Couleurs pixel-art prédéfinies.',
       'panel.activeColor': 'Actif',
@@ -199,6 +207,12 @@
       'panel.previewOverlay': 'Overlay',
       'panel.previewZoom': 'Zoom',
       'panel.previewBackground': 'Fond',
+      'panel.previewBackgroundTransparent': 'Transparent',
+      'panel.previewBackgroundBlack': 'Noir',
+      'panel.previewBackgroundWhite': 'Blanc',
+      'panel.previewBackgroundDark': 'Gris foncé',
+      'panel.previewBackgroundMid': 'Gris moyen',
+      'panel.previewBackgroundLight': 'Gris clair',
       'panel.previewPlayback': 'Lecture',
       'panel.previewPlay': 'Lecture',
       'panel.previewPause': 'Pause',
@@ -243,7 +257,8 @@
     grid: {
       width: 16,
       height: 16,
-      pixelSize: 10
+      pixelSize: 10,
+      checkerWhite: false
     },
     frames: [],
     activeFrameIndex: 0,
@@ -268,7 +283,8 @@
         fps: 6,
         zoom: 3,
         playing: true,
-        currentFrame: 0
+        currentFrame: 0,
+        background: 'transparent'
       },
       walls: {
         cols: 10,
@@ -755,11 +771,13 @@
     width: state.grid.width,
     height: state.grid.height,
     pixelSize: state.grid.pixelSize,
+    checkerWhite: state.grid.checkerWhite,
     wallMode: state.wallMode,
     grid: {
       width: state.grid.width,
       height: state.grid.height,
-      pixelSize: state.grid.pixelSize
+      pixelSize: state.grid.pixelSize,
+      checkerWhite: state.grid.checkerWhite
     },
     preview: state.preview,
     frames: state.frames.map((frame) => ({ id: frame.id, pixels: frame.pixels })),
@@ -1070,6 +1088,7 @@
     const { width, height } = state.grid;
     document.documentElement.style.setProperty('--grid-columns', width);
     document.documentElement.style.setProperty('--grid-rows', height);
+    canvas.classList.toggle('checker-white', state.grid.checkerWhite);
 
     pixelCells = [];
     canvas.innerHTML = '';
@@ -1261,6 +1280,7 @@
     const widthInput = qs('#grid-width');
     const heightInput = qs('#grid-height');
     const applyButton = qs('#apply-grid');
+    const checkerToggle = qs('#checker-toggle');
     if (!widthInput || !heightInput || !applyButton) return;
 
     const applyGrid = () => {
@@ -1296,6 +1316,17 @@
     };
 
     applyButton.addEventListener('click', applyGrid);
+    if (checkerToggle) {
+      checkerToggle.checked = state.grid.checkerWhite;
+      checkerToggle.addEventListener('change', () => {
+        state.grid.checkerWhite = checkerToggle.checked;
+        const canvas = qs('#pixel-canvas');
+        if (canvas) {
+          canvas.classList.toggle('checker-white', state.grid.checkerWhite);
+        }
+        scheduleCacheSave();
+      });
+    }
     [widthInput, heightInput].forEach((input) => {
       input.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
@@ -1629,6 +1660,7 @@
     const spriteStep = qs('#sprite-step');
     const spriteFps = qs('#sprite-fps');
     const spriteZoom = qs('#sprite-zoom');
+    const spriteBg = qs('#sprite-bg');
 
     spritePlay?.addEventListener('click', () => {
       state.preview.sprite.playing = true;
@@ -1659,6 +1691,12 @@
     spriteZoom?.addEventListener('input', () => {
       state.preview.sprite.zoom = Number.parseInt(spriteZoom.value, 10);
       renderSpritePreview();
+    });
+
+    spriteBg?.addEventListener('change', () => {
+      state.preview.sprite.background = spriteBg.value || 'transparent';
+      renderSpritePreview();
+      scheduleCacheSave();
     });
 
     const wallsApply = qs('#walls-apply');
@@ -1829,6 +1867,11 @@
       if (zoomRange) zoomRange.value = String(size);
       if (zoomValue) zoomValue.textContent = `${size}px`;
     }
+    if (payload.checkerWhite !== undefined) {
+      state.grid.checkerWhite = Boolean(payload.checkerWhite);
+    } else if (payload.grid?.checkerWhite !== undefined) {
+      state.grid.checkerWhite = Boolean(payload.grid.checkerWhite);
+    }
 
     if (Array.isArray(payload.frames) && payload.frames.length) {
       state.frames = payload.frames.map((pixels) => ({
@@ -1911,6 +1954,12 @@
     const heightInput = qs('#grid-height');
     if (widthInput) widthInput.value = String(state.grid.width);
     if (heightInput) heightInput.value = String(state.grid.height);
+    const spriteBg = qs('#sprite-bg');
+    if (spriteBg && state.preview.sprite?.background) {
+      spriteBg.value = state.preview.sprite.background;
+    }
+    const checkerToggle = qs('#checker-toggle');
+    if (checkerToggle) checkerToggle.checked = state.grid.checkerWhite;
 
     buildPixelCanvas();
     renderActivePixelGrid();
@@ -2070,7 +2119,37 @@
     const frameIndex = clamp(state.preview.sprite.currentFrame, 0, state.frames.length - 1);
     const pixels = state.frames[frameIndex]?.pixels || [];
 
-    drawPixelsToCanvas(pixels, canvas, width, height, zoom);
+    const background = state.preview.sprite.background || 'transparent';
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width = width * zoom;
+    canvas.height = height * zoom;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (background === 'transparent') {
+      const size = Math.max(4, Math.floor(zoom * 2));
+      for (let y = 0; y < canvas.height; y += size) {
+        for (let x = 0; x < canvas.width; x += size) {
+          const isLight = (x / size + y / size) % 2 === 0;
+          ctx.fillStyle = isLight ? '#0f0f0f' : '#1a1a1a';
+          ctx.fillRect(x, y, size, size);
+        }
+      }
+    } else {
+      ctx.fillStyle = background;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    for (let row = 0; row < height; row += 1) {
+      for (let col = 0; col < width; col += 1) {
+        const color = pixels[row * width + col];
+        if (!color) continue;
+        ctx.fillStyle = color;
+        ctx.fillRect(col * zoom, row * zoom, zoom, zoom);
+      }
+    }
   };
 
   const startSpritePlayback = () => {
