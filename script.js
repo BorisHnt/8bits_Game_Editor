@@ -2094,29 +2094,16 @@
     if (s && w && !sw) return 'corner-in-bottom-left';
     if (s && e && !se) return 'corner-in-bottom-right';
 
-    if (count === 4) {
-      return 'center';
-    }
-    if (count === 3) {
-      if (!n) return 'edge-top';
-      if (!s) return 'edge-bottom';
-      if (!w) return 'edge-left';
-      return 'edge-right';
-    }
-    if (count === 2) {
-      if (s && e) return 'corner-out-top-left';
-      if (s && w) return 'corner-out-top-right';
-      if (n && e) return 'corner-out-bottom-left';
-      if (n && w) return 'corner-out-bottom-right';
-      if (n && s) return 'edge-left';
-      if (e && w) return 'edge-top';
-    }
-    if (count === 1) {
-      if (n) return 'edge-bottom';
-      if (s) return 'edge-top';
-      if (w) return 'edge-right';
-      return 'edge-left';
-    }
+    if (!n && !w && s && e) return 'corner-out-top-left';
+    if (!n && !e && s && w) return 'corner-out-top-right';
+    if (!s && !w && n && e) return 'corner-out-bottom-left';
+    if (!s && !e && n && w) return 'corner-out-bottom-right';
+
+    if (!n) return 'edge-top';
+    if (!s) return 'edge-bottom';
+    if (!w) return 'edge-left';
+    if (!e) return 'edge-right';
+
     return 'center';
   };
 
