@@ -1972,6 +1972,32 @@
     URL.revokeObjectURL(url);
   };
 
+  const exportWallTilesPng = () => {
+    if (!state.wallTiles.length) return;
+    const { width, height } = state.grid;
+    const count = state.wallTiles.length;
+    const columns = Math.ceil(Math.sqrt(count));
+    const rows = Math.ceil(count / columns);
+    const canvas = document.createElement('canvas');
+    canvas.width = width * columns;
+    canvas.height = height * rows;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    state.wallTiles.forEach((tile, index) => {
+      const col = index % columns;
+      const row = Math.floor(index / columns);
+      const tempCanvas = document.createElement('canvas');
+      drawPixelsToCanvas(tile.pixels, tempCanvas, width, height, 1);
+      ctx.drawImage(tempCanvas, col * width, row * height);
+    });
+
+    const baseName = sanitizeFilename(getExportName());
+    downloadCanvas(canvas, `${baseName}_tiles.png`);
+  };
+
   const clearActiveCanvas = () => {
     const pixels = getActivePixels();
     if (!pixels) return;
@@ -2452,10 +2478,12 @@
     const importJsonButton = qs('#import-json');
     const importJsonFile = qs('#import-json-file');
     const clearButton = qs('#clear-canvas');
+    const exportTilesButton = qs('#export-tiles-png');
 
     exportButton?.addEventListener('click', exportActivePixels);
     exportJsonButton?.addEventListener('click', exportJson);
     clearButton?.addEventListener('click', clearActiveCanvas);
+    exportTilesButton?.addEventListener('click', exportWallTilesPng);
 
     importJsonButton?.addEventListener('click', () => {
       importJsonFile?.click();
