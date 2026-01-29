@@ -2074,7 +2074,16 @@
     };
   };
 
-  const getWallTileIdX13 = ({ n, s, w, e, nw, ne, sw, se, count }, x, y) => {
+  const matchesPattern = (pattern, sample) => {
+    for (let i = 0; i < pattern.length; i += 1) {
+      const expected = pattern[i];
+      if (expected === null) continue;
+      if (sample[i] !== expected) return false;
+    }
+    return true;
+  };
+
+  const getWallTileIdX13 = ({ n, s, w, e, nw, ne, sw, se }, x, y) => {
     const { width, height } = state.wallLayout;
     const isBorder = x === 0 || y === 0 || x === width - 1 || y === height - 1;
 
@@ -2089,20 +2098,35 @@
       if (x === width - 1) return 'edge-left';
     }
 
-    if (n && w && !nw) return 'corner-in-top-left';
-    if (n && e && !ne) return 'corner-in-top-right';
-    if (s && w && !sw) return 'corner-in-bottom-left';
-    if (s && e && !se) return 'corner-in-bottom-right';
+    const sample = [
+      nw, n, ne,
+      w, true, e,
+      sw, s, se
+    ];
 
-    if (!n && !w && s && e) return 'corner-out-top-left';
-    if (!n && !e && s && w) return 'corner-out-top-right';
-    if (!s && !w && n && e) return 'corner-out-bottom-left';
-    if (!s && !e && n && w) return 'corner-out-bottom-right';
+    const patterns = [
+      { id: 'corner-in-bottom-right', mask: [null, true, true, true, true, true, true, true, true] },
+      { id: 'corner-in-bottom-left', mask: [true, true, null, true, true, true, true, true, true] },
+      { id: 'corner-in-top-right', mask: [true, true, true, true, true, true, null, true, true] },
+      { id: 'corner-in-top-left', mask: [true, true, true, true, true, true, true, true, null] },
 
-    if (!n) return 'edge-top';
-    if (!s) return 'edge-bottom';
-    if (!w) return 'edge-left';
-    if (!e) return 'edge-right';
+      { id: 'corner-out-top-left', mask: [false, false, true, false, true, true, true, true, true] },
+      { id: 'corner-out-top-right', mask: [true, false, false, true, true, false, true, true, true] },
+      { id: 'corner-out-bottom-left', mask: [true, true, true, false, true, true, false, false, true] },
+      { id: 'corner-out-bottom-right', mask: [true, true, true, true, true, false, true, false, false] },
+
+      { id: 'edge-top', mask: [null, false, null, true, true, true, null, true, null] },
+      { id: 'edge-bottom', mask: [null, true, null, true, true, true, null, false, null] },
+      { id: 'edge-left', mask: [null, true, null, false, true, true, null, true, null] },
+      { id: 'edge-right', mask: [null, true, null, true, true, false, null, true, null] },
+
+      { id: 'center', mask: [true, true, true, true, true, true, true, true, true] }
+    ];
+
+    for (let i = 0; i < patterns.length; i += 1) {
+      const { id, mask } = patterns[i];
+      if (matchesPattern(mask, sample)) return id;
+    }
 
     return 'center';
   };
