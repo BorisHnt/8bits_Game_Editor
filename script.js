@@ -1997,10 +1997,10 @@
       return 'edge-right';
     }
     if (count === 2) {
-      if (s && e) return 'corner-out-top-left';
-      if (s && w) return 'corner-out-top-right';
-      if (n && e) return 'corner-out-bottom-left';
-      if (n && w) return 'corner-out-bottom-right';
+      if (s && e) return 'corner-out-bottom-right';
+      if (s && w) return 'corner-out-bottom-left';
+      if (n && e) return 'corner-out-top-right';
+      if (n && w) return 'corner-out-top-left';
       if (n && s) return 'edge-left';
       if (e && w) return 'edge-top';
     }
