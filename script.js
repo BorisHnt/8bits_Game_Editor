@@ -2083,21 +2083,13 @@
     return true;
   };
 
-  const getWallTileIdX13 = ({ n, s, w, e, nw, ne, sw, se }, x, y) => {
-    const { width, height } = state.wallLayout;
-    const isBorder = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+  const patternFromRows = (rows) => rows.join('').split('').map((char) => {
+    if (char === '+') return null;
+    if (char === 'X') return true;
+    return false;
+  });
 
-    if (isBorder) {
-      if (x === 0 && y === 0) return 'corner-in-top-left';
-      if (x === width - 1 && y === 0) return 'corner-in-top-right';
-      if (x === 0 && y === height - 1) return 'corner-in-bottom-left';
-      if (x === width - 1 && y === height - 1) return 'corner-in-bottom-right';
-      if (y === 0) return 'edge-bottom';
-      if (y === height - 1) return 'edge-top';
-      if (x === 0) return 'edge-right';
-      if (x === width - 1) return 'edge-left';
-    }
-
+  const getWallTileIdX13 = ({ n, s, w, e, nw, ne, sw, se }) => {
     const sample = [
       nw, n, ne,
       w, true, e,
@@ -2105,22 +2097,58 @@
     ];
 
     const patterns = [
-      { id: 'corner-in-bottom-right', mask: [null, true, true, true, true, true, true, true, true] },
-      { id: 'corner-in-bottom-left', mask: [true, true, null, true, true, true, true, true, true] },
-      { id: 'corner-in-top-right', mask: [true, true, true, true, true, true, null, true, true] },
-      { id: 'corner-in-top-left', mask: [true, true, true, true, true, true, true, true, null] },
-
-      { id: 'corner-out-top-left', mask: [false, false, true, false, true, true, true, true, true] },
-      { id: 'corner-out-top-right', mask: [true, false, false, true, true, false, true, true, true] },
-      { id: 'corner-out-bottom-left', mask: [true, true, true, false, true, true, false, false, true] },
-      { id: 'corner-out-bottom-right', mask: [true, true, true, true, true, false, true, false, false] },
-
-      { id: 'edge-top', mask: [null, false, null, true, true, true, null, true, null] },
-      { id: 'edge-bottom', mask: [null, true, null, true, true, true, null, false, null] },
-      { id: 'edge-left', mask: [null, true, null, false, true, true, null, true, null] },
-      { id: 'edge-right', mask: [null, true, null, true, true, false, null, true, null] },
-
-      { id: 'center', mask: [true, true, true, true, true, true, true, true, true] }
+      {
+        id: 'corner-in-bottom-right',
+        mask: patternFromRows(['OX+', 'XXX', '+XX'])
+      },
+      {
+        id: 'corner-in-bottom-left',
+        mask: patternFromRows(['+XO', 'XXX', 'XX+'])
+      },
+      {
+        id: 'corner-in-top-right',
+        mask: patternFromRows(['+XX', 'XXX', 'OX+'])
+      },
+      {
+        id: 'corner-in-top-left',
+        mask: patternFromRows(['XX+', 'XXX', '+XO'])
+      },
+      {
+        id: 'corner-out-top-left',
+        mask: patternFromRows(['OO+', 'OXX', '+XX'])
+      },
+      {
+        id: 'corner-out-top-right',
+        mask: patternFromRows(['+OO', 'XXO', 'XX+'])
+      },
+      {
+        id: 'corner-out-bottom-left',
+        mask: patternFromRows(['+XX', 'OXX', 'OO+'])
+      },
+      {
+        id: 'corner-out-bottom-right',
+        mask: patternFromRows(['XX+', 'XXO', '+OO'])
+      },
+      {
+        id: 'edge-top',
+        mask: patternFromRows(['OOO', 'XXX', 'XXX'])
+      },
+      {
+        id: 'edge-bottom',
+        mask: patternFromRows(['XXX', 'XXX', 'OOO'])
+      },
+      {
+        id: 'edge-left',
+        mask: patternFromRows(['OXX', 'OXX', 'OXX'])
+      },
+      {
+        id: 'edge-right',
+        mask: patternFromRows(['XXO', 'XXO', 'XXO'])
+      },
+      {
+        id: 'center',
+        mask: patternFromRows(['XXX', 'XXX', 'XXX'])
+      }
     ];
 
     for (let i = 0; i < patterns.length; i += 1) {
