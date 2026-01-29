@@ -2114,19 +2114,19 @@
         mask: patternFromRows(['XX+', 'XXX', '+XO'])
       },
       {
-        id: 'corner-out-top-left',
+        id: 'corner-out-bottom-right',
         mask: patternFromRows(['OO+', 'OXX', '+XX'])
       },
       {
-        id: 'corner-out-top-right',
+        id: 'corner-out-bottom-left',
         mask: patternFromRows(['+OO', 'XXO', 'XX+'])
       },
       {
-        id: 'corner-out-bottom-left',
+        id: 'corner-out-top-right',
         mask: patternFromRows(['+XX', 'OXX', 'OO+'])
       },
       {
-        id: 'corner-out-bottom-right',
+        id: 'corner-out-top-left',
         mask: patternFromRows(['XX+', 'XXO', '+OO'])
       },
       {
@@ -2179,10 +2179,10 @@
     if (count === 2) {
       if (n && s) return 'corridor-vertical';
       if (e && w) return 'corridor-horizontal';
-      if (n && e) return 'corner-out-top-right';
-      if (n && w) return 'corner-out-top-left';
-      if (s && e) return 'corner-out-bottom-right';
-      return 'corner-out-bottom-left';
+      if (n && e) return 'corner-out-bottom-left';
+      if (n && w) return 'corner-out-bottom-right';
+      if (s && e) return 'corner-out-top-left';
+      return 'corner-out-top-right';
     }
     if (count === 1) {
       if (n) return 'cap-top';
