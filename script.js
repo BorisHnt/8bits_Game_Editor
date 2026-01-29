@@ -2157,10 +2157,10 @@
       { id: 'corner-in-top-left', mask: patternFromRows(['+X+', 'XXX', '+XO']) },
 
       // Outer corners (convex)
-      { id: 'corner-out-top-left', mask: patternFromRows(['OO+', 'OXX', '+XX']) },
-      { id: 'corner-out-top-right', mask: patternFromRows(['+OO', 'XXO', 'XX+']) },
-      { id: 'corner-out-bottom-left', mask: patternFromRows(['+XX', 'OXX', 'OO+']) },
-      { id: 'corner-out-bottom-right', mask: patternFromRows(['XX+', 'XXO', '+OO']) },
+      { id: 'corner-out-bottom-right', mask: patternFromRows(['OO+', 'OXX', '+XX']) },
+      { id: 'corner-out-bottom-left', mask: patternFromRows(['+OO', 'XXO', 'XX+']) },
+      { id: 'corner-out-top-right', mask: patternFromRows(['+XX', 'OXX', 'OO+']) },
+      { id: 'corner-out-top-left', mask: patternFromRows(['XX+', 'XXO', '+OO']) },
 
       // Edges (strict + relaxed)
       { id: 'edge-top', mask: patternFromRows(['OOO', 'XXX', 'XXX']) },
