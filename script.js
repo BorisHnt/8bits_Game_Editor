@@ -287,10 +287,10 @@
       { id: 'edge-bottom', label: 'Edge Bottom' },
       { id: 'edge-left', label: 'Edge Left' },
       { id: 'edge-right', label: 'Edge Right' },
-      { id: 'corner-out-top-left', label: 'Corner Top Left' },
-      { id: 'corner-out-top-right', label: 'Corner Top Right' },
-      { id: 'corner-out-bottom-left', label: 'Corner Bottom Left' },
-      { id: 'corner-out-bottom-right', label: 'Corner Bottom Right' },
+      { id: 'corner-out-top-left', label: 'Corner Bottom Right' },
+      { id: 'corner-out-top-right', label: 'Corner Bottom Left' },
+      { id: 'corner-out-bottom-left', label: 'Corner Top Right' },
+      { id: 'corner-out-bottom-right', label: 'Corner Top Left' },
       { id: 'corner-in-top-left', label: 'Inner Corner Top Left' },
       { id: 'corner-in-top-right', label: 'Inner Corner Top Right' },
       { id: 'corner-in-bottom-left', label: 'Inner Corner Bottom Left' },
@@ -1977,22 +1977,22 @@
       return 'center';
     }
     if (count === 3) {
-      if (!n) return 'edge-top';
-      if (!s) return 'edge-bottom';
-      if (!w) return 'edge-left';
-      return 'edge-right';
+      if (!n) return 'edge-bottom';
+      if (!s) return 'edge-top';
+      if (!w) return 'edge-right';
+      return 'edge-left';
     }
     if (count === 2) {
-      if (n && e) return 'corner-out-top-right';
-      if (n && w) return 'corner-out-top-left';
-      if (s && e) return 'corner-out-bottom-right';
-      if (s && w) return 'corner-out-bottom-left';
-      if (n && s) return 'edge-left';
-      if (e && w) return 'edge-top';
+      if (s && e) return 'corner-in-top-left';
+      if (s && w) return 'corner-in-top-right';
+      if (n && e) return 'corner-in-bottom-left';
+      if (n && w) return 'corner-in-bottom-right';
+      if (n && s) return 'edge-right';
+      if (e && w) return 'edge-bottom';
     }
     if (count === 1) {
-      if (n) return 'edge-bottom';
-      if (s) return 'edge-top';
+      if (n) return 'edge-top';
+      if (s) return 'edge-bottom';
       if (w) return 'edge-right';
       return 'edge-left';
     }
