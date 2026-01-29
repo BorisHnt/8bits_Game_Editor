@@ -773,6 +773,10 @@
       height: state.wallLayout.height,
       cells: state.wallLayout.cells
     },
+    wallGrid: {
+      width: state.wallLayout.width,
+      height: state.wallLayout.height
+    },
     exportName: qs('#export-name')?.value || ''
   });
 
@@ -809,6 +813,13 @@
       }
       if (!payload.name && payload.exportName) {
         payload.name = payload.exportName;
+      }
+      if (!payload.wallLayout && payload.wallGrid) {
+        payload.wallLayout = {
+          width: payload.wallGrid.width,
+          height: payload.wallGrid.height,
+          cells: []
+        };
       }
       return applyAssetPayload(payload, { fromCache: true });
     } catch (error) {
@@ -1657,8 +1668,8 @@
     const wallsRandomize = qs('#walls-randomize');
 
     const applyWallsGrid = () => {
-      const cols = clamp(Number.parseInt(wallsCols?.value, 10) || state.wallLayout.width, 2, 30);
-      const rows = clamp(Number.parseInt(wallsRows?.value, 10) || state.wallLayout.height, 2, 30);
+      const cols = clamp(Number.parseInt(wallsCols?.value, 10) || state.wallLayout.width, 2, 32);
+      const rows = clamp(Number.parseInt(wallsRows?.value, 10) || state.wallLayout.height, 2, 32);
       resizeWallLayout(cols, rows);
       if (wallsCols) wallsCols.value = String(cols);
       if (wallsRows) wallsRows.value = String(rows);
@@ -1867,8 +1878,8 @@
     }
 
     if (payload.wallLayout?.cells) {
-      const layoutWidth = clamp(Number.parseInt(payload.wallLayout.width, 10) || state.wallLayout.width, 2, 40);
-      const layoutHeight = clamp(Number.parseInt(payload.wallLayout.height, 10) || state.wallLayout.height, 2, 40);
+      const layoutWidth = clamp(Number.parseInt(payload.wallLayout.width, 10) || state.wallLayout.width, 2, 32);
+      const layoutHeight = clamp(Number.parseInt(payload.wallLayout.height, 10) || state.wallLayout.height, 2, 32);
       const size = layoutWidth * layoutHeight;
       const cells = Array.isArray(payload.wallLayout.cells)
         ? payload.wallLayout.cells.slice(0, size)
