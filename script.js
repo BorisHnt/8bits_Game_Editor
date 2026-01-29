@@ -455,7 +455,7 @@
 
   const studioPalette = [
     { label: 'Deep Red', value: '#600018' },
-    { label: 'Mid Red 1', value: '#844018' },
+    { label: 'Mid Red 1', value: '#a50223' },
     { label: 'Red', value: '#ed1c24' },
     { label: 'Mid Red 2', value: '#f46350' },
     { label: 'Light Red', value: '#fa8072' },
@@ -2089,11 +2089,12 @@
       if (x === width - 1) return 'edge-left';
     }
 
+    if (n && w && !nw) return 'corner-in-top-left';
+    if (n && e && !ne) return 'corner-in-top-right';
+    if (s && w && !sw) return 'corner-in-bottom-left';
+    if (s && e && !se) return 'corner-in-bottom-right';
+
     if (count === 4) {
-      if (n && w && !nw && s && e) return 'corner-in-top-left';
-      if (n && e && !ne && s && w) return 'corner-in-top-right';
-      if (s && w && !sw && n && e) return 'corner-in-bottom-left';
-      if (s && e && !se && n && w) return 'corner-in-bottom-right';
       return 'center';
     }
     if (count === 3) {
