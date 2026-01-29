@@ -2083,126 +2083,49 @@
     return true;
   };
 
-  const patternFromRows = (rows) => rows.join('').split('').map((char) => {
-    if (char === '+') return null;
-    if (char === 'X') return true;
-    return false;
-  });
+  const getWallTileIdX13 = ({ n, s, w, e, nw, ne, sw, se }, x, y) => {
+    const { width, height } = state.wallLayout;
+    const isBorder = x === 0 || y === 0 || x === width - 1 || y === height - 1;
 
-  const getWallTileIdX13 = ({ n, s, w, e, nw, ne, sw, se }) => {
-    const sample = [
-      nw, n, ne,
-      w, true, e,
-      sw, s, se
-    ];
-
-    const patterns = [
-      {
-        id: 'corner-in-bottom-right',
-        mask: patternFromRows(['OX+', 'XXX', '+X+'])
-      },
-      {
-        id: 'corner-in-bottom-left',
-        mask: patternFromRows(['+XO', 'XXX', '+X+'])
-      },
-      {
-        id: 'corner-in-top-right',
-        mask: patternFromRows(['+X+', 'XXX', 'OX+'])
-      },
-      {
-        id: 'corner-in-top-left',
-        mask: patternFromRows(['+X+', 'XXX', '+XO'])
-      },
-      {
-        id: 'corner-out-top-left',
-        mask: patternFromRows(['+O+', 'OXX', '+XX'])
-      },
-      {
-        id: 'corner-out-top-right',
-        mask: patternFromRows(['+O+', 'XXO', '+X+'])
-      },
-      {
-        id: 'corner-out-bottom-left',
-        mask: patternFromRows(['+X+', 'OXX', '+O+'])
-      },
-      {
-        id: 'corner-out-bottom-right',
-        mask: patternFromRows(['+X+', 'XXO', '+O+'])
-      },
-      {
-        id: 'edge-top',
-        mask: patternFromRows(['+O+', 'XXX', '+++'])
-      },
-      {
-        id: 'edge-bottom',
-        mask: patternFromRows(['+++', 'XXX', '+O+'])
-      },
-      {
-        id: 'edge-left',
-        mask: patternFromRows(['+X+', 'OX+', '+X+'])
-      },
-      {
-        id: 'edge-right',
-        mask: patternFromRows(['+X+', '+XO', '+X+'])
-      },
-      {
-        id: 'corner-in-bottom-right',
-        mask: patternFromRows(['OX+', 'XXX', '+XX'])
-      },
-      {
-        id: 'corner-in-bottom-left',
-        mask: patternFromRows(['+XO', 'XXX', 'XX+'])
-      },
-      {
-        id: 'corner-in-top-right',
-        mask: patternFromRows(['+XX', 'XXX', 'OX+'])
-      },
-      {
-        id: 'corner-in-top-left',
-        mask: patternFromRows(['XX+', 'XXX', '+XO'])
-      },
-      {
-        id: 'corner-out-bottom-right',
-        mask: patternFromRows(['OO+', 'OXX', '+XX'])
-      },
-      {
-        id: 'corner-out-bottom-left',
-        mask: patternFromRows(['+OO', 'XXO', 'XX+'])
-      },
-      {
-        id: 'corner-out-top-right',
-        mask: patternFromRows(['+XX', 'OXX', 'OO+'])
-      },
-      {
-        id: 'corner-out-top-left',
-        mask: patternFromRows(['XX+', 'XXO', '+OO'])
-      },
-      {
-        id: 'edge-top',
-        mask: patternFromRows(['OOO', 'XXX', 'XXX'])
-      },
-      {
-        id: 'edge-bottom',
-        mask: patternFromRows(['XXX', 'XXX', 'OOO'])
-      },
-      {
-        id: 'edge-left',
-        mask: patternFromRows(['OXX', 'OXX', 'OXX'])
-      },
-      {
-        id: 'edge-right',
-        mask: patternFromRows(['XXO', 'XXO', 'XXO'])
-      },
-      {
-        id: 'center',
-        mask: patternFromRows(['XXX', 'XXX', 'XXX'])
-      }
-    ];
-
-    for (let i = 0; i < patterns.length; i += 1) {
-      const { id, mask } = patterns[i];
-      if (matchesPattern(mask, sample)) return id;
+    if (isBorder) {
+      if (x === 0 && y === 0) return 'corner-in-top-left';
+      if (x === width - 1 && y === 0) return 'corner-in-top-right';
+      if (x === 0 && y === height - 1) return 'corner-in-bottom-left';
+      if (x === width - 1 && y === height - 1) return 'corner-in-bottom-right';
+      if (y === 0) return 'edge-bottom';
+      if (y === height - 1) return 'edge-top';
+      if (x === 0) return 'edge-right';
+      if (x === width - 1) return 'edge-left';
     }
+
+    const nBit = n ? 1 : 0;
+    const eBit = e ? 1 : 0;
+    const sBit = s ? 1 : 0;
+    const wBit = w ? 1 : 0;
+    const mask = (nBit << 3) | (eBit << 2) | (sBit << 1) | wBit;
+
+    if (mask === 15) {
+      if (!nw) return 'corner-in-top-left';
+      if (!ne) return 'corner-in-top-right';
+      if (!sw) return 'corner-in-bottom-left';
+      if (!se) return 'corner-in-bottom-right';
+      return 'center';
+    }
+
+    if (mask === 7) return 'edge-top';
+    if (mask === 11) return 'edge-right';
+    if (mask === 13) return 'edge-bottom';
+    if (mask === 14) return 'edge-left';
+
+    if (mask === 3) return 'corner-out-top-left';
+    if (mask === 6) return 'corner-out-top-right';
+    if (mask === 9) return 'corner-out-bottom-right';
+    if (mask === 12) return 'corner-out-bottom-left';
+
+    if (mask === 1) return 'edge-bottom';
+    if (mask === 2) return 'edge-left';
+    if (mask === 4) return 'edge-top';
+    if (mask === 8) return 'edge-right';
 
     return 'center';
   };
