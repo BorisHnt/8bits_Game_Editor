@@ -252,6 +252,10 @@
   let spriteTimerId = null;
   let isCtrlDrawing = false;
   let copiedFramePixels = null;
+  let undoStack = [];
+  let redoStack = [];
+  let historyBatchActive = false;
+  const historyLimit = 10;
 
   const state = {
     grid: {
@@ -296,6 +300,117 @@
     onionSkin: false,
     onionFrameIndex: null,
     onionSelecting: false
+  };
+
+  const clonePixels = (pixels) => (Array.isArray(pixels) ? pixels.slice() : []);
+  const cloneFrames = (frames) => frames.map((frame) => ({ id: frame.id, pixels: clonePixels(frame.pixels) }));
+  const cloneWallTiles = (tiles) => tiles.map((tile) => ({
+    id: tile.id,
+    label: tile.label,
+    pixels: clonePixels(tile.pixels)
+  }));
+
+  const buildHistorySnapshot = () => ({
+    grid: {
+      width: state.grid.width,
+      height: state.grid.height
+    },
+    frames: cloneFrames(state.frames),
+    activeFrameIndex: state.activeFrameIndex,
+    wallMode: state.wallMode,
+    wallTiles: cloneWallTiles(state.wallTiles),
+    activeWallTileIndex: state.activeWallTileIndex,
+    wallLayout: {
+      width: state.wallLayout.width,
+      height: state.wallLayout.height,
+      cells: clonePixels(state.wallLayout.cells)
+    }
+  });
+
+  const pushHistorySnapshot = () => {
+    undoStack.push(buildHistorySnapshot());
+    if (undoStack.length > historyLimit) {
+      undoStack.shift();
+    }
+    redoStack = [];
+  };
+
+  const beginHistoryBatch = () => {
+    if (historyBatchActive) return;
+    pushHistorySnapshot();
+    historyBatchActive = true;
+  };
+
+  const endHistoryBatch = () => {
+    historyBatchActive = false;
+  };
+
+  const applyHistorySnapshot = (snapshot) => {
+    if (!snapshot) return;
+    state.grid.width = snapshot.grid.width;
+    state.grid.height = snapshot.grid.height;
+    state.frames = cloneFrames(snapshot.frames);
+    state.activeFrameIndex = clamp(snapshot.activeFrameIndex ?? 0, 0, state.frames.length - 1);
+    state.preview.sprite.currentFrame = state.activeFrameIndex;
+
+    state.wallMode = snapshot.wallMode || 'x13';
+    state.wallTiles = cloneWallTiles(snapshot.wallTiles);
+    state.activeWallTileIndex = clamp(
+      snapshot.activeWallTileIndex ?? 0,
+      0,
+      state.wallTiles.length - 1
+    );
+    state.wallLayout = {
+      width: snapshot.wallLayout.width,
+      height: snapshot.wallLayout.height,
+      cells: clonePixels(snapshot.wallLayout.cells)
+    };
+
+    if (state.onionFrameIndex !== null && state.onionFrameIndex >= state.frames.length) {
+      state.onionFrameIndex = null;
+    }
+
+    const widthInput = qs('#grid-width');
+    const heightInput = qs('#grid-height');
+    if (widthInput) widthInput.value = String(state.grid.width);
+    if (heightInput) heightInput.value = String(state.grid.height);
+
+    const wallModeSelect = qs('#wall-mode');
+    if (wallModeSelect) wallModeSelect.value = state.wallMode;
+
+    const wallsCols = qs('#walls-cols');
+    const wallsRows = qs('#walls-rows');
+    if (wallsCols) wallsCols.value = String(state.wallLayout.width);
+    if (wallsRows) wallsRows.value = String(state.wallLayout.height);
+
+    buildPixelCanvas();
+    renderActivePixelGrid();
+    renderFramesStrip();
+    renderWallTilesGrid();
+    renderPreviews();
+    scheduleCacheSave(true);
+  };
+
+  const undoHistory = () => {
+    if (!undoStack.length) return;
+    const snapshot = undoStack.pop();
+    redoStack.push(buildHistorySnapshot());
+    if (redoStack.length > historyLimit) {
+      redoStack.shift();
+    }
+    endHistoryBatch();
+    applyHistorySnapshot(snapshot);
+  };
+
+  const redoHistory = () => {
+    if (!redoStack.length) return;
+    const snapshot = redoStack.pop();
+    undoStack.push(buildHistorySnapshot());
+    if (undoStack.length > historyLimit) {
+      undoStack.shift();
+    }
+    endHistoryBatch();
+    applyHistorySnapshot(snapshot);
   };
 
   const wallTileSets = {
@@ -820,6 +935,14 @@
     cacheTimer = window.setTimeout(saveCache, 250);
   };
 
+  const flushCache = () => {
+    if (cacheTimer) {
+      window.clearTimeout(cacheTimer);
+      cacheTimer = null;
+    }
+    saveCache();
+  };
+
   const loadCachedState = () => {
     try {
       const raw = localStorage.getItem(getCacheKey());
@@ -1187,6 +1310,9 @@
       event.preventDefault();
       isDrawing = true;
       canvas.setPointerCapture(event.pointerId);
+      if (activeTool === 'pencil' || activeTool === 'eraser' || activeTool === 'fill') {
+        beginHistoryBatch();
+      }
       applyToolToCell(cell);
     };
 
@@ -1202,6 +1328,9 @@
       }
 
       if ((isCtrlDrawing || event.ctrlKey) && allowDragTool) {
+        if (!historyBatchActive) {
+          beginHistoryBatch();
+        }
         applyToolToCell(cell, { dragging: true });
       }
     };
@@ -1214,6 +1343,7 @@
       } catch (error) {
         // Ignore if pointer is already released.
       }
+      endHistoryBatch();
     };
 
   canvas.addEventListener('pointerdown', handlePointerDown);
@@ -1232,6 +1362,7 @@
     const handleKeyUp = (event) => {
       if (event.key === 'Control') {
         isCtrlDrawing = false;
+        endHistoryBatch();
       }
     };
 
@@ -1239,6 +1370,7 @@
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('blur', () => {
       isCtrlDrawing = false;
+      endHistoryBatch();
     });
   };
 
@@ -1291,6 +1423,9 @@
 
       widthInput.value = String(nextWidth);
       heightInput.value = String(nextHeight);
+
+      if (nextWidth === state.grid.width && nextHeight === state.grid.height) return;
+      pushHistorySnapshot();
 
       const oldWidth = state.grid.width;
       const oldHeight = state.grid.height;
@@ -1377,6 +1512,7 @@
       upButton.addEventListener('click', (event) => {
         event.stopPropagation();
         if (index === 0) return;
+        pushHistorySnapshot();
         const temp = state.frames[index - 1];
         state.frames[index - 1] = state.frames[index];
         state.frames[index] = temp;
@@ -1394,6 +1530,7 @@
       downButton.addEventListener('click', (event) => {
         event.stopPropagation();
         if (index === state.frames.length - 1) return;
+        pushHistorySnapshot();
         const temp = state.frames[index + 1];
         state.frames[index + 1] = state.frames[index];
         state.frames[index] = temp;
@@ -1410,6 +1547,7 @@
       duplicateButton.textContent = 'Dup';
       duplicateButton.addEventListener('click', (event) => {
         event.stopPropagation();
+        pushHistorySnapshot();
         const copy = {
           id: createId(),
           pixels: frame.pixels.slice()
@@ -1429,6 +1567,7 @@
       deleteButton.addEventListener('click', (event) => {
         event.stopPropagation();
         if (state.frames.length === 1) return;
+        pushHistorySnapshot();
         state.frames.splice(index, 1);
         state.activeFrameIndex = clamp(state.activeFrameIndex, 0, state.frames.length - 1);
         if (state.onionFrameIndex === index) {
@@ -1458,6 +1597,7 @@
       pasteButton.addEventListener('click', (event) => {
         event.stopPropagation();
         if (!copiedFramePixels) return;
+        pushHistorySnapshot();
         frame.pixels = normalizePixels(copiedFramePixels, state.grid.width, state.grid.height);
         renderFrameThumbnail(index);
         if (index === state.activeFrameIndex) {
@@ -1548,6 +1688,7 @@
     const onionButton = qs('#toggle-onion');
     if (addButton) {
       addButton.addEventListener('click', () => {
+        pushHistorySnapshot();
         state.frames.push({ id: createId(), pixels: createEmptyPixels(state.grid.width, state.grid.height) });
         state.activeFrameIndex = state.frames.length - 1;
         state.preview.sprite.currentFrame = state.activeFrameIndex;
@@ -1710,6 +1851,8 @@
     const applyWallsGrid = () => {
       const cols = clamp(Number.parseInt(wallsCols?.value, 10) || state.wallLayout.width, 2, 32);
       const rows = clamp(Number.parseInt(wallsRows?.value, 10) || state.wallLayout.height, 2, 32);
+      if (cols === state.wallLayout.width && rows === state.wallLayout.height) return;
+      pushHistorySnapshot();
       resizeWallLayout(cols, rows);
       if (wallsCols) wallsCols.value = String(cols);
       if (wallsRows) wallsRows.value = String(rows);
@@ -1739,6 +1882,7 @@
 
     wallModeSelect?.addEventListener('change', () => {
       const mode = wallModeSelect.value || 'x13';
+      pushHistorySnapshot();
       setWallMode(mode, { preserve: true });
       state.wallLayout.cells = generateWallLayout(state.wallMode, state.wallLayout.width, state.wallLayout.height);
       renderWallTilesGrid();
@@ -1749,6 +1893,7 @@
     });
 
     wallsRandomize?.addEventListener('click', () => {
+      pushHistorySnapshot();
       state.wallLayout.cells = generateWallLayout(state.wallMode, state.wallLayout.width, state.wallLayout.height);
       renderWallPaintGrid();
       renderWallsPreview();
@@ -2050,6 +2195,7 @@
   const clearActiveCanvas = () => {
     const pixels = getActivePixels();
     if (!pixels) return;
+    pushHistorySnapshot();
     pixels.fill(null);
     renderActivePixelGrid();
     renderFrameThumbnail(state.activeFrameIndex);
@@ -2454,6 +2600,9 @@
       event.preventDefault();
       isDrawing = true;
       canvas.setPointerCapture(event.pointerId);
+      if (activeTool === 'pencil' || activeTool === 'eraser' || activeTool === 'fill') {
+        beginHistoryBatch();
+      }
       if (activeTool === 'eraser') {
         paintWallCell(cell.x, cell.y, 0);
       } else if (activeTool === 'fill') {
@@ -2473,6 +2622,9 @@
       if (!isDrawing && !(isCtrlDrawing || event.ctrlKey)) return;
       if (!allowDragTool) return;
 
+      if (!isDrawing && !historyBatchActive) {
+        beginHistoryBatch();
+      }
       if (activeTool === 'eraser') {
         paintWallCell(cell.x, cell.y, 0);
       } else {
@@ -2490,6 +2642,7 @@
       } catch (error) {
         // ignore
       }
+      endHistoryBatch();
     };
 
     canvas.addEventListener('pointerdown', handlePointerDown);
@@ -2589,8 +2742,17 @@
       reader.onload = () => {
         try {
           const payload = JSON.parse(String(reader.result || '{}'));
+          if (!payload || !payload.width || !payload.height) return;
+          const snapshot = buildHistorySnapshot();
           const applied = applyAssetPayload(payload);
-          if (applied) scheduleCacheSave(true);
+          if (applied) {
+            undoStack.push(snapshot);
+            if (undoStack.length > historyLimit) {
+              undoStack.shift();
+            }
+            redoStack = [];
+            scheduleCacheSave(true);
+          }
         } catch (error) {
           // Ignore invalid JSON.
         }
@@ -2607,6 +2769,39 @@
         localStorage.setItem('preferredLanguage', language);
         applyTranslations(language);
       });
+    });
+  };
+
+  const bindUndoRedo = () => {
+    window.addEventListener('keydown', (event) => {
+      const target = event.target;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
+        return;
+      }
+
+      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      const modKey = isMac ? event.metaKey : event.ctrlKey;
+      if (!modKey) return;
+
+      const key = event.key.toLowerCase();
+      if (key === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        undoHistory();
+      } else if (key === 'y' || (key === 'z' && event.shiftKey)) {
+        event.preventDefault();
+        redoHistory();
+      }
+    });
+  };
+
+  const bindCacheLifecycle = () => {
+    if (!document.body.classList.contains('page-graphic-assets')) return;
+    window.addEventListener('pagehide', flushCache);
+    window.addEventListener('beforeunload', flushCache);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        flushCache();
+      }
     });
   };
 
@@ -2728,6 +2923,8 @@
     bindExportButton();
     bindPaletteControls();
     bindLanguageToggle();
+    bindUndoRedo();
+    bindCacheLifecycle();
 
     const storedLanguage = localStorage.getItem('preferredLanguage') || 'en';
     applyTranslations(storedLanguage);
