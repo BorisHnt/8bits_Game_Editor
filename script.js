@@ -335,6 +335,11 @@
     redoStack = [];
   };
 
+  const ensureHistorySnapshot = () => {
+    if (historyBatchActive) return;
+    pushHistorySnapshot();
+  };
+
   const beginHistoryBatch = () => {
     if (historyBatchActive) return;
     pushHistorySnapshot();
@@ -895,7 +900,7 @@
       checkerWhite: state.grid.checkerWhite
     },
     preview: state.preview,
-    frames: state.frames.map((frame) => ({ id: frame.id, pixels: frame.pixels })),
+    frames: state.frames.map((frame) => frame.pixels),
     activeFrameIndex: state.activeFrameIndex,
     wallTiles: state.wallTiles.map((tile) => ({
       id: tile.id,
@@ -1238,6 +1243,7 @@
     if (!pixels || index < 0 || index >= pixels.length) return;
     if (pixels[index] === color) return;
 
+    ensureHistorySnapshot();
     pixels[index] = color;
     setCellColor(pixelCells[index], color);
     renderFrameThumbnail(state.activeFrameIndex);
@@ -1252,6 +1258,7 @@
     const targetColor = pixels[startIndex];
     if (targetColor === newColor) return;
 
+    ensureHistorySnapshot();
     const visited = new Uint8Array(pixels.length);
     const stack = [startIndex];
     const { width, height } = state.grid;
@@ -2019,10 +2026,13 @@
     }
 
     if (Array.isArray(payload.frames) && payload.frames.length) {
-      state.frames = payload.frames.map((pixels) => ({
-        id: createId(),
-        pixels: normalizePixels(pixels, width, height)
-      }));
+      state.frames = payload.frames.map((entry) => {
+        const pixels = Array.isArray(entry) ? entry : entry?.pixels;
+        return {
+          id: createId(),
+          pixels: normalizePixels(pixels, width, height)
+        };
+      });
       state.activeFrameIndex = clamp(Number.parseInt(payload.activeFrameIndex, 10) || 0, 0, state.frames.length - 1);
     } else if (Array.isArray(payload.pixels)) {
       state.frames = [{ id: createId(), pixels: normalizePixels(payload.pixels, width, height) }];
@@ -2589,6 +2599,7 @@
 
   const paintWallCell = (x, y, value) => {
     const index = y * state.wallLayout.width + x;
+    ensureHistorySnapshot();
     state.wallLayout.cells[index] = value;
     scheduleCacheSave();
   };
@@ -2657,6 +2668,7 @@
     const target = cells[startIndex];
     if (target === fillValue) return;
 
+    ensureHistorySnapshot();
     const stack = [startIndex];
     const visited = new Uint8Array(cells.length);
 
@@ -2779,7 +2791,8 @@
         return;
       }
 
-      const isMac = navigator.platform.toUpperCase().includes('MAC');
+      const platform = navigator.platform || '';
+      const isMac = /mac/i.test(platform);
       const modKey = isMac ? event.metaKey : event.ctrlKey;
       if (!modKey) return;
 
