@@ -8,12 +8,14 @@
       'title.walls': '8bits Game Editor — Walls Designer',
       'title.map': '8bits Game Editor — Map Creator',
       'title.world': '8bits Game Editor — World Creator',
+      'title.tester': '8bits Game Editor — Tester',
       'nav.home': 'Home',
       'nav.tiles': 'Tiles Designer',
       'nav.sprite': 'Sprite Designer',
       'nav.walls': 'Walls Designer',
       'nav.map': 'Map Creator',
       'nav.world': 'World Creator',
+      'nav.tester': 'Tester',
       'hero.kicker': 'Experimental Studio / Creative Workshop',
       'hero.subtitle': 'A professional digital workshop for pixel makers, indie developers, and sound architects.',
       'section.toolchain.title': 'Toolchain',
@@ -187,6 +189,20 @@
       'world.portals': 'Portals',
       'world.file': 'File',
       'world.remove': 'Remove',
+      'tester.title': 'Tester',
+      'tester.subtitle': 'Move the character to preview sprites.',
+      'tester.controlsTitle': 'Controls',
+      'tester.controlsSubtitle': 'Use keyboard to move.',
+      'tester.instructions': 'Arrow keys or WASD to move the character.',
+      'tester.reset': 'Reset',
+      'tester.position': 'Position',
+      'tester.direction': 'Direction',
+      'tester.dirUp': 'Up',
+      'tester.dirDown': 'Down',
+      'tester.dirLeft': 'Left',
+      'tester.dirRight': 'Right',
+      'tester.previewTitle': 'Preview',
+      'tester.previewSubtitle': 'Sprites are 16x16 px.',
       'map.data': 'Data',
       'map.exportJson': 'Export JSON',
       'map.importJson': 'Import JSON',
@@ -212,12 +228,14 @@
       'title.walls': "8bits Game Editor — Design de murs",
       'title.map': "8bits Game Editor — Créateur de maps",
       'title.world': "8bits Game Editor — Créateur de monde",
+      'title.tester': "8bits Game Editor — Tester",
       'nav.home': 'Accueil',
       'nav.tiles': 'Designer Tiles',
       'nav.sprite': 'Designer Sprite',
       'nav.walls': 'Designer Murs',
       'nav.map': 'Créateur de map',
       'nav.world': 'Créateur de monde',
+      'nav.tester': 'Tester',
       'hero.kicker': 'Atelier expérimental / Studio de création',
       'hero.subtitle': 'Un atelier numérique professionnel pour pixel artists, développeurs indés et designers sonores.',
       'section.toolchain.title': 'Chaîne de production',
@@ -391,6 +409,20 @@
       'world.portals': 'Portails',
       'world.file': 'Fichier',
       'world.remove': 'Supprimer',
+      'tester.title': 'Tester',
+      'tester.subtitle': 'Deplace le personnage pour previsualiser les sprites.',
+      'tester.controlsTitle': 'Controles',
+      'tester.controlsSubtitle': 'Utilisez le clavier pour bouger.',
+      'tester.instructions': 'Fleches ou ZQSD pour deplacer le personnage.',
+      'tester.reset': 'Reinitialiser',
+      'tester.position': 'Position',
+      'tester.direction': 'Direction',
+      'tester.dirUp': 'Haut',
+      'tester.dirDown': 'Bas',
+      'tester.dirLeft': 'Gauche',
+      'tester.dirRight': 'Droite',
+      'tester.previewTitle': 'Apercu',
+      'tester.previewSubtitle': 'Sprites en 16x16 px.',
       'map.data': 'Data',
       'map.exportJson': 'Exporter JSON',
       'map.importJson': 'Importer JSON',
@@ -2885,6 +2917,8 @@
       pageTitleKey = 'title.map';
     } else if (document.body.classList.contains('page-world')) {
       pageTitleKey = 'title.world';
+    } else if (document.body.classList.contains('page-tester')) {
+      pageTitleKey = 'title.tester';
     } else {
       const designer = document.body.dataset.designer;
       if (designer === 'tiles') pageTitleKey = 'title.tiles';
@@ -5328,6 +5362,172 @@
     });
   };
 
+  const initTester = () => {
+    const canvas = qs('#tester-canvas');
+    const positionValue = qs('#tester-position');
+    const directionValue = qs('#tester-direction');
+    const resetButton = qs('#tester-reset');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const spriteSize = 16;
+    const speed = 70;
+    const frameDuration = 0.18;
+    const pressedKeys = new Set();
+
+    const sheets = {
+      down: Object.assign(new Image(), { src: 'assets/characters/human_001_face.png' }),
+      up: Object.assign(new Image(), { src: 'assets/characters/human_001_back.png' }),
+      side: Object.assign(new Image(), { src: 'assets/characters/human_001_side.png' })
+    };
+
+    const sheetInfo = {
+      down: { frames: 3, idle: 2 },
+      up: { frames: 3, idle: 2 },
+      side: { frames: 2, idle: 1 }
+    };
+
+    const state = {
+      x: Math.floor(canvas.width / 2 - spriteSize / 2),
+      y: Math.floor(canvas.height / 2 - spriteSize / 2),
+      dir: 'down',
+      frame: 0,
+      frameTimer: 0
+    };
+
+    const getDirLabel = (dir) => {
+      if (dir === 'up') return translations[currentLanguage]?.['tester.dirUp'] ?? 'Up';
+      if (dir === 'down') return translations[currentLanguage]?.['tester.dirDown'] ?? 'Down';
+      if (dir === 'left') return translations[currentLanguage]?.['tester.dirLeft'] ?? 'Left';
+      return translations[currentLanguage]?.['tester.dirRight'] ?? 'Right';
+    };
+
+    const resetPosition = () => {
+      state.x = Math.floor(canvas.width / 2 - spriteSize / 2);
+      state.y = Math.floor(canvas.height / 2 - spriteSize / 2);
+      state.dir = 'down';
+      state.frame = 0;
+      state.frameTimer = 0;
+    };
+
+    const handleKey = (event) => {
+      const key = event.key;
+      const tracked = [
+        'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+        'w', 'a', 's', 'd', 'W', 'A', 'S', 'D',
+        'z', 'q', 'Z', 'Q'
+      ];
+      if (!tracked.includes(key)) return;
+      event.preventDefault();
+      if (event.type === 'keydown') {
+        pressedKeys.add(key);
+      } else {
+        pressedKeys.delete(key);
+      }
+    };
+
+    window.addEventListener('keydown', handleKey);
+    window.addEventListener('keyup', handleKey);
+    window.addEventListener('blur', () => pressedKeys.clear());
+    resetButton?.addEventListener('click', resetPosition);
+
+    let lastTime = performance.now();
+
+    const update = (delta) => {
+      let vx = 0;
+      let vy = 0;
+      const up = pressedKeys.has('ArrowUp') || pressedKeys.has('w') || pressedKeys.has('W') || pressedKeys.has('z') || pressedKeys.has('Z');
+      const down = pressedKeys.has('ArrowDown') || pressedKeys.has('s') || pressedKeys.has('S');
+      const left = pressedKeys.has('ArrowLeft') || pressedKeys.has('a') || pressedKeys.has('A') || pressedKeys.has('q') || pressedKeys.has('Q');
+      const right = pressedKeys.has('ArrowRight') || pressedKeys.has('d') || pressedKeys.has('D');
+
+      if (up) vy -= 1;
+      if (down) vy += 1;
+      if (left) vx -= 1;
+      if (right) vx += 1;
+
+      const moving = vx !== 0 || vy !== 0;
+      if (moving) {
+        const length = Math.hypot(vx, vy) || 1;
+        vx /= length;
+        vy /= length;
+        state.x = clamp(state.x + vx * speed * delta, 0, canvas.width - spriteSize);
+        state.y = clamp(state.y + vy * speed * delta, 0, canvas.height - spriteSize);
+
+        if (Math.abs(vx) > Math.abs(vy)) {
+          state.dir = vx < 0 ? 'left' : 'right';
+        } else {
+          state.dir = vy < 0 ? 'up' : 'down';
+        }
+
+        state.frameTimer += delta;
+        if (state.frameTimer >= frameDuration) {
+          state.frameTimer = 0;
+          state.frame = state.frame === 0 ? 1 : 0;
+        }
+      } else {
+        state.frameTimer = 0;
+      }
+
+      if (positionValue) {
+        positionValue.textContent = `${Math.round(state.x)}, ${Math.round(state.y)}`;
+      }
+      if (directionValue) {
+        directionValue.textContent = getDirLabel(state.dir);
+      }
+    };
+
+    const render = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#0b0b0b';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const sheet = state.dir === 'up' ? sheets.up : state.dir === 'down' ? sheets.down : sheets.side;
+      const info = state.dir === 'up' ? sheetInfo.up : state.dir === 'down' ? sheetInfo.down : sheetInfo.side;
+      const isMoving = pressedKeys.size > 0;
+      const frameIndex = isMoving ? state.frame : info.idle;
+      const sx = frameIndex * spriteSize;
+
+      if (state.dir === 'left') {
+        ctx.save();
+        ctx.scale(-1, 1);
+        ctx.drawImage(sheet, sx, 0, spriteSize, spriteSize, -Math.round(state.x) - spriteSize, Math.round(state.y), spriteSize, spriteSize);
+        ctx.restore();
+      } else {
+        ctx.drawImage(sheet, sx, 0, spriteSize, spriteSize, Math.round(state.x), Math.round(state.y), spriteSize, spriteSize);
+      }
+    };
+
+    const tick = (time) => {
+      const delta = Math.min(0.05, (time - lastTime) / 1000);
+      lastTime = time;
+      update(delta);
+      render();
+      requestAnimationFrame(tick);
+    };
+
+    const start = () => requestAnimationFrame(tick);
+    let loaded = 0;
+    const onLoad = () => {
+      loaded += 1;
+      if (loaded >= 3) start();
+    };
+
+    Object.values(sheets).forEach((img) => {
+      if (img.complete) {
+        onLoad();
+      } else {
+        img.addEventListener('load', onLoad);
+        img.addEventListener('error', onLoad);
+      }
+    });
+
+    document.addEventListener('languagechange', () => {
+      if (directionValue) directionValue.textContent = getDirLabel(state.dir);
+    });
+  };
+
   const bindCacheLifecycle = () => {
     if (!document.body.classList.contains('page-graphic-assets')) return;
     window.addEventListener('pagehide', flushCache);
@@ -5439,6 +5639,7 @@
     const isEditorPage = document.body.classList.contains('page-graphic-assets');
     const isMapPage = document.body.classList.contains('page-map');
     const isWorldPage = document.body.classList.contains('page-world');
+    const isTesterPage = document.body.classList.contains('page-tester');
 
     if (isHomePage) {
       createHeroAmbient();
@@ -5474,6 +5675,9 @@
     }
     if (isWorldPage) {
       initWorldCreator();
+    }
+    if (isTesterPage) {
+      initTester();
     }
 
     bindLanguageToggle();
