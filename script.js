@@ -4762,7 +4762,7 @@
       });
     };
 
-    const renderSandboxMapPreview = (mapEntry, canvas) => {
+    const renderSandboxMapPreview = (mapEntry, canvas, cellSize) => {
       if (!mapEntry?.payload?.map || !canvas) return;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
@@ -4773,11 +4773,10 @@
       const markers = Array.isArray(map.markers) ? map.markers : [];
       const assets = Array.isArray(mapEntry.payload.assets) ? mapEntry.payload.assets : [];
       const assetByNumber = new Map(assets.map((asset) => [Number(asset.number), asset]));
-      const maxDim = Math.max(width, height);
-      const cellSize = clamp(Math.floor(320 / maxDim), 3, 12);
+      const safeCellSize = clamp(Number.parseInt(cellSize, 10) || 6, 2, 16);
 
-      canvas.width = width * cellSize;
-      canvas.height = height * cellSize;
+      canvas.width = width * safeCellSize;
+      canvas.height = height * safeCellSize;
       ctx.imageSmoothingEnabled = false;
       ctx.fillStyle = '#0b0b0b';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -4813,14 +4812,14 @@
               sy,
               spriteWidth,
               spriteHeight,
-              x * cellSize,
-              y * cellSize,
-              cellSize,
-              cellSize
+              x * safeCellSize,
+              y * safeCellSize,
+              safeCellSize,
+              safeCellSize
             );
           } else {
             ctx.fillStyle = assetDef.color || '#2a2a2a';
-            ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+            ctx.fillRect(x * safeCellSize, y * safeCellSize, safeCellSize, safeCellSize);
           }
         }
       }
@@ -4830,13 +4829,13 @@
         if (marker !== 'portal' && marker !== 'entry' && marker !== 'exit' && marker !== 1 && marker !== true) continue;
         const row = Math.floor(i / width);
         const col = i % width;
-        const size = Math.max(2, Math.floor(cellSize * 0.5));
-        const offset = Math.floor((cellSize - size) / 2);
+        const size = Math.max(2, Math.floor(safeCellSize * 0.5));
+        const offset = Math.floor((safeCellSize - size) / 2);
         ctx.fillStyle = '#ff3b3b';
-        ctx.fillRect(col * cellSize + offset, row * cellSize + offset, size, size);
+        ctx.fillRect(col * safeCellSize + offset, row * safeCellSize + offset, size, size);
       }
 
-      mapEntry.sandboxCellSize = cellSize;
+      mapEntry.sandboxCellSize = safeCellSize;
       mapEntry.sandboxMapWidth = width;
       mapEntry.sandboxMapHeight = height;
     };
@@ -4878,6 +4877,14 @@
       worldState.maps.forEach((mapEntry, index) => {
         ensureNodePosition(mapEntry, index);
       });
+
+      const maxDim = worldState.maps.reduce((acc, mapEntry) => {
+        const map = mapEntry.payload?.map || {};
+        const width = clamp(Number.parseInt(map.width, 10) || 1, 1, 200);
+        const height = clamp(Number.parseInt(map.height, 10) || 1, 1, 200);
+        return Math.max(acc, width, height);
+      }, 1);
+      const sharedCellSize = clamp(Math.floor(320 / maxDim), 3, 12);
 
       worldState.connections.forEach((connection, index) => {
         const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -4927,7 +4934,7 @@
 
         const canvas = document.createElement('canvas');
         canvas.className = 'world-node-map';
-        renderSandboxMapPreview(mapEntry, canvas);
+        renderSandboxMapPreview(mapEntry, canvas, sharedCellSize);
         node.style.width = `${canvas.width + 24}px`;
         node.style.height = `${canvas.height + 64}px`;
 
