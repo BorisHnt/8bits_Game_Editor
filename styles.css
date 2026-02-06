@@ -1229,7 +1229,7 @@ svg {
    Map Creator
 ============================= */
 .map-layout {
-  grid-template-columns: minmax(280px, 1.2fr) minmax(240px, 1fr) minmax(0, 1.6fr);
+  grid-template-columns: minmax(280px, 1.2fr) minmax(180px, 0.7fr) minmax(0, 1.7fr);
 }
 
 .panel-header {
