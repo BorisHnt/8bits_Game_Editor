@@ -4878,13 +4878,7 @@
         ensureNodePosition(mapEntry, index);
       });
 
-      const maxDim = worldState.maps.reduce((acc, mapEntry) => {
-        const map = mapEntry.payload?.map || {};
-        const width = clamp(Number.parseInt(map.width, 10) || 1, 1, 200);
-        const height = clamp(Number.parseInt(map.height, 10) || 1, 1, 200);
-        return Math.max(acc, width, height);
-      }, 1);
-      const sharedCellSize = clamp(Math.floor(320 / maxDim), 3, 12);
+      const sharedCellSize = 16;
 
       worldState.connections.forEach((connection, index) => {
         const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
