@@ -154,6 +154,15 @@
               <button class="button-secondary" type="button" data-map-tool="eraser" data-i18n="map.toolEraser">Eraser</button>
             </div>
           </div>
+          <div class="map-control-group">
+            <label class="panel-label" data-i18n="map.data">Data</label>
+            <div class="map-toggle">
+              <button class="button-secondary" type="button" id="map-export" data-i18n="map.exportJson">Export JSON</button>
+              <button class="button-secondary" type="button" id="map-import" data-i18n="map.importJson">Import JSON</button>
+              <button class="button-secondary" type="button" id="map-randomize" data-i18n="map.randomize">Randomize</button>
+              <input class="map-file-input" type="file" id="map-import-file" accept=".json" />
+            </div>
+          </div>
         </div>
         <div class="map-grid-wrapper">
           <div class="map-grid" id="map-grid"></div>

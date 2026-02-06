@@ -136,6 +136,10 @@
       'map.tool': 'Tool',
       'map.toolPencil': 'Pencil',
       'map.toolEraser': 'Eraser',
+      'map.data': 'Data',
+      'map.exportJson': 'Export JSON',
+      'map.importJson': 'Import JSON',
+      'map.randomize': 'Randomize',
       'map.assetName': 'Asset name',
       'map.assetNumber': 'Image number',
       'map.assetConfig': 'Config',
@@ -282,6 +286,10 @@
       'map.tool': 'Outil',
       'map.toolPencil': 'Crayon',
       'map.toolEraser': 'Gomme',
+      'map.data': 'Data',
+      'map.exportJson': 'Exporter JSON',
+      'map.importJson': 'Importer JSON',
+      'map.randomize': 'Randomiser',
       'map.assetName': "Nom de l'asset",
       'map.assetNumber': 'Numero image',
       'map.assetConfig': 'Config',
@@ -2878,6 +2886,10 @@
     const mapHeightInput = qs('#map-height');
     const mapApplyButton = qs('#apply-map-size');
     const mapCellSize = qs('#map-cell-size');
+    const mapExportButton = qs('#map-export');
+    const mapImportButton = qs('#map-import');
+    const mapImportFile = qs('#map-import-file');
+    const mapRandomizeButton = qs('#map-randomize');
 
     if (!assetList || !assetGrid || !mapGrid) return;
 
@@ -3340,14 +3352,14 @@
 
       const asset = getAssetById(data.assetId);
       const assetNumber = asset?.number ?? '?';
+      const isAuto = data.auto !== false;
       let spriteIndex = data.spriteIndex || 1;
-
-      if (mapState.mode === 'auto') {
+      if (isAuto) {
         spriteIndex = computeAutoSpriteIndex(asset, x, y);
       }
 
       cell.classList.remove('is-empty');
-      cell.textContent = `${assetNumber}:${spriteIndex}`;
+      cell.textContent = `${assetNumber}:${spriteIndex}:${isAuto ? 1 : 0}`;
       cell.style.backgroundColor = '';
 
       if (asset?.imageUrl) {
@@ -3357,7 +3369,8 @@
         cell.style.backgroundSize = `${asset.cols * cellSize}px ${asset.rows * cellSize}px`;
         cell.style.backgroundPosition = `${-spriteCol * cellSize}px ${-spriteRow * cellSize}px`;
       } else {
-        const hue = (assetNumber * 37) % 360;
+        const numericAsset = Number.isFinite(Number(assetNumber)) ? Number(assetNumber) : 0;
+        const hue = (numericAsset * 37) % 360;
         cell.style.backgroundImage = '';
         cell.style.backgroundColor = `hsla(${hue}, 55%, 24%, 0.9)`;
       }
@@ -3388,15 +3401,14 @@
         if (!asset) return;
         mapState.map.cells[index] = {
           assetId: asset.id,
-          spriteIndex: mapState.mode === 'manual' ? mapState.selectedSpriteIndex : null
+          spriteIndex: mapState.mode === 'manual' ? mapState.selectedSpriteIndex : null,
+          auto: mapState.mode !== 'manual'
         };
       }
       const cell = mapGrid.querySelector(`.map-cell[data-index=\"${index}\"]`);
       if (cell) renderMapCell(cell, index);
 
-      if (mapState.mode === 'auto') {
-        renderMapGrid();
-      }
+      renderMapGrid();
     };
 
     const bindMapGrid = () => {
@@ -3470,6 +3482,129 @@
       });
     };
 
+    const buildMapPayload = () => ({
+      version: 1,
+      assets: mapState.assets.map((asset) => ({
+        name: asset.name,
+        fileName: asset.fileName,
+        number: asset.number,
+        cols: asset.cols,
+        rows: asset.rows,
+        spriteWidth: asset.spriteWidth,
+        spriteHeight: asset.spriteHeight,
+        spriteCount: asset.spriteCount,
+        type: asset.type
+      })),
+      map: {
+        width: mapState.map.width,
+        height: mapState.map.height,
+        cellSize: mapState.map.cellSize,
+        cells: mapState.map.cells.map((cell) => {
+          if (!cell) return null;
+          const asset = getAssetById(cell.assetId);
+          return {
+            assetNumber: asset?.number ?? null,
+            spriteIndex: cell.spriteIndex ?? null,
+            auto: cell.auto !== false
+          };
+        })
+      }
+    });
+
+    const applyMapPayload = (payload) => {
+      if (!payload?.map || !Array.isArray(payload.assets)) return;
+      mapState.assets = payload.assets.map((asset) => {
+        const cols = clamp(Number.parseInt(asset.cols, 10) || 1, 1, 64);
+        const rows = clamp(Number.parseInt(asset.rows, 10) || 1, 1, 64);
+        const maxSprites = cols * rows;
+        return {
+        id: createId(),
+        name: asset.name || '',
+        fileName: asset.fileName || '',
+        imageUrl: '',
+        number: clamp(Number.parseInt(asset.number, 10) || 1, 1, 9999),
+        cols,
+        rows,
+        spriteWidth: clamp(Number.parseInt(asset.spriteWidth, 10) || 16, 1, 256),
+        spriteHeight: clamp(Number.parseInt(asset.spriteHeight, 10) || 16, 1, 256),
+        spriteCount: clamp(Number.parseInt(asset.spriteCount, 10) || 1, 1, maxSprites),
+        type: asset.type === 'passable' ? 'passable' : 'blocking'
+        };
+      });
+
+      const assetByNumber = new Map(mapState.assets.map((asset) => [asset.number, asset.id]));
+      mapState.selectedAssetId = mapState.assets[0]?.id || null;
+      mapState.selectedSpriteIndex = 1;
+
+      mapState.map.width = clamp(Number.parseInt(payload.map.width, 10) || 50, 4, 200);
+      mapState.map.height = clamp(Number.parseInt(payload.map.height, 10) || 50, 4, 200);
+      mapState.map.cellSize = clamp(Number.parseInt(payload.map.cellSize, 10) || 16, 10, 32);
+
+      const total = mapState.map.width * mapState.map.height;
+      const nextCells = Array.from({ length: total }, () => null);
+      const cells = Array.isArray(payload.map.cells) ? payload.map.cells : [];
+
+      for (let i = 0; i < Math.min(cells.length, total); i += 1) {
+        const entry = cells[i];
+        if (!entry || !entry.assetNumber) continue;
+        const assetId = assetByNumber.get(entry.assetNumber);
+        if (!assetId) continue;
+        nextCells[i] = {
+          assetId,
+          spriteIndex: Number.isInteger(entry.spriteIndex) ? entry.spriteIndex : null,
+          auto: entry.auto !== false
+        };
+      }
+
+      mapState.map.cells = nextCells;
+      if (mapWidthInput) mapWidthInput.value = String(mapState.map.width);
+      if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
+      if (mapCellSize) mapCellSize.value = String(mapState.map.cellSize);
+      renderAssetList();
+      renderAssetGrid();
+      renderMapGrid();
+    };
+
+    const exportMapJson = () => {
+      const payload = buildMapPayload();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'map.json';
+      link.click();
+      URL.revokeObjectURL(url);
+    };
+
+    const importMapJson = (file) => {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const payload = JSON.parse(String(reader.result || '{}'));
+          applyMapPayload(payload);
+        } catch (error) {
+          // Ignore invalid JSON.
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    const randomizeMap = () => {
+      const asset = getAssetById(mapState.selectedAssetId);
+      if (!asset) return;
+      const maxIndex = Math.max(1, asset.spriteCount);
+      mapState.map.cells = mapState.map.cells.map((cell) => {
+        if (!cell || cell.assetId !== asset.id) return cell;
+        return {
+          ...cell,
+          auto: false,
+          spriteIndex: 1 + Math.floor(Math.random() * maxIndex)
+        };
+      });
+      renderMapGrid();
+    };
+
     document.addEventListener('languagechange', () => {
       renderAssetList();
       renderAssetGrid();
@@ -3495,6 +3630,17 @@
       renderAssetList();
       renderAssetGrid();
     });
+
+    mapExportButton?.addEventListener('click', exportMapJson);
+    mapImportButton?.addEventListener('click', () => mapImportFile?.click());
+    mapImportFile?.addEventListener('change', () => {
+      const file = mapImportFile.files?.[0];
+      if (file) {
+        importMapJson(file);
+      }
+      mapImportFile.value = '';
+    });
+    mapRandomizeButton?.addEventListener('click', randomizeMap);
   };
 
   const bindCacheLifecycle = () => {

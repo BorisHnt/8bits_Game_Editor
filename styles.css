@@ -1371,6 +1371,10 @@ svg {
   flex-wrap: wrap;
 }
 
+.map-file-input {
+  display: none;
+}
+
 .map-grid-wrapper {
   background: var(--color-panel);
   border: 1px solid var(--color-border);
