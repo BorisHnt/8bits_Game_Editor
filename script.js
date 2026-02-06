@@ -4150,16 +4150,16 @@
     const sandboxConfig = {
       width: 1600,
       height: 900,
-      nodeWidth: 160,
-      nodeHeight: 64,
+      defaultNodeWidth: 200,
+      defaultNodeHeight: 160,
       padding: 80
     };
 
-    const clampNodePosition = (x, y) => {
+    const clampNodePosition = (x, y, nodeWidth = sandboxConfig.defaultNodeWidth, nodeHeight = sandboxConfig.defaultNodeHeight) => {
       const minX = sandboxConfig.padding;
       const minY = sandboxConfig.padding;
-      const maxX = sandboxConfig.width - sandboxConfig.padding;
-      const maxY = sandboxConfig.height - sandboxConfig.padding;
+      const maxX = sandboxConfig.width - sandboxConfig.padding - nodeWidth;
+      const maxY = sandboxConfig.height - sandboxConfig.padding - nodeHeight;
       return {
         x: clamp(x, minX, maxX),
         y: clamp(y, minY, maxY)
@@ -4635,30 +4635,156 @@
       const spacingY = 160;
       const col = index % columns;
       const row = Math.floor(index / columns);
-      const x = sandboxConfig.padding + 80 + col * spacingX;
-      const y = sandboxConfig.padding + 60 + row * spacingY;
+      const x = sandboxConfig.padding + col * spacingX;
+      const y = sandboxConfig.padding + row * spacingY;
       mapEntry.position = clampNodePosition(x, y);
     };
 
     const applyNodePosition = (node, position) => {
-      const offsetX = position.x - sandboxConfig.nodeWidth / 2;
-      const offsetY = position.y - sandboxConfig.nodeHeight / 2;
-      node.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+      node.style.transform = `translate(${position.x}px, ${position.y}px)`;
     };
 
     const updateConnectionLines = () => {
-      const lines = qsa('line', sandboxLinks);
-      lines.forEach((line) => {
+      const groups = qsa('g[data-connection]', sandboxLinks);
+      groups.forEach((group) => {
+        const line = qs('line', group);
+        const fromDot = qs('circle[data-role=\"from\"]', group);
+        const toDot = qs('circle[data-role=\"to\"]', group);
+        if (!line) return;
         const fromId = line.dataset.from || '';
         const toId = line.dataset.to || '';
+        const fromPortal = Number.parseInt(line.dataset.fromPortal ?? '', 10);
+        const toPortal = Number.parseInt(line.dataset.toPortal ?? '', 10);
         const from = worldState.maps.find((entry) => entry.id === fromId);
         const to = worldState.maps.find((entry) => entry.id === toId);
         if (!from?.position || !to?.position) return;
-        line.setAttribute('x1', String(from.position.x));
-        line.setAttribute('y1', String(from.position.y));
-        line.setAttribute('x2', String(to.position.x));
-        line.setAttribute('y2', String(to.position.y));
+
+        const fromOffset = Number.isFinite(fromPortal) ? from.portalOffsets?.[fromPortal] : null;
+        const toOffset = Number.isFinite(toPortal) ? to.portalOffsets?.[toPortal] : null;
+        const fromX = fromOffset ? from.position.x + fromOffset.x : from.position.x + (from.nodeSize?.width || 0) / 2;
+        const fromY = fromOffset ? from.position.y + fromOffset.y : from.position.y + (from.nodeSize?.height || 0) / 2;
+        const toX = toOffset ? to.position.x + toOffset.x : to.position.x + (to.nodeSize?.width || 0) / 2;
+        const toY = toOffset ? to.position.y + toOffset.y : to.position.y + (to.nodeSize?.height || 0) / 2;
+
+        line.setAttribute('x1', String(fromX));
+        line.setAttribute('y1', String(fromY));
+        line.setAttribute('x2', String(toX));
+        line.setAttribute('y2', String(toY));
+        if (fromDot) {
+          fromDot.setAttribute('cx', String(fromX));
+          fromDot.setAttribute('cy', String(fromY));
+        }
+        if (toDot) {
+          toDot.setAttribute('cx', String(toX));
+          toDot.setAttribute('cy', String(toY));
+        }
       });
+    };
+
+    const renderSandboxMapPreview = (mapEntry, canvas) => {
+      if (!mapEntry?.payload?.map || !canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const map = mapEntry.payload.map;
+      const width = clamp(Number.parseInt(map.width, 10) || 1, 1, 200);
+      const height = clamp(Number.parseInt(map.height, 10) || 1, 1, 200);
+      const cells = Array.isArray(map.cells) ? map.cells : [];
+      const markers = Array.isArray(map.markers) ? map.markers : [];
+      const assets = Array.isArray(mapEntry.payload.assets) ? mapEntry.payload.assets : [];
+      const assetByNumber = new Map(assets.map((asset) => [Number(asset.number), asset]));
+      const maxDim = Math.max(width, height);
+      const cellSize = clamp(Math.floor(320 / maxDim), 3, 12);
+
+      canvas.width = width * cellSize;
+      canvas.height = height * cellSize;
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = '#0b0b0b';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const index = y * width + x;
+          const entry = cells[index];
+          if (!entry || entry.assetNumber == null) continue;
+          const assetNumber = Number(entry.assetNumber);
+          const assetDef = assetByNumber.get(assetNumber);
+          if (!assetDef) continue;
+          const assetEntry = findAssetEntryForDef(assetDef);
+          const image = assetEntry ? ensureAssetImage(assetEntry) : null;
+          const isAuto = entry.auto !== false;
+          let spriteIndex = entry.spriteIndex || 1;
+          if (isAuto) {
+            spriteIndex = computeAutoSpriteIndex(cells, width, height, assetDef, x, y, assetNumber);
+          }
+
+          if (image && image.complete && image.naturalWidth > 0) {
+            const cols = Math.max(1, Number.parseInt(assetDef.cols, 10) || 1);
+            const rows = Math.max(1, Number.parseInt(assetDef.rows, 10) || 1);
+            const spriteWidth = Math.max(1, Number.parseInt(assetDef.spriteWidth, 10) || Math.floor(image.naturalWidth / cols));
+            const spriteHeight = Math.max(1, Number.parseInt(assetDef.spriteHeight, 10) || Math.floor(image.naturalHeight / rows));
+            const spriteCol = (spriteIndex - 1) % cols;
+            const spriteRow = Math.floor((spriteIndex - 1) / cols);
+            const sx = spriteCol * spriteWidth;
+            const sy = spriteRow * spriteHeight;
+            ctx.drawImage(
+              image,
+              sx,
+              sy,
+              spriteWidth,
+              spriteHeight,
+              x * cellSize,
+              y * cellSize,
+              cellSize,
+              cellSize
+            );
+          } else {
+            ctx.fillStyle = assetDef.color || '#2a2a2a';
+            ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+
+      for (let i = 0; i < Math.min(markers.length, width * height); i += 1) {
+        const marker = markers[i];
+        if (marker !== 'portal' && marker !== 'entry' && marker !== 'exit' && marker !== 1 && marker !== true) continue;
+        const row = Math.floor(i / width);
+        const col = i % width;
+        const size = Math.max(2, Math.floor(cellSize * 0.5));
+        const offset = Math.floor((cellSize - size) / 2);
+        ctx.fillStyle = '#ff3b3b';
+        ctx.fillRect(col * cellSize + offset, row * cellSize + offset, size, size);
+      }
+
+      mapEntry.sandboxCellSize = cellSize;
+      mapEntry.sandboxMapWidth = width;
+      mapEntry.sandboxMapHeight = height;
+    };
+
+    const updatePortalOffsets = () => {
+      const contentRect = sandboxContent.getBoundingClientRect();
+      const zoom = worldState.zoom || 1;
+      worldState.maps.forEach((mapEntry) => {
+        const node = sandboxNodes.querySelector(`.world-node[data-map-id=\"${mapEntry.id}\"]`);
+        const canvas = node ? qs('canvas', node) : null;
+        if (!node || !canvas) return;
+        const nodeRect = node.getBoundingClientRect();
+        const canvasRect = canvas.getBoundingClientRect();
+        const nodeWidth = nodeRect.width / zoom;
+        const nodeHeight = nodeRect.height / zoom;
+        mapEntry.nodeSize = { width: nodeWidth, height: nodeHeight };
+
+        const canvasOffsetX = (canvasRect.left - nodeRect.left) / zoom;
+        const canvasOffsetY = (canvasRect.top - nodeRect.top) / zoom;
+        const cellSize = mapEntry.sandboxCellSize || 1;
+        const offsets = {};
+        mapEntry.portals.forEach((portal) => {
+          const x = canvasOffsetX + (portal.col + 0.5) * cellSize;
+          const y = canvasOffsetY + (portal.row + 0.5) * cellSize;
+          offsets[portal.index] = { x, y };
+        });
+        mapEntry.portalOffsets = offsets;
+      });
+      updateConnectionLines();
     };
 
     const renderWorldSandbox = () => {
@@ -4672,14 +4798,29 @@
         ensureNodePosition(mapEntry, index);
       });
 
-      worldState.connections.forEach((connection) => {
+      worldState.connections.forEach((connection, index) => {
+        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        group.dataset.connection = String(index);
         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
         line.dataset.from = connection.fromMapId;
         line.dataset.to = connection.toMapId;
+        line.dataset.fromPortal = String(connection.fromPortalIndex);
+        line.dataset.toPortal = String(connection.toPortalIndex);
         line.setAttribute('stroke', 'rgba(0, 178, 204, 0.7)');
         line.setAttribute('stroke-width', '2');
         line.setAttribute('stroke-linecap', 'round');
-        sandboxLinks.appendChild(line);
+        const fromDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        fromDot.dataset.role = 'from';
+        fromDot.setAttribute('r', '4');
+        fromDot.setAttribute('fill', '#00f0ff');
+        const toDot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        toDot.dataset.role = 'to';
+        toDot.setAttribute('r', '4');
+        toDot.setAttribute('fill', '#ff7a59');
+        group.appendChild(line);
+        group.appendChild(fromDot);
+        group.appendChild(toDot);
+        sandboxLinks.appendChild(group);
       });
 
       worldState.maps.forEach((mapEntry) => {
@@ -4703,8 +4844,15 @@
         meta.appendChild(sizeLabel);
         meta.appendChild(portalLabel);
 
+        const canvas = document.createElement('canvas');
+        canvas.className = 'world-node-map';
+        renderSandboxMapPreview(mapEntry, canvas);
+        node.style.width = `${canvas.width + 24}px`;
+        node.style.height = `${canvas.height + 64}px`;
+
         node.appendChild(title);
         node.appendChild(meta);
+        node.appendChild(canvas);
         applyNodePosition(node, mapEntry.position);
         sandboxNodes.appendChild(node);
 
@@ -4722,7 +4870,9 @@
         });
       });
 
-      updateConnectionLines();
+      requestAnimationFrame(() => {
+        updatePortalOffsets();
+      });
     };
 
     const renderWorldPreview = () => {
@@ -4771,7 +4921,9 @@
       if (!mapEntry || !mapEntry.position) return;
       const dx = (event.clientX - worldState.drag.startX) / worldState.zoom;
       const dy = (event.clientY - worldState.drag.startY) / worldState.zoom;
-      const next = clampNodePosition(worldState.drag.originX + dx, worldState.drag.originY + dy);
+      const nodeWidth = mapEntry.nodeSize?.width || sandboxConfig.defaultNodeWidth;
+      const nodeHeight = mapEntry.nodeSize?.height || sandboxConfig.defaultNodeHeight;
+      const next = clampNodePosition(worldState.drag.originX + dx, worldState.drag.originY + dy, nodeWidth, nodeHeight);
       mapEntry.position = next;
       applyNodePosition(worldState.drag.node, next);
       updateConnectionLines();

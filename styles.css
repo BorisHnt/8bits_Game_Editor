@@ -1760,16 +1760,19 @@ svg {
 
 .world-node {
   position: absolute;
-  width: 160px;
-  min-height: 64px;
+  min-width: 160px;
+  min-height: 120px;
   background: #101010;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  padding: 10px 12px;
+  padding: 10px 12px 12px;
   color: var(--color-text-primary);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.35);
   cursor: grab;
   user-select: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .world-node:active {
@@ -1779,7 +1782,6 @@ svg {
 .world-node-title {
   font-size: 0.85rem;
   font-weight: 600;
-  margin-bottom: 6px;
 }
 
 .world-node-meta {
@@ -1788,6 +1790,16 @@ svg {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 10px;
+}
+
+.world-node-map {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-soft);
+  background: #0b0b0b;
+  display: block;
+  image-rendering: pixelated;
 }
 
 .world-preview-grid {
