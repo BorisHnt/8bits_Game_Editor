@@ -173,6 +173,7 @@
       'world.previewSubtitle': 'Overview of maps and links.',
       'world.zoom': 'Zoom',
       'world.zoomReset': 'Reset',
+      'world.opacity': 'Transparency',
       'world.previewEmpty': 'Import maps to see the world preview.',
       'world.mapName': 'Map name',
       'world.portals': 'Portals',
@@ -368,6 +369,7 @@
       'world.previewSubtitle': 'Vue generale des maps et liens.',
       'world.zoom': 'Zoom',
       'world.zoomReset': 'Reinitialiser',
+      'world.opacity': 'Transparence',
       'world.previewEmpty': "Importez des maps pour voir l'apercu du monde.",
       'world.mapName': 'Nom de map',
       'world.portals': 'Portails',
@@ -4130,26 +4132,30 @@
     const zoomRange = qs('#world-zoom');
     const zoomValue = qs('#world-zoom-value');
     const zoomReset = qs('#world-zoom-reset');
+    const opacityRange = qs('#world-opacity');
+    const opacityValue = qs('#world-opacity-value');
+    const sandbox = qs('#world-sandbox');
     const sandboxContent = qs('#world-sandbox-content');
     const sandboxLinks = qs('#world-sandbox-links');
     const sandboxNodes = qs('#world-sandbox-nodes');
     const sandboxViewport = qs('#world-sandbox-viewport');
 
-    if (!mapList || !fromMapSelect || !fromPortalSelect || !toMapSelect || !toPortalSelect || !connectionList || !assetList || !previewEmpty || !sandboxContent || !sandboxLinks || !sandboxNodes || !sandboxViewport) return;
+    if (!mapList || !fromMapSelect || !fromPortalSelect || !toMapSelect || !toPortalSelect || !connectionList || !assetList || !previewEmpty || !sandbox || !sandboxContent || !sandboxLinks || !sandboxNodes || !sandboxViewport) return;
 
     const worldState = {
       maps: [],
       connections: [],
       assets: [],
       zoom: 0.8,
+      opacity: 0.55,
       drag: null
     };
 
     const getText = (key, fallback = '') => translations[currentLanguage]?.[key] ?? fallback;
     const getMapName = (map) => map.name || map.fileName || `Map ${map.id}`;
     const sandboxConfig = {
-      width: 1600,
-      height: 900,
+      width: 2800,
+      height: 1600,
       defaultNodeWidth: 200,
       defaultNodeHeight: 160,
       padding: 80
@@ -4175,6 +4181,24 @@
       }
       if (zoomRange) {
         zoomRange.value = String(zoom);
+      }
+    };
+
+    const setOpacity = (value) => {
+      const opacity = clamp(value, 0.2, 1);
+      worldState.opacity = opacity;
+      const textAlpha = clamp(opacity + 0.35, 0.4, 1);
+      const metaAlpha = clamp(opacity + 0.2, 0.3, 1);
+      const mapAlpha = clamp(opacity + 0.25, 0.35, 1);
+      sandbox.style.setProperty('--world-node-alpha', opacity.toFixed(2));
+      sandbox.style.setProperty('--world-node-text-alpha', textAlpha.toFixed(2));
+      sandbox.style.setProperty('--world-node-meta-alpha', metaAlpha.toFixed(2));
+      sandbox.style.setProperty('--world-node-map-alpha', mapAlpha.toFixed(2));
+      if (opacityValue) {
+        opacityValue.textContent = `${Math.round(opacity * 100)}%`;
+      }
+      if (opacityRange) {
+        opacityRange.value = String(opacity);
       }
     };
 
@@ -5047,6 +5071,12 @@
         setZoom(value);
       }
     });
+    opacityRange?.addEventListener('input', () => {
+      const value = Number.parseFloat(opacityRange.value);
+      if (Number.isFinite(value)) {
+        setOpacity(value);
+      }
+    });
     zoomReset?.addEventListener('click', () => {
       setZoom(0.8);
     });
@@ -5059,6 +5089,7 @@
     renderWorldPreview();
 
     setZoom(worldState.zoom);
+    setOpacity(worldState.opacity);
 
     window.addEventListener('resize', () => {
       renderWorldPreview();
