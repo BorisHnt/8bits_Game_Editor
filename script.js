@@ -4965,7 +4965,7 @@
         ensureNodePosition(mapEntry, index);
       });
 
-      const sharedCellSize = 4;
+      const sharedCellSize = 16;
 
       worldState.connections.forEach((connection, index) => {
         const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
