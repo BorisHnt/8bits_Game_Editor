@@ -171,6 +171,8 @@
       'world.noConnections': 'No connections yet.',
       'world.previewTitle': 'World Preview',
       'world.previewSubtitle': 'Overview of maps and links.',
+      'world.zoom': 'Zoom',
+      'world.zoomReset': 'Reset',
       'world.previewEmpty': 'Import maps to see the world preview.',
       'world.mapName': 'Map name',
       'world.portals': 'Portals',
@@ -364,6 +366,8 @@
       'world.noConnections': 'Aucune connexion.',
       'world.previewTitle': 'Apercu du monde',
       'world.previewSubtitle': 'Vue generale des maps et liens.',
+      'world.zoom': 'Zoom',
+      'world.zoomReset': 'Reinitialiser',
       'world.previewEmpty': "Importez des maps pour voir l'apercu du monde.",
       'world.mapName': 'Nom de map',
       'world.portals': 'Portails',
@@ -4123,17 +4127,56 @@
     const emptyState = qs('#world-empty');
     const exportButton = qs('#world-export');
     const previewGrid = qs('#world-preview-grid');
+    const zoomRange = qs('#world-zoom');
+    const zoomValue = qs('#world-zoom-value');
+    const zoomReset = qs('#world-zoom-reset');
+    const sandboxContent = qs('#world-sandbox-content');
+    const sandboxLinks = qs('#world-sandbox-links');
+    const sandboxNodes = qs('#world-sandbox-nodes');
+    const sandboxViewport = qs('#world-sandbox-viewport');
 
-    if (!mapList || !fromMapSelect || !fromPortalSelect || !toMapSelect || !toPortalSelect || !connectionList || !assetList || !previewGrid) return;
+    if (!mapList || !fromMapSelect || !fromPortalSelect || !toMapSelect || !toPortalSelect || !connectionList || !assetList || !previewGrid || !sandboxContent || !sandboxLinks || !sandboxNodes || !sandboxViewport) return;
 
     const worldState = {
       maps: [],
       connections: [],
-      assets: []
+      assets: [],
+      zoom: 0.8,
+      drag: null
     };
 
     const getText = (key, fallback = '') => translations[currentLanguage]?.[key] ?? fallback;
     const getMapName = (map) => map.name || map.fileName || `Map ${map.id}`;
+    const sandboxConfig = {
+      width: 1600,
+      height: 900,
+      nodeWidth: 160,
+      nodeHeight: 64,
+      padding: 80
+    };
+
+    const clampNodePosition = (x, y) => {
+      const minX = sandboxConfig.padding;
+      const minY = sandboxConfig.padding;
+      const maxX = sandboxConfig.width - sandboxConfig.padding;
+      const maxY = sandboxConfig.height - sandboxConfig.padding;
+      return {
+        x: clamp(x, minX, maxX),
+        y: clamp(y, minY, maxY)
+      };
+    };
+
+    const setZoom = (value) => {
+      const zoom = clamp(value, 0.3, 1.5);
+      worldState.zoom = zoom;
+      sandboxContent.style.transform = `scale(${zoom})`;
+      if (zoomValue) {
+        zoomValue.textContent = `${Math.round(zoom * 100)}%`;
+      }
+      if (zoomRange) {
+        zoomRange.value = String(zoom);
+      }
+    };
 
     const cacheDbName = '8bits-map-cache';
     const cacheStoreName = 'images';
@@ -4271,10 +4314,10 @@
       worldState.maps.forEach((mapEntry) => {
         const assets = Array.isArray(mapEntry?.payload?.assets) ? mapEntry.payload.assets : [];
         assets.forEach((asset, index) => {
-          const key = asset.cacheKey
-            ? `cache:${asset.cacheKey}`
-            : asset.fileName
-              ? `name:${asset.fileName}`
+          const key = asset.fileName
+            ? `name:${asset.fileName}`
+            : asset.cacheKey
+              ? `cache:${asset.cacheKey}`
               : `id:${asset.name || index}`;
           let entry = seen.get(key) || previousByKey.get(key);
           if (!entry) {
@@ -4585,7 +4628,105 @@
       }
     };
 
+    const ensureNodePosition = (mapEntry, index) => {
+      if (mapEntry.position) return;
+      const columns = Math.max(1, Math.ceil(Math.sqrt(worldState.maps.length || 1)));
+      const spacingX = 220;
+      const spacingY = 160;
+      const col = index % columns;
+      const row = Math.floor(index / columns);
+      const x = sandboxConfig.padding + 80 + col * spacingX;
+      const y = sandboxConfig.padding + 60 + row * spacingY;
+      mapEntry.position = clampNodePosition(x, y);
+    };
+
+    const applyNodePosition = (node, position) => {
+      const offsetX = position.x - sandboxConfig.nodeWidth / 2;
+      const offsetY = position.y - sandboxConfig.nodeHeight / 2;
+      node.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+    };
+
+    const updateConnectionLines = () => {
+      const lines = qsa('line', sandboxLinks);
+      lines.forEach((line) => {
+        const fromId = line.dataset.from || '';
+        const toId = line.dataset.to || '';
+        const from = worldState.maps.find((entry) => entry.id === fromId);
+        const to = worldState.maps.find((entry) => entry.id === toId);
+        if (!from?.position || !to?.position) return;
+        line.setAttribute('x1', String(from.position.x));
+        line.setAttribute('y1', String(from.position.y));
+        line.setAttribute('x2', String(to.position.x));
+        line.setAttribute('y2', String(to.position.y));
+      });
+    };
+
+    const renderWorldSandbox = () => {
+      sandboxContent.style.width = `${sandboxConfig.width}px`;
+      sandboxContent.style.height = `${sandboxConfig.height}px`;
+      sandboxLinks.setAttribute('viewBox', `0 0 ${sandboxConfig.width} ${sandboxConfig.height}`);
+      sandboxLinks.innerHTML = '';
+      sandboxNodes.innerHTML = '';
+
+      worldState.maps.forEach((mapEntry, index) => {
+        ensureNodePosition(mapEntry, index);
+      });
+
+      worldState.connections.forEach((connection) => {
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.dataset.from = connection.fromMapId;
+        line.dataset.to = connection.toMapId;
+        line.setAttribute('stroke', 'rgba(0, 178, 204, 0.7)');
+        line.setAttribute('stroke-width', '2');
+        line.setAttribute('stroke-linecap', 'round');
+        sandboxLinks.appendChild(line);
+      });
+
+      worldState.maps.forEach((mapEntry) => {
+        const node = document.createElement('div');
+        node.className = 'world-node';
+        node.dataset.mapId = mapEntry.id;
+
+        const title = document.createElement('div');
+        title.className = 'world-node-title';
+        title.textContent = getMapName(mapEntry);
+
+        const meta = document.createElement('div');
+        meta.className = 'world-node-meta';
+        const mapData = mapEntry.payload?.map;
+        const width = clamp(Number.parseInt(mapData?.width, 10) || 1, 1, 200);
+        const height = clamp(Number.parseInt(mapData?.height, 10) || 1, 1, 200);
+        const sizeLabel = document.createElement('span');
+        sizeLabel.textContent = `${width}x${height}`;
+        const portalLabel = document.createElement('span');
+        portalLabel.textContent = `${mapEntry.portals.length} ${getText('world.portals', 'Portals')}`;
+        meta.appendChild(sizeLabel);
+        meta.appendChild(portalLabel);
+
+        node.appendChild(title);
+        node.appendChild(meta);
+        applyNodePosition(node, mapEntry.position);
+        sandboxNodes.appendChild(node);
+
+        node.addEventListener('pointerdown', (event) => {
+          if (event.button !== 0) return;
+          node.setPointerCapture(event.pointerId);
+          worldState.drag = {
+            id: mapEntry.id,
+            node,
+            originX: mapEntry.position.x,
+            originY: mapEntry.position.y,
+            startX: event.clientX,
+            startY: event.clientY
+          };
+        });
+      });
+
+      updateConnectionLines();
+    };
+
     const renderWorldPreview = () => {
+      renderWorldSandbox();
       previewGrid.innerHTML = '';
       if (!worldState.maps.length) {
         const empty = document.createElement('p');
@@ -4622,6 +4763,23 @@
         previewGrid.appendChild(card);
         renderMapPreview(mapEntry, canvas);
       });
+    };
+
+    const handlePointerMove = (event) => {
+      if (!worldState.drag) return;
+      const mapEntry = worldState.maps.find((entry) => entry.id === worldState.drag.id);
+      if (!mapEntry || !mapEntry.position) return;
+      const dx = (event.clientX - worldState.drag.startX) / worldState.zoom;
+      const dy = (event.clientY - worldState.drag.startY) / worldState.zoom;
+      const next = clampNodePosition(worldState.drag.originX + dx, worldState.drag.originY + dy);
+      mapEntry.position = next;
+      applyNodePosition(worldState.drag.node, next);
+      updateConnectionLines();
+    };
+
+    const handlePointerUp = () => {
+      if (!worldState.drag) return;
+      worldState.drag = null;
     };
 
     const createMapEntry = (payload, fileName = '') => {
@@ -4841,11 +4999,24 @@
     toMapSelect.addEventListener('change', () => renderPortalOptions(toPortalSelect, toMapSelect.value));
     addConnectionButton?.addEventListener('click', addConnection);
     exportButton?.addEventListener('click', exportWorld);
+    zoomRange?.addEventListener('input', () => {
+      const value = Number.parseFloat(zoomRange.value);
+      if (Number.isFinite(value)) {
+        setZoom(value);
+      }
+    });
+    zoomReset?.addEventListener('click', () => {
+      setZoom(0.8);
+    });
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
 
     renderMapList();
     refreshSelects();
     renderConnections();
     renderWorldPreview();
+
+    setZoom(worldState.zoom);
 
     window.addEventListener('resize', () => {
       renderWorldPreview();

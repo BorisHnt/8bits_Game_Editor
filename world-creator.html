@@ -163,6 +163,22 @@
             <p class="panel-subtitle" data-i18n="world.previewSubtitle">Overview of maps and links.</p>
           </div>
         </div>
+        <div class="world-preview-controls">
+          <div class="world-preview-control">
+            <span class="panel-label" data-i18n="world.zoom">Zoom</span>
+            <input class="world-zoom-range" type="range" id="world-zoom" min="0.3" max="1.5" step="0.05" value="0.8" />
+            <span class="world-zoom-value" id="world-zoom-value">80%</span>
+          </div>
+          <button class="button-secondary" type="button" id="world-zoom-reset" data-i18n="world.zoomReset">Reset</button>
+        </div>
+        <div class="world-sandbox" id="world-sandbox">
+          <div class="world-sandbox-viewport" id="world-sandbox-viewport">
+            <div class="world-sandbox-content" id="world-sandbox-content">
+              <svg class="world-sandbox-links" id="world-sandbox-links" viewBox="0 0 1600 900" preserveAspectRatio="xMinYMin meet"></svg>
+              <div class="world-sandbox-nodes" id="world-sandbox-nodes"></div>
+            </div>
+          </div>
+        </div>
         <div class="world-preview-grid" id="world-preview-grid"></div>
       </div>
     </section>
