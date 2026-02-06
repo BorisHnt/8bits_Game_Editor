@@ -142,6 +142,13 @@
       'map.viewNormal': 'Normal',
       'map.viewAssets': 'Assets',
       'map.viewCollision': 'Passable/Blocking',
+      'map.options': 'Options',
+      'map.cacheTitle': 'Cache',
+      'map.cacheClose': 'Close',
+      'map.cacheCount': 'Items',
+      'map.cacheSize': 'Estimated size',
+      'map.cacheEmpty': 'Cache is empty.',
+      'map.cachePurge': 'Purge cache',
       'map.data': 'Data',
       'map.exportJson': 'Export JSON',
       'map.importJson': 'Import JSON',
@@ -301,6 +308,13 @@
       'map.viewNormal': 'Normal',
       'map.viewAssets': 'Assets',
       'map.viewCollision': 'Passant/Bloquant',
+      'map.options': 'Options',
+      'map.cacheTitle': 'Cache',
+      'map.cacheClose': 'Fermer',
+      'map.cacheCount': 'Elements',
+      'map.cacheSize': 'Taille estimee',
+      'map.cacheEmpty': 'Cache vide.',
+      'map.cachePurge': 'Purger le cache',
       'map.data': 'Data',
       'map.exportJson': 'Exporter JSON',
       'map.importJson': 'Importer JSON',
@@ -2908,6 +2922,14 @@
     const mapImportButton = qs('#map-import');
     const mapImportFile = qs('#map-import-file');
     const mapRandomizeButton = qs('#map-randomize');
+    const mapOptionsButton = qs('#map-options');
+    const cacheModal = qs('#map-cache-modal');
+    const cacheCloseButton = qs('#map-cache-close');
+    const cachePurgeButton = qs('#map-cache-purge');
+    const cacheList = qs('#map-cache-list');
+    const cacheCount = qs('#map-cache-count');
+    const cacheSize = qs('#map-cache-size');
+    const cacheEmpty = qs('#map-cache-empty');
 
     if (!assetList || !assetGrid || !mapGrid) return;
 
@@ -2933,6 +2955,169 @@
     const getText = (key, fallback = '') => translations[currentLanguage]?.[key] ?? fallback;
     const getAssetById = (id) => mapState.assets.find((asset) => asset.id === id);
 
+    const formatBytes = (bytes) => {
+      if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let value = bytes;
+      let unitIndex = 0;
+      while (value >= 1024 && unitIndex < units.length - 1) {
+        value /= 1024;
+        unitIndex += 1;
+      }
+      return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+    };
+
+    const cacheDbName = '8bits-map-cache';
+    const cacheStoreName = 'images';
+
+    const openCacheDb = () => new Promise((resolve, reject) => {
+      if (!window.indexedDB) {
+        reject(new Error('IndexedDB not supported'));
+        return;
+      }
+      const request = indexedDB.open(cacheDbName, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(cacheStoreName)) {
+          const store = db.createObjectStore(cacheStoreName, { keyPath: 'key' });
+          store.createIndex('name', 'name', { unique: false });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+
+    const cachePut = (entry) => openCacheDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(cacheStoreName, 'readwrite');
+      const store = tx.objectStore(cacheStoreName);
+      const req = store.put(entry);
+      req.onsuccess = () => resolve(entry.key);
+      req.onerror = () => reject(req.error);
+    }));
+
+    const cacheGet = (key) => openCacheDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(cacheStoreName, 'readonly');
+      const store = tx.objectStore(cacheStoreName);
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    }));
+
+    const cacheGetByName = (name) => openCacheDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(cacheStoreName, 'readonly');
+      const store = tx.objectStore(cacheStoreName);
+      const index = store.index('name');
+      const req = index.getAll(name);
+      req.onsuccess = () => {
+        const results = req.result || [];
+        resolve(results[0] || null);
+      };
+      req.onerror = () => reject(req.error);
+    }));
+
+    const cacheListAll = () => openCacheDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(cacheStoreName, 'readonly');
+      const store = tx.objectStore(cacheStoreName);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    }));
+
+    const cacheClear = () => openCacheDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(cacheStoreName, 'readwrite');
+      const store = tx.objectStore(cacheStoreName);
+      const req = store.clear();
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => reject(req.error);
+    }));
+
+    const updateCacheModal = async () => {
+      if (!cacheList || !cacheCount || !cacheSize || !cacheEmpty) return;
+      try {
+        const entries = await cacheListAll();
+        const totalBytes = entries.reduce((sum, entry) => sum + (entry.size || 0), 0);
+        cacheCount.textContent = String(entries.length);
+        cacheSize.textContent = formatBytes(totalBytes);
+        cacheList.innerHTML = '';
+        if (!entries.length) {
+          cacheEmpty.classList.remove('is-hidden');
+          return;
+        }
+        cacheEmpty.classList.add('is-hidden');
+        entries
+          .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+          .forEach((entry) => {
+            const item = document.createElement('div');
+            item.className = 'cache-item';
+            const name = document.createElement('strong');
+            name.textContent = entry.name || entry.key;
+            const size = document.createElement('span');
+            size.textContent = formatBytes(entry.size || 0);
+            item.appendChild(name);
+            item.appendChild(size);
+            cacheList.appendChild(item);
+          });
+      } catch (error) {
+        cacheCount.textContent = '0';
+        cacheSize.textContent = '0 KB';
+        cacheList.innerHTML = '';
+        cacheEmpty.classList.remove('is-hidden');
+      }
+    };
+
+    const openCacheModal = async () => {
+      if (!cacheModal) return;
+      cacheModal.classList.remove('is-hidden');
+      cacheModal.setAttribute('aria-hidden', 'false');
+      await updateCacheModal();
+    };
+
+    const closeCacheModal = () => {
+      if (!cacheModal) return;
+      cacheModal.classList.add('is-hidden');
+      cacheModal.setAttribute('aria-hidden', 'true');
+    };
+
+    const cacheAssetImage = async (file) => {
+      if (!file) return null;
+      const key = `${file.name}::${file.size}::${file.lastModified}`;
+      try {
+        await cachePut({
+          key,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          lastModified: file.lastModified,
+          blob: file
+        });
+        return key;
+      } catch (error) {
+        return null;
+      }
+    };
+
+    const loadCachedImageForAsset = async (asset) => {
+      if (!asset || asset.imageUrl) return;
+      try {
+        let entry = null;
+        if (asset.cacheKey) {
+          entry = await cacheGet(asset.cacheKey);
+        }
+        if (!entry && asset.fileName) {
+          entry = await cacheGetByName(asset.fileName);
+        }
+        if (entry?.blob) {
+          asset.imageUrl = URL.createObjectURL(entry.blob);
+          asset.cacheKey = entry.key;
+        }
+      } catch (error) {
+        // ignore
+      }
+    };
+
+    const loadCachedImagesForAssets = async () => {
+      await Promise.all(mapState.assets.map((asset) => loadCachedImageForAsset(asset)));
+    };
     const sortAssetsByNumber = () => {
       mapState.assets.sort((a, b) => (a.number || 0) - (b.number || 0));
     };
@@ -3011,7 +3196,8 @@
         spriteHeight: 16,
         spriteCount: 16,
         type: 'blocking',
-        color: getAssetColor(number)
+        color: getAssetColor(number),
+        cacheKey: null
       };
       mapState.assets.push(asset);
       if (!mapState.selectedAssetId) {
@@ -3382,6 +3568,14 @@
           if (!asset.name) asset.name = file.name.replace(/\\.[^/.]+$/, '');
           if (asset.imageUrl) URL.revokeObjectURL(asset.imageUrl);
           asset.imageUrl = URL.createObjectURL(file);
+          cacheAssetImage(file).then((key) => {
+            if (key) {
+              asset.cacheKey = key;
+              if (cacheModal && !cacheModal.classList.contains('is-hidden')) {
+                updateCacheModal();
+              }
+            }
+          });
           renderAssetList();
           renderAssetGrid();
           renderMapGrid();
@@ -3462,11 +3656,7 @@
           sortAssetsByNumber();
           const index = mapState.assets.indexOf(asset);
           if (index <= 0) return;
-          const prev = mapState.assets[index - 1];
-          const tempNumber = asset.number;
-          asset.number = prev.number;
-          prev.number = tempNumber;
-          sortAssetsByNumber();
+          mapState.selectedAssetId = mapState.assets[index - 1].id;
           renderAssetList();
           renderAssetGrid();
           renderMapGrid();
@@ -3477,11 +3667,7 @@
           sortAssetsByNumber();
           const index = mapState.assets.indexOf(asset);
           if (index === -1 || index >= mapState.assets.length - 1) return;
-          const next = mapState.assets[index + 1];
-          const tempNumber = asset.number;
-          asset.number = next.number;
-          next.number = tempNumber;
-          sortAssetsByNumber();
+          mapState.selectedAssetId = mapState.assets[index + 1].id;
           renderAssetList();
           renderAssetGrid();
           renderMapGrid();
@@ -3689,6 +3875,7 @@
         fileName: asset.fileName,
         number: asset.number,
         color: asset.color,
+        cacheKey: asset.cacheKey,
         cols: asset.cols,
         rows: asset.rows,
         spriteWidth: asset.spriteWidth,
@@ -3731,7 +3918,8 @@
         spriteHeight: clamp(Number.parseInt(asset.spriteHeight, 10) || 16, 1, 256),
         spriteCount: clamp(Number.parseInt(asset.spriteCount, 10) || 1, 1, maxSprites),
         type: asset.type === 'passable' ? 'passable' : 'blocking',
-        color: asset.color || getAssetColor(Number.parseInt(asset.number, 10) || 1)
+        color: asset.color || getAssetColor(Number.parseInt(asset.number, 10) || 1),
+        cacheKey: asset.cacheKey || null
         };
       });
 
@@ -3779,6 +3967,11 @@
       renderAssetList();
       renderAssetGrid();
       renderMapGrid();
+      loadCachedImagesForAssets().then(() => {
+        renderAssetList();
+        renderAssetGrid();
+        renderMapGrid();
+      });
     };
 
     const exportMapJson = () => {
@@ -3847,6 +4040,17 @@
       mapImportFile.value = '';
     });
     mapRandomizeButton?.addEventListener('click', toggleRandomize);
+    mapOptionsButton?.addEventListener('click', openCacheModal);
+    cacheCloseButton?.addEventListener('click', closeCacheModal);
+    cacheModal?.addEventListener('click', (event) => {
+      if (event.target === cacheModal) closeCacheModal();
+    });
+    window.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeCacheModal();
+    });
+    cachePurgeButton?.addEventListener('click', () => {
+      cacheClear().then(updateCacheModal);
+    });
   };
 
   const bindCacheLifecycle = () => {

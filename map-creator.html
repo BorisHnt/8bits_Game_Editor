@@ -125,6 +125,7 @@
             <h2 class="panel-title" data-i18n="map.mapBuilder">Map Builder</h2>
             <p class="panel-subtitle" data-i18n="map.mapBuilderHint">Configure grid size and paint tiles.</p>
           </div>
+          <button class="button-secondary" type="button" id="map-options" data-i18n="map.options">Options</button>
         </div>
         <div class="map-controls">
           <div class="map-control-group">
@@ -186,6 +187,32 @@
       </aside>
     </section>
   </main>
+
+  <div class="modal-overlay is-hidden" id="map-cache-modal" aria-hidden="true">
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="map-cache-title">
+      <div class="modal-header">
+        <h2 class="panel-title" id="map-cache-title" data-i18n="map.cacheTitle">Cache</h2>
+        <button class="button-secondary" type="button" id="map-cache-close" data-i18n="map.cacheClose">Close</button>
+      </div>
+      <div class="modal-body">
+        <div class="cache-stats">
+          <div class="cache-stat">
+            <span class="panel-label" data-i18n="map.cacheCount">Items</span>
+            <span class="panel-value" id="map-cache-count">0</span>
+          </div>
+          <div class="cache-stat">
+            <span class="panel-label" data-i18n="map.cacheSize">Estimated size</span>
+            <span class="panel-value" id="map-cache-size">0 KB</span>
+          </div>
+        </div>
+        <div class="cache-list" id="map-cache-list"></div>
+        <p class="panel-subtitle is-hidden" id="map-cache-empty" data-i18n="map.cacheEmpty">Cache is empty.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="button-secondary" type="button" id="map-cache-purge" data-i18n="map.cachePurge">Purger le cache</button>
+      </div>
+    </div>
+  </div>
 
   <script src="script.js"></script>
 </body>
