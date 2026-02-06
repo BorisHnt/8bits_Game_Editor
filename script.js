@@ -8,14 +8,14 @@
       'title.walls': '8bits Game Editor — Walls Designer',
       'title.map': '8bits Game Editor — Map Creator',
       'title.world': '8bits Game Editor — World Creator',
-      'title.tester': '8bits Game Editor — Tester',
+      'title.tester': '8bits Game Editor — Map Tester',
       'nav.home': 'Home',
       'nav.tiles': 'Tiles Designer',
       'nav.sprite': 'Sprite Designer',
       'nav.walls': 'Walls Designer',
       'nav.map': 'Map Creator',
       'nav.world': 'World Creator',
-      'nav.tester': 'Tester',
+      'nav.tester': 'Map Tester',
       'hero.kicker': 'Experimental Studio / Creative Workshop',
       'hero.subtitle': 'A professional digital workshop for pixel makers, indie developers, and sound architects.',
       'section.toolchain.title': 'Toolchain',
@@ -175,6 +175,7 @@
       'world.connections': 'Connections',
       'world.connectionsSubtitle': 'Link portals between maps.',
       'world.export': 'Export World',
+      'world.namePlaceholder': 'World name',
       'world.from': 'From',
       'world.to': 'To',
       'world.addConnection': 'Add Connection',
@@ -189,14 +190,19 @@
       'world.portals': 'Portals',
       'world.file': 'File',
       'world.remove': 'Remove',
-      'tester.title': 'Tester',
-      'tester.subtitle': 'Move the character to preview sprites.',
+      'tester.title': 'Map Tester',
+      'tester.subtitle': 'Import a map and test your character movement.',
       'tester.controlsTitle': 'Controls',
       'tester.controlsSubtitle': 'Use keyboard to move.',
       'tester.instructions': 'Arrow keys or WASD to move the character.',
       'tester.reset': 'Reset',
       'tester.position': 'Position',
       'tester.direction': 'Direction',
+      'tester.importMap': 'Import Map',
+      'tester.importWorld': 'Import World',
+      'tester.mapLabel': 'Map',
+      'tester.loaded': 'Loaded',
+      'tester.loadedNone': 'None',
       'tester.dirUp': 'Up',
       'tester.dirDown': 'Down',
       'tester.dirLeft': 'Left',
@@ -228,14 +234,14 @@
       'title.walls': "8bits Game Editor — Design de murs",
       'title.map': "8bits Game Editor — Créateur de maps",
       'title.world': "8bits Game Editor — Créateur de monde",
-      'title.tester': "8bits Game Editor — Tester",
+      'title.tester': "8bits Game Editor — Map Tester",
       'nav.home': 'Accueil',
       'nav.tiles': 'Designer Tiles',
       'nav.sprite': 'Designer Sprite',
       'nav.walls': 'Designer Murs',
       'nav.map': 'Créateur de map',
       'nav.world': 'Créateur de monde',
-      'nav.tester': 'Tester',
+      'nav.tester': 'Map Tester',
       'hero.kicker': 'Atelier expérimental / Studio de création',
       'hero.subtitle': 'Un atelier numérique professionnel pour pixel artists, développeurs indés et designers sonores.',
       'section.toolchain.title': 'Chaîne de production',
@@ -395,6 +401,7 @@
       'world.connections': 'Connexions',
       'world.connectionsSubtitle': 'Relier les portails entre maps.',
       'world.export': 'Exporter monde',
+      'world.namePlaceholder': 'Nom du monde',
       'world.from': 'De',
       'world.to': 'Vers',
       'world.addConnection': 'Ajouter connexion',
@@ -409,14 +416,19 @@
       'world.portals': 'Portails',
       'world.file': 'Fichier',
       'world.remove': 'Supprimer',
-      'tester.title': 'Tester',
-      'tester.subtitle': 'Deplace le personnage pour previsualiser les sprites.',
+      'tester.title': 'Map Tester',
+      'tester.subtitle': 'Importe une map et teste les deplacements.',
       'tester.controlsTitle': 'Controles',
       'tester.controlsSubtitle': 'Utilisez le clavier pour bouger.',
       'tester.instructions': 'Fleches ou ZQSD pour deplacer le personnage.',
       'tester.reset': 'Reinitialiser',
       'tester.position': 'Position',
       'tester.direction': 'Direction',
+      'tester.importMap': 'Importer map',
+      'tester.importWorld': 'Importer monde',
+      'tester.mapLabel': 'Map',
+      'tester.loaded': 'Charge',
+      'tester.loadedNone': 'Aucune',
       'tester.dirUp': 'Haut',
       'tester.dirDown': 'Bas',
       'tester.dirLeft': 'Gauche',
@@ -2910,6 +2922,13 @@
       }
     });
 
+    qsa('[data-i18n-placeholder]').forEach((element) => {
+      const key = element.dataset.i18nPlaceholder;
+      if (dictionary[key]) {
+        element.setAttribute('placeholder', dictionary[key]);
+      }
+    });
+
     let pageTitleKey = 'title.graphic';
     if (document.body.classList.contains('page-home')) {
       pageTitleKey = 'title.home';
@@ -4377,6 +4396,7 @@
     const connectionList = qs('#world-connection-list');
     const emptyState = qs('#world-empty');
     const exportButton = qs('#world-export');
+    const worldNameInput = qs('#world-name');
     const previewEmpty = qs('#world-preview-empty');
     const zoomRange = qs('#world-zoom');
     const zoomValue = qs('#world-zoom-value');
@@ -4397,7 +4417,8 @@
       assets: [],
       zoom: 0.8,
       opacity: 0.55,
-      drag: null
+      drag: null,
+      name: ''
     };
 
     const getText = (key, fallback = '') => translations[currentLanguage]?.[key] ?? fallback;
@@ -5276,6 +5297,7 @@
     const exportWorld = () => {
       const payload = {
         version: 1,
+        name: worldState.name || '',
         maps: worldState.maps.map((entry) => ({
           id: entry.id,
           name: entry.name,
@@ -5288,7 +5310,8 @@
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'world.json';
+      const fileName = sanitizeFilename(worldState.name || 'world');
+      link.download = `${fileName}.json`;
       link.click();
       URL.revokeObjectURL(url);
     };
@@ -5323,6 +5346,9 @@
     toMapSelect.addEventListener('change', () => renderPortalOptions(toPortalSelect, toMapSelect.value));
     addConnectionButton?.addEventListener('click', addConnection);
     exportButton?.addEventListener('click', exportWorld);
+    worldNameInput?.addEventListener('input', () => {
+      worldState.name = worldNameInput.value.trim();
+    });
     zoomRange?.addEventListener('input', () => {
       const value = Number.parseFloat(zoomRange.value);
       if (Number.isFinite(value)) {
@@ -5366,12 +5392,19 @@
     const canvas = qs('#tester-canvas');
     const positionValue = qs('#tester-position');
     const directionValue = qs('#tester-direction');
+    const loadedValue = qs('#tester-loaded');
     const resetButton = qs('#tester-reset');
+    const importMapButton = qs('#tester-import-map');
+    const importWorldButton = qs('#tester-import-world');
+    const mapFileInput = qs('#tester-map-file');
+    const worldFileInput = qs('#tester-world-file');
+    const mapSelect = qs('#tester-map-select');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
     const spriteSize = 16;
+    const tileSize = 16;
     const speed = 70;
     const frameDuration = 0.18;
     const pressedKeys = new Set();
@@ -5385,7 +5418,7 @@
     const sheetInfo = {
       down: { frames: 3, idle: 2 },
       up: { frames: 3, idle: 2 },
-      side: { frames: 2, idle: 1 }
+      side: { frames: 2, idle: 0 }
     };
 
     const state = {
@@ -5393,7 +5426,17 @@
       y: Math.floor(canvas.height / 2 - spriteSize / 2),
       dir: 'down',
       frame: 0,
-      frameTimer: 0
+      frameTimer: 0,
+      mapPayload: null,
+      mapCanvas: null,
+      collision: [],
+      mapWidth: 0,
+      mapHeight: 0
+    };
+
+    const mapState = {
+      maps: [],
+      currentIndex: -1
     };
 
     const getDirLabel = (dir) => {
@@ -5403,9 +5446,20 @@
       return translations[currentLanguage]?.['tester.dirRight'] ?? 'Right';
     };
 
+    const setLoadedLabel = (text) => {
+      if (!loadedValue) return;
+      loadedValue.textContent = text || translations[currentLanguage]?.['tester.loadedNone'] || 'None';
+    };
+
     const resetPosition = () => {
-      state.x = Math.floor(canvas.width / 2 - spriteSize / 2);
-      state.y = Math.floor(canvas.height / 2 - spriteSize / 2);
+      if (state.mapPayload) {
+        const spawn = findSpawn();
+        state.x = spawn.x;
+        state.y = spawn.y;
+      } else {
+        state.x = Math.floor(canvas.width / 2 - spriteSize / 2);
+        state.y = Math.floor(canvas.height / 2 - spriteSize / 2);
+      }
       state.dir = 'down';
       state.frame = 0;
       state.frameTimer = 0;
@@ -5427,12 +5481,198 @@
       }
     };
 
+    const normalizeMapPayloads = (payload, fallbackName = '') => {
+      if (payload?.map && Array.isArray(payload.assets)) {
+        const name = payload.map.name || payload.name || fallbackName || 'Map';
+        return [{ name, payload }];
+      }
+      if (Array.isArray(payload?.maps)) {
+        return payload.maps.map((entry, index) => {
+          const mapPayload = entry.payload || entry;
+          const name = entry.name || entry.fileName || mapPayload?.map?.name || `Map ${index + 1}`;
+          return { name, payload: mapPayload };
+        });
+      }
+      return [];
+    };
+
+    const buildCollision = (payload) => {
+      const map = payload?.map || {};
+      const width = clamp(Number.parseInt(map.width, 10) || 0, 0, 2000);
+      const height = clamp(Number.parseInt(map.height, 10) || 0, 0, 2000);
+      const total = width * height;
+      const collision = Array.from({ length: total }, () => false);
+      const assets = Array.isArray(payload?.assets) ? payload.assets : [];
+      const assetByNumber = new Map(assets.map((asset) => [Number(asset.number), asset]));
+      const cells = Array.isArray(map.cells) ? map.cells : [];
+      for (let i = 0; i < Math.min(cells.length, total); i += 1) {
+        const entry = cells[i];
+        if (!entry || entry.assetNumber == null) continue;
+        const asset = assetByNumber.get(Number(entry.assetNumber));
+        if (asset?.type === 'blocking') {
+          collision[i] = true;
+        }
+      }
+      return { collision, width, height };
+    };
+
+    const buildMapCanvas = (payload) => {
+      const map = payload?.map || {};
+      const width = clamp(Number.parseInt(map.width, 10) || 0, 0, 2000);
+      const height = clamp(Number.parseInt(map.height, 10) || 0, 0, 2000);
+      const canvasMap = document.createElement('canvas');
+      canvasMap.width = width * tileSize;
+      canvasMap.height = height * tileSize;
+      const mapCtx = canvasMap.getContext('2d');
+      if (!mapCtx) return canvasMap;
+      mapCtx.imageSmoothingEnabled = false;
+      mapCtx.fillStyle = '#0b0b0b';
+      mapCtx.fillRect(0, 0, canvasMap.width, canvasMap.height);
+
+      const assets = Array.isArray(payload?.assets) ? payload.assets : [];
+      const assetByNumber = new Map(assets.map((asset) => [Number(asset.number), asset]));
+      const cells = Array.isArray(map.cells) ? map.cells : [];
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const index = y * width + x;
+          const entry = cells[index];
+          if (!entry || entry.assetNumber == null) continue;
+          const asset = assetByNumber.get(Number(entry.assetNumber));
+          if (!asset) continue;
+          mapCtx.fillStyle = asset.color || (asset.type === 'blocking' ? '#4a1c1c' : '#1f5a38');
+          mapCtx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+        }
+      }
+      return canvasMap;
+    };
+
+    const findSpawn = () => {
+      if (!state.mapPayload) {
+        return {
+          x: Math.floor(canvas.width / 2 - spriteSize / 2),
+          y: Math.floor(canvas.height / 2 - spriteSize / 2)
+        };
+      }
+      const total = state.mapWidth * state.mapHeight;
+      for (let i = 0; i < total; i += 1) {
+        if (!state.collision[i]) {
+          const col = i % state.mapWidth;
+          const row = Math.floor(i / state.mapWidth);
+          return {
+            x: col * tileSize + Math.floor((tileSize - spriteSize) / 2),
+            y: row * tileSize + Math.floor((tileSize - spriteSize) / 2)
+          };
+        }
+      }
+      return {
+        x: Math.floor(canvas.width / 2 - spriteSize / 2),
+        y: Math.floor(canvas.height / 2 - spriteSize / 2)
+      };
+    };
+
+    const applyMapPayload = (payload, name = '') => {
+      state.mapPayload = payload;
+      const { collision, width, height } = buildCollision(payload);
+      state.collision = collision;
+      state.mapWidth = width;
+      state.mapHeight = height;
+      state.mapCanvas = buildMapCanvas(payload);
+      setLoadedLabel(name || payload?.map?.name || payload?.name || 'Map');
+      resetPosition();
+    };
+
+    const setMapList = (maps) => {
+      mapState.maps = maps;
+      mapState.currentIndex = maps.length ? 0 : -1;
+      if (mapSelect) {
+        mapSelect.innerHTML = '';
+        if (!maps.length) {
+          const option = document.createElement('option');
+          option.value = '';
+          option.textContent = '—';
+          mapSelect.appendChild(option);
+        } else {
+          maps.forEach((entry, index) => {
+            const option = document.createElement('option');
+            option.value = String(index);
+            option.textContent = entry.name;
+            mapSelect.appendChild(option);
+          });
+        }
+      }
+      if (mapState.currentIndex >= 0) {
+        if (mapSelect) mapSelect.value = String(mapState.currentIndex);
+        applyMapPayload(maps[mapState.currentIndex].payload, maps[mapState.currentIndex].name);
+      } else {
+        state.mapPayload = null;
+        state.mapCanvas = null;
+        state.collision = [];
+        state.mapWidth = 0;
+        state.mapHeight = 0;
+        setLoadedLabel('');
+      }
+    };
+
+    const importPayload = (file, type) => {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const payload = JSON.parse(String(reader.result || '{}'));
+          const maps = normalizeMapPayloads(payload, file.name.replace(/\.[^/.]+$/, ''));
+          if (!maps.length) return;
+          setMapList(maps);
+        } catch (error) {
+          // ignore
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    mapSelect?.addEventListener('change', () => {
+      const idx = Number.parseInt(mapSelect.value, 10);
+      if (!Number.isFinite(idx) || !mapState.maps[idx]) return;
+      mapState.currentIndex = idx;
+      applyMapPayload(mapState.maps[idx].payload, mapState.maps[idx].name);
+    });
+
+    importMapButton?.addEventListener('click', () => mapFileInput?.click());
+    importWorldButton?.addEventListener('click', () => worldFileInput?.click());
+    mapFileInput?.addEventListener('change', () => {
+      const file = mapFileInput.files?.[0];
+      if (file) importPayload(file, 'map');
+      mapFileInput.value = '';
+    });
+    worldFileInput?.addEventListener('change', () => {
+      const file = worldFileInput.files?.[0];
+      if (file) importPayload(file, 'world');
+      worldFileInput.value = '';
+    });
+
     window.addEventListener('keydown', handleKey);
     window.addEventListener('keyup', handleKey);
     window.addEventListener('blur', () => pressedKeys.clear());
     resetButton?.addEventListener('click', resetPosition);
 
     let lastTime = performance.now();
+
+    const isBlocked = (px, py) => {
+      if (!state.mapPayload) return false;
+      const col = Math.floor(px / tileSize);
+      const row = Math.floor(py / tileSize);
+      if (col < 0 || row < 0 || col >= state.mapWidth || row >= state.mapHeight) return true;
+      return Boolean(state.collision[row * state.mapWidth + col]);
+    };
+
+    const canMove = (nx, ny) => {
+      const corners = [
+        [nx, ny],
+        [nx + spriteSize - 1, ny],
+        [nx, ny + spriteSize - 1],
+        [nx + spriteSize - 1, ny + spriteSize - 1]
+      ];
+      return !corners.some(([cx, cy]) => isBlocked(cx, cy));
+    };
 
     const update = (delta) => {
       let vx = 0;
@@ -5452,8 +5692,23 @@
         const length = Math.hypot(vx, vy) || 1;
         vx /= length;
         vy /= length;
-        state.x = clamp(state.x + vx * speed * delta, 0, canvas.width - spriteSize);
-        state.y = clamp(state.y + vy * speed * delta, 0, canvas.height - spriteSize);
+        const dx = vx * speed * delta;
+        const dy = vy * speed * delta;
+
+        let nextX = state.x + dx;
+        let nextY = state.y + dy;
+
+        if (state.mapPayload) {
+          if (canMove(nextX, state.y)) {
+            state.x = nextX;
+          }
+          if (canMove(state.x, nextY)) {
+            state.y = nextY;
+          }
+        } else {
+          state.x = clamp(nextX, 0, canvas.width - spriteSize);
+          state.y = clamp(nextY, 0, canvas.height - spriteSize);
+        }
 
         if (Math.abs(vx) > Math.abs(vy)) {
           state.dir = vx < 0 ? 'left' : 'right';
@@ -5483,19 +5738,43 @@
       ctx.fillStyle = '#0b0b0b';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      let cameraX = 0;
+      let cameraY = 0;
+      if (state.mapCanvas) {
+        const mapWidthPx = state.mapWidth * tileSize;
+        const mapHeightPx = state.mapHeight * tileSize;
+        const centerX = state.x + spriteSize / 2;
+        const centerY = state.y + spriteSize / 2;
+        cameraX = clamp(centerX - canvas.width / 2, 0, Math.max(0, mapWidthPx - canvas.width));
+        cameraY = clamp(centerY - canvas.height / 2, 0, Math.max(0, mapHeightPx - canvas.height));
+        ctx.drawImage(
+          state.mapCanvas,
+          cameraX,
+          cameraY,
+          canvas.width,
+          canvas.height,
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+      }
+
       const sheet = state.dir === 'up' ? sheets.up : state.dir === 'down' ? sheets.down : sheets.side;
       const info = state.dir === 'up' ? sheetInfo.up : state.dir === 'down' ? sheetInfo.down : sheetInfo.side;
       const isMoving = pressedKeys.size > 0;
       const frameIndex = isMoving ? state.frame : info.idle;
       const sx = frameIndex * spriteSize;
+      const drawX = Math.round(state.x - cameraX);
+      const drawY = Math.round(state.y - cameraY);
 
       if (state.dir === 'left') {
         ctx.save();
         ctx.scale(-1, 1);
-        ctx.drawImage(sheet, sx, 0, spriteSize, spriteSize, -Math.round(state.x) - spriteSize, Math.round(state.y), spriteSize, spriteSize);
+        ctx.drawImage(sheet, sx, 0, spriteSize, spriteSize, -drawX - spriteSize, drawY, spriteSize, spriteSize);
         ctx.restore();
       } else {
-        ctx.drawImage(sheet, sx, 0, spriteSize, spriteSize, Math.round(state.x), Math.round(state.y), spriteSize, spriteSize);
+        ctx.drawImage(sheet, sx, 0, spriteSize, spriteSize, drawX, drawY, spriteSize, spriteSize);
       }
     };
 
@@ -5525,7 +5804,10 @@
 
     document.addEventListener('languagechange', () => {
       if (directionValue) directionValue.textContent = getDirLabel(state.dir);
+      setLoadedLabel(mapState.maps[mapState.currentIndex]?.name || '');
     });
+
+    setLoadedLabel('');
   };
 
   const bindCacheLifecycle = () => {

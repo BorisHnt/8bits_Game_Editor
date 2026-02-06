@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>8bits Game Editor — Tester</title>
+  <title>8bits Game Editor — Map Tester</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -100,7 +100,7 @@
                 <circle cx="16.5" cy="12" r="1.2" />
               </svg>
             </span>
-            <span class="navigation-text" data-i18n="nav.tester">Tester</span>
+            <span class="navigation-text" data-i18n="nav.tester">Map Tester</span>
           </a>
         </nav>
         <div class="language-toggle" role="group" aria-label="Language switcher">
@@ -114,8 +114,8 @@
   <main class="workspace-page tester-page">
     <section class="workspace-header">
       <div>
-        <h1 class="workspace-title" data-i18n="tester.title">Tester</h1>
-        <p class="workspace-subtitle" data-i18n="tester.subtitle">Move the character to preview sprites.</p>
+        <h1 class="workspace-title" data-i18n="tester.title">Map Tester</h1>
+        <p class="workspace-subtitle" data-i18n="tester.subtitle">Import a map and test your character movement.</p>
       </div>
     </section>
 
@@ -128,6 +128,16 @@
           </div>
           <button class="button-secondary" type="button" id="tester-reset" data-i18n="tester.reset">Reset</button>
         </div>
+        <div class="tester-controls">
+          <button class="button-secondary" type="button" id="tester-import-map" data-i18n="tester.importMap">Import Map</button>
+          <button class="button-secondary" type="button" id="tester-import-world" data-i18n="tester.importWorld">Import World</button>
+          <input class="map-file-input" type="file" id="tester-map-file" accept=".json" />
+          <input class="map-file-input" type="file" id="tester-world-file" accept=".json" />
+        </div>
+        <div class="tester-map-select">
+          <label class="panel-label" for="tester-map-select" data-i18n="tester.mapLabel">Map</label>
+          <select class="world-select" id="tester-map-select"></select>
+        </div>
         <p class="panel-subtitle tester-instructions" data-i18n="tester.instructions">Arrow keys or WASD to move the character.</p>
         <div class="tester-stats">
           <div class="tester-stat">
@@ -137,6 +147,10 @@
           <div class="tester-stat">
             <span class="panel-label" data-i18n="tester.direction">Direction</span>
             <span class="panel-value" id="tester-direction">Down</span>
+          </div>
+          <div class="tester-stat">
+            <span class="panel-label" data-i18n="tester.loaded">Loaded</span>
+            <span class="panel-value" id="tester-loaded">—</span>
           </div>
         </div>
       </aside>

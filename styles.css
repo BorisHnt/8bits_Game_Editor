@@ -1607,6 +1607,17 @@ svg {
   color: var(--color-text-secondary);
 }
 
+.world-export-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.world-export-group .world-input {
+  min-width: 180px;
+}
+
 .world-asset-row {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -1830,6 +1841,18 @@ svg {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.tester-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tester-map-select {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .tester-instructions {
