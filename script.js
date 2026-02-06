@@ -7,11 +7,13 @@
       'title.sprite': '8bits Game Editor — Sprite Designer',
       'title.walls': '8bits Game Editor — Walls Designer',
       'title.map': '8bits Game Editor — Map Creator',
+      'title.world': '8bits Game Editor — World Creator',
       'nav.home': 'Home',
       'nav.tiles': 'Tiles Designer',
       'nav.sprite': 'Sprite Designer',
       'nav.walls': 'Walls Designer',
       'nav.map': 'Map Creator',
+      'nav.world': 'World Creator',
       'hero.kicker': 'Experimental Studio / Creative Workshop',
       'hero.subtitle': 'A professional digital workshop for pixel makers, indie developers, and sound architects.',
       'section.toolchain.title': 'Toolchain',
@@ -149,6 +151,22 @@
       'map.cacheSize': 'Estimated size',
       'map.cacheEmpty': 'Cache is empty.',
       'map.cachePurge': 'Purge cache',
+      'world.title': 'World Creator',
+      'world.subtitle': 'Import maps and connect portals to build a world graph.',
+      'world.maps': 'Maps',
+      'world.mapsSubtitle': 'Import map JSON files with portal markers.',
+      'world.import': 'Import Map',
+      'world.connections': 'Connections',
+      'world.connectionsSubtitle': 'Link portals between maps.',
+      'world.export': 'Export World',
+      'world.from': 'From',
+      'world.to': 'To',
+      'world.addConnection': 'Add Connection',
+      'world.noConnections': 'No connections yet.',
+      'world.mapName': 'Map name',
+      'world.portals': 'Portals',
+      'world.file': 'File',
+      'world.remove': 'Remove',
       'map.data': 'Data',
       'map.exportJson': 'Export JSON',
       'map.importJson': 'Import JSON',
@@ -173,11 +191,13 @@
       'title.sprite': "8bits Game Editor — Design de sprites",
       'title.walls': "8bits Game Editor — Design de murs",
       'title.map': "8bits Game Editor — Créateur de maps",
+      'title.world': "8bits Game Editor — Créateur de monde",
       'nav.home': 'Accueil',
       'nav.tiles': 'Designer Tiles',
       'nav.sprite': 'Designer Sprite',
       'nav.walls': 'Designer Murs',
       'nav.map': 'Créateur de map',
+      'nav.world': 'Créateur de monde',
       'hero.kicker': 'Atelier expérimental / Studio de création',
       'hero.subtitle': 'Un atelier numérique professionnel pour pixel artists, développeurs indés et designers sonores.',
       'section.toolchain.title': 'Chaîne de production',
@@ -315,6 +335,22 @@
       'map.cacheSize': 'Taille estimee',
       'map.cacheEmpty': 'Cache vide.',
       'map.cachePurge': 'Purger le cache',
+      'world.title': 'Créateur de monde',
+      'world.subtitle': 'Importer des maps et connecter les portails.',
+      'world.maps': 'Maps',
+      'world.mapsSubtitle': 'Importer des JSON de map avec portails.',
+      'world.import': 'Importer map',
+      'world.connections': 'Connexions',
+      'world.connectionsSubtitle': 'Relier les portails entre maps.',
+      'world.export': 'Exporter monde',
+      'world.from': 'De',
+      'world.to': 'Vers',
+      'world.addConnection': 'Ajouter connexion',
+      'world.noConnections': 'Aucune connexion.',
+      'world.mapName': 'Nom de map',
+      'world.portals': 'Portails',
+      'world.file': 'Fichier',
+      'world.remove': 'Supprimer',
       'map.data': 'Data',
       'map.exportJson': 'Exporter JSON',
       'map.importJson': 'Importer JSON',
@@ -2807,6 +2843,8 @@
       pageTitleKey = 'title.home';
     } else if (document.body.classList.contains('page-map')) {
       pageTitleKey = 'title.map';
+    } else if (document.body.classList.contains('page-world')) {
+      pageTitleKey = 'title.world';
     } else {
       const designer = document.body.dataset.designer;
       if (designer === 'tiles') pageTitleKey = 'title.tiles';
@@ -4053,6 +4091,266 @@
     });
   };
 
+  const initWorldCreator = () => {
+    const importButton = qs('#world-import');
+    const importFile = qs('#world-import-file');
+    const mapList = qs('#world-map-list');
+    const fromMapSelect = qs('#world-from-map');
+    const fromPortalSelect = qs('#world-from-portal');
+    const toMapSelect = qs('#world-to-map');
+    const toPortalSelect = qs('#world-to-portal');
+    const addConnectionButton = qs('#world-add-connection');
+    const connectionList = qs('#world-connection-list');
+    const emptyState = qs('#world-empty');
+    const exportButton = qs('#world-export');
+
+    if (!mapList || !fromMapSelect || !fromPortalSelect || !toMapSelect || !toPortalSelect || !connectionList) return;
+
+    const worldState = {
+      maps: [],
+      connections: []
+    };
+
+    const getMapName = (map) => map.name || map.fileName || `Map ${map.id}`;
+
+    const buildPortalList = (payload) => {
+      const markers = Array.isArray(payload?.map?.markers) ? payload.map.markers : [];
+      const width = clamp(Number.parseInt(payload?.map?.width, 10) || 1, 1, 9999);
+      const portals = [];
+      markers.forEach((marker, index) => {
+        if (marker === 'portal' || marker === 'entry' || marker === 'exit' || marker === 1 || marker === true) {
+          const row = Math.floor(index / width);
+          const col = index % width;
+          portals.push({ index, row, col });
+        }
+      });
+      return portals;
+    };
+
+    const createMapEntry = (payload, fileName = '') => {
+      const id = createId();
+      const name = fileName ? fileName.replace(/\\.[^/.]+$/, '') : `Map ${worldState.maps.length + 1}`;
+      const portals = buildPortalList(payload);
+      worldState.maps.push({
+        id,
+        name,
+        fileName,
+        payload,
+        portals
+      });
+    };
+
+    const renderMapList = () => {
+      mapList.innerHTML = '';
+      worldState.maps.forEach((mapEntry) => {
+        const row = document.createElement('div');
+        row.className = 'world-map-row';
+
+        const nameField = document.createElement('div');
+        nameField.className = 'world-map-field';
+        const nameLabel = document.createElement('label');
+        nameLabel.className = 'panel-label';
+        nameLabel.textContent = translations[currentLanguage]?.['world.mapName'] ?? 'Map name';
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.className = 'world-input';
+        nameInput.value = mapEntry.name;
+        nameField.appendChild(nameLabel);
+        nameField.appendChild(nameInput);
+
+        const portalField = document.createElement('div');
+        portalField.className = 'world-map-field';
+        const portalLabel = document.createElement('label');
+        portalLabel.className = 'panel-label';
+        portalLabel.textContent = translations[currentLanguage]?.['world.portals'] ?? 'Portals';
+        const portalValue = document.createElement('span');
+        portalValue.className = 'panel-value';
+        portalValue.textContent = String(mapEntry.portals.length);
+        portalField.appendChild(portalLabel);
+        portalField.appendChild(portalValue);
+
+        const fileField = document.createElement('div');
+        fileField.className = 'world-map-field';
+        const fileLabel = document.createElement('label');
+        fileLabel.className = 'panel-label';
+        fileLabel.textContent = translations[currentLanguage]?.['world.file'] ?? 'File';
+        const fileValue = document.createElement('span');
+        fileValue.className = 'panel-value';
+        fileValue.textContent = mapEntry.fileName || '—';
+        fileField.appendChild(fileLabel);
+        fileField.appendChild(fileValue);
+
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'button-secondary world-remove';
+        removeButton.textContent = translations[currentLanguage]?.['world.remove'] ?? 'Remove';
+
+        row.appendChild(nameField);
+        row.appendChild(portalField);
+        row.appendChild(fileField);
+        row.appendChild(removeButton);
+        mapList.appendChild(row);
+
+        nameInput.addEventListener('input', () => {
+          mapEntry.name = nameInput.value;
+          refreshSelects();
+          renderConnections();
+        });
+
+        removeButton.addEventListener('click', () => {
+          worldState.maps = worldState.maps.filter((entry) => entry.id !== mapEntry.id);
+          worldState.connections = worldState.connections.filter((connection) => (
+            connection.fromMapId !== mapEntry.id && connection.toMapId !== mapEntry.id
+          ));
+          renderMapList();
+          refreshSelects();
+          renderConnections();
+        });
+      });
+    };
+
+    const renderPortalOptions = (select, mapId) => {
+      select.innerHTML = '';
+      const mapEntry = worldState.maps.find((entry) => entry.id === mapId);
+      if (!mapEntry || mapEntry.portals.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = '—';
+        select.appendChild(option);
+        return;
+      }
+      mapEntry.portals.forEach((portal, idx) => {
+        const option = document.createElement('option');
+        option.value = String(portal.index);
+        option.textContent = `#${idx + 1} (${portal.row},${portal.col})`;
+        select.appendChild(option);
+      });
+    };
+
+    const refreshSelects = () => {
+      [fromMapSelect, toMapSelect].forEach((select) => {
+        select.innerHTML = '';
+        worldState.maps.forEach((mapEntry) => {
+          const option = document.createElement('option');
+          option.value = mapEntry.id;
+          option.textContent = getMapName(mapEntry);
+          select.appendChild(option);
+        });
+      });
+
+      renderPortalOptions(fromPortalSelect, fromMapSelect.value);
+      renderPortalOptions(toPortalSelect, toMapSelect.value);
+    };
+
+    const renderConnections = () => {
+      connectionList.innerHTML = '';
+      if (!worldState.connections.length) {
+        emptyState?.classList.remove('is-hidden');
+        return;
+      }
+      emptyState?.classList.add('is-hidden');
+      worldState.connections.forEach((connection, index) => {
+        const row = document.createElement('div');
+        row.className = 'world-connection-row';
+        const fromMap = worldState.maps.find((entry) => entry.id === connection.fromMapId);
+        const toMap = worldState.maps.find((entry) => entry.id === connection.toMapId);
+        const fromName = fromMap ? getMapName(fromMap) : 'Unknown';
+        const toName = toMap ? getMapName(toMap) : 'Unknown';
+
+        const label = document.createElement('span');
+        label.textContent = `${fromName} [${connection.fromPortalIndex}] -> ${toName} [${connection.toPortalIndex}]`;
+
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'button-secondary world-remove';
+        removeButton.textContent = translations[currentLanguage]?.['world.remove'] ?? 'Remove';
+        removeButton.addEventListener('click', () => {
+          worldState.connections.splice(index, 1);
+          renderConnections();
+        });
+
+        row.appendChild(label);
+        row.appendChild(removeButton);
+        connectionList.appendChild(row);
+      });
+    };
+
+    const addConnection = () => {
+      const fromMapId = fromMapSelect.value;
+      const toMapId = toMapSelect.value;
+      const fromPortalIndex = Number.parseInt(fromPortalSelect.value, 10);
+      const toPortalIndex = Number.parseInt(toPortalSelect.value, 10);
+      if (!fromMapId || !toMapId || Number.isNaN(fromPortalIndex) || Number.isNaN(toPortalIndex)) return;
+      worldState.connections.push({
+        fromMapId,
+        fromPortalIndex,
+        toMapId,
+        toPortalIndex
+      });
+      renderConnections();
+    };
+
+    const exportWorld = () => {
+      const payload = {
+        version: 1,
+        maps: worldState.maps.map((entry) => ({
+          id: entry.id,
+          name: entry.name,
+          fileName: entry.fileName,
+          payload: entry.payload
+        })),
+        connections: worldState.connections
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'world.json';
+      link.click();
+      URL.revokeObjectURL(url);
+    };
+
+    const importMap = (file) => {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const payload = JSON.parse(String(reader.result || '{}'));
+          if (!payload?.map) return;
+          createMapEntry(payload, file.name);
+          renderMapList();
+          refreshSelects();
+          renderConnections();
+        } catch (error) {
+          // Ignore invalid JSON.
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    importButton?.addEventListener('click', () => importFile?.click());
+    importFile?.addEventListener('change', () => {
+      const file = importFile.files?.[0];
+      if (file) importMap(file);
+      importFile.value = '';
+    });
+
+    fromMapSelect.addEventListener('change', () => renderPortalOptions(fromPortalSelect, fromMapSelect.value));
+    toMapSelect.addEventListener('change', () => renderPortalOptions(toPortalSelect, toMapSelect.value));
+    addConnectionButton?.addEventListener('click', addConnection);
+    exportButton?.addEventListener('click', exportWorld);
+
+    renderMapList();
+    refreshSelects();
+    renderConnections();
+
+    document.addEventListener('languagechange', () => {
+      renderMapList();
+      refreshSelects();
+      renderConnections();
+    });
+  };
+
   const bindCacheLifecycle = () => {
     if (!document.body.classList.contains('page-graphic-assets')) return;
     window.addEventListener('pagehide', flushCache);
@@ -4163,6 +4461,7 @@
     const isHomePage = document.body.classList.contains('page-home');
     const isEditorPage = document.body.classList.contains('page-graphic-assets');
     const isMapPage = document.body.classList.contains('page-map');
+    const isWorldPage = document.body.classList.contains('page-world');
 
     if (isHomePage) {
       createHeroAmbient();
@@ -4195,6 +4494,9 @@
 
     if (isMapPage) {
       initMapCreator();
+    }
+    if (isWorldPage) {
+      initWorldCreator();
     }
 
     bindLanguageToggle();

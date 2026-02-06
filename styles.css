@@ -1512,6 +1512,99 @@ svg {
   box-shadow: 0 0 6px rgba(255, 59, 59, 0.5);
 }
 
+/* =============================
+   World Creator
+============================= */
+.world-layout {
+  grid-template-columns: minmax(260px, 1fr) minmax(0, 2fr);
+}
+
+.world-map-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.world-map-row {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  background: var(--color-panel-elevated);
+}
+
+.world-map-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.world-input {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  padding: 6px 8px;
+}
+
+.world-input:focus-visible {
+  outline: 2px solid var(--color-accent-2);
+  outline-offset: 1px;
+}
+
+.world-remove {
+  align-self: flex-start;
+}
+
+.world-connection-builder {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.world-connection-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--color-panel-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.world-select {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  padding: 6px 8px;
+}
+
+.world-connection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.world-connection-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  background: var(--color-panel);
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}
+
+.world-file-input {
+  display: none;
+}
+
 
 /* =============================
    Footer

@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>8bits Game Editor — Creative Lab for Pixel Makers</title>
+  <title>8bits Game Editor — World Creator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="page-home">
+<body class="page-world">
   <header class="navigation-bar-sticky">
     <div class="navigation-bar-inner">
       <a class="brand-lockup" href="index.html" aria-label="8bits Game Editor home">
@@ -100,97 +100,53 @@
     </div>
   </header>
 
-  <main>
-    <section class="hero-section">
-      <div class="hero-ambient-layer" aria-hidden="true">
-        <div class="hero-ambient-lines"></div>
-        <div class="hero-ambient-pixels" id="hero-pixels"></div>
-      </div>
-      <div class="hero-content">
-        <p class="hero-kicker" data-i18n="hero.kicker">Experimental Studio / Atelier de création</p>
-        <h1 class="hero-title">8BITS GAME EDITOR</h1>
-        <p class="hero-subtitle" data-i18n="hero.subtitle">A professional digital workshop for pixel makers, indie developers, and sound architects.</p>
-        <div class="hero-language-grid">
-          <div class="hero-language-block lang-block is-active" data-lang-block="en">
-            <h2 class="hero-language-title">Manifesto — EN</h2>
-            <p>Build sprites, tiles, and atmospheres with deliberate constraints. This is a creative lab: precise tools, zero noise.</p>
-            <p>Prototype fast. Iterate with intention. Export artifacts ready for your next level.</p>
-          </div>
-          <div class="hero-language-block lang-block" data-lang-block="fr">
-            <h2 class="hero-language-title">Manifeste — FR</h2>
-            <p>Compose des sprites, des tiles et des ambiances avec des contraintes choisies. Un laboratoire créatif : outils nets, bruit zéro.</p>
-            <p>Prototyper vite. Itérer avec intention. Exporter des assets prêts pour ton prochain niveau.</p>
-          </div>
-        </div>
+  <main class="workspace-page world-creator">
+    <section class="workspace-header">
+      <div>
+        <h1 class="workspace-title" data-i18n="world.title">World Creator</h1>
+        <p class="workspace-subtitle" data-i18n="world.subtitle">Import maps and connect portals to build a world graph.</p>
       </div>
     </section>
 
-    <div class="separator-glitch" aria-hidden="true"></div>
-
-    <section class="content-section">
-      <div class="section-heading">
-        <h2 class="section-title" data-i18n="section.toolchain.title">Toolchain / Chaîne de production</h2>
-        <p class="section-subtitle" data-i18n="section.toolchain.subtitle">A modular platform built for 8-bit visual systems. Precise, expandable, and studio-ready.</p>
-      </div>
-      <div class="modules-grid">
-        <article class="module-card">
-          <h3 class="module-title" data-i18n="module.pixel.title">Pixel Editor</h3>
-          <p data-i18n="module.pixel.body">Build sprites and tiles on a true 16x16 grid with controlled zoom, clean outlines, and instant previews.</p>
-          <span class="module-tag" data-i18n="module.pixel.tag">Core Editor</span>
-        </article>
-        <article class="module-card">
-          <h3 class="module-title" data-i18n="module.palette.title">Palette Engine</h3>
-          <p data-i18n="module.palette.body">Limited but powerful palettes. Fast swaps, active color focus, and export-ready color sheets.</p>
-          <span class="module-tag" data-i18n="module.palette.tag">Color Lab</span>
-        </article>
-        <article class="module-card">
-          <h3 class="module-title" data-i18n="module.tile.title">Tile Intelligence</h3>
-          <p data-i18n="module.tile.body">See how your textures repeat in real time. Build floors, walls, and world layers with clarity.</p>
-          <span class="module-tag" data-i18n="module.tile.tag">Preview Grid</span>
-        </article>
-        <article class="module-card">
-          <h3 class="module-title" data-i18n="module.future.title">Future Labs</h3>
-          <p data-i18n="module.future.body">Architecture prepared for new tools: animation frames, lighting passes, procedural brushes.</p>
-          <span class="module-tag" data-i18n="module.future.tag">In Progress</span>
-        </article>
-      </div>
-    </section>
-
-    <div class="separator-glitch" aria-hidden="true"></div>
-
-    <section class="content-section">
-      <div class="section-heading">
-        <h2 class="section-title" data-i18n="section.philosophy.title">Workshop Philosophy</h2>
-        <p class="section-subtitle" data-i18n="section.philosophy.subtitle">Professional, playful, controlled. The lab is designed for focus and experimentation.</p>
-      </div>
-      <div class="philosophy-grid">
-        <div class="philosophy-item">
-          <h3 class="philosophy-title" data-i18n="philosophy.experimental.title">Experimental, Not Chaotic</h3>
-          <p data-i18n="philosophy.experimental.body">Every interaction is intentional, with soft motion, clean states, and minimal UI noise.</p>
+    <section class="workspace-layout world-layout">
+      <aside class="workspace-panel-left world-panel-left">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title" data-i18n="world.maps">Maps</h2>
+            <p class="panel-subtitle" data-i18n="world.mapsSubtitle">Import map JSON files with portal markers.</p>
+          </div>
+          <button class="button-secondary" type="button" id="world-import" data-i18n="world.import">Import Map</button>
+          <input class="world-file-input" type="file" id="world-import-file" accept=".json" />
         </div>
-        <div class="philosophy-item">
-          <h3 class="philosophy-title" data-i18n="philosophy.studio.title">A Studio, Not a Landing Page</h3>
-          <p data-i18n="philosophy.studio.body">We keep marketing away from the bench. Tools, grids, and production language are the center.</p>
+        <div class="world-map-list" id="world-map-list"></div>
+      </aside>
+
+      <section class="workspace-panel-center world-panel-center">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title" data-i18n="world.connections">Connections</h2>
+            <p class="panel-subtitle" data-i18n="world.connectionsSubtitle">Link portals between maps.</p>
+          </div>
+          <button class="button-secondary" type="button" id="world-export" data-i18n="world.export">Export World</button>
         </div>
-        <div class="philosophy-item">
-          <h3 class="philosophy-title" data-i18n="philosophy.bilingual.title">Bilingual by Design</h3>
-          <p data-i18n="philosophy.bilingual.body">Two voices, one lab. English and French coexist across the platform, tuned for global teams.</p>
+        <div class="world-connection-builder">
+          <div class="world-connection-field">
+            <label class="panel-label" data-i18n="world.from">From</label>
+            <select class="world-select" id="world-from-map"></select>
+            <select class="world-select" id="world-from-portal"></select>
+          </div>
+          <div class="world-connection-field">
+            <label class="panel-label" data-i18n="world.to">To</label>
+            <select class="world-select" id="world-to-map"></select>
+            <select class="world-select" id="world-to-portal"></select>
+          </div>
+          <button class="button-primary" type="button" id="world-add-connection" data-i18n="world.addConnection">Add Connection</button>
         </div>
-      </div>
-      <div class="callout-panel">
-        <p class="callout-title" data-i18n="callout.title">Next Surface: Graphic Assets Design</p>
-        <p class="callout-text" data-i18n="callout.text">Open the editor to build sprite systems, refine tile loops, and export ready PNGs.</p>
-        <a class="button-primary" href="graphic-assets-tiles.html" data-i18n="callout.button">Open Graphic Assets Design</a>
-      </div>
+        <div class="world-connection-list" id="world-connection-list"></div>
+        <p class="panel-subtitle is-hidden" id="world-empty" data-i18n="world.noConnections">No connections yet.</p>
+      </section>
     </section>
   </main>
-
-  <footer class="site-footer">
-    <div class="footer-inner">
-      <p data-i18n="footer.main">8bits Game Editor — Creative Lab for Indie Makers</p>
-      <p class="footer-note" data-i18n="footer.note">Prototype responsibly / Prototype responsablement.</p>
-    </div>
-  </footer>
 
   <script src="script.js"></script>
 </body>
