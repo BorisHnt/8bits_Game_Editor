@@ -163,6 +163,8 @@
       'world.to': 'To',
       'world.addConnection': 'Add Connection',
       'world.noConnections': 'No connections yet.',
+      'world.previewTitle': 'World Preview',
+      'world.previewSubtitle': 'Overview of maps and links.',
       'world.mapName': 'Map name',
       'world.portals': 'Portals',
       'world.file': 'File',
@@ -347,6 +349,8 @@
       'world.to': 'Vers',
       'world.addConnection': 'Ajouter connexion',
       'world.noConnections': 'Aucune connexion.',
+      'world.previewTitle': 'Apercu du monde',
+      'world.previewSubtitle': 'Vue generale des maps et liens.',
       'world.mapName': 'Nom de map',
       'world.portals': 'Portails',
       'world.file': 'Fichier',
@@ -4103,6 +4107,7 @@
     const connectionList = qs('#world-connection-list');
     const emptyState = qs('#world-empty');
     const exportButton = qs('#world-export');
+    const previewCanvas = qs('#world-preview-canvas');
 
     if (!mapList || !fromMapSelect || !fromPortalSelect || !toMapSelect || !toPortalSelect || !connectionList) return;
 
@@ -4246,6 +4251,7 @@
       connectionList.innerHTML = '';
       if (!worldState.connections.length) {
         emptyState?.classList.remove('is-hidden');
+        renderWorldPreview();
         return;
       }
       emptyState?.classList.add('is-hidden');
@@ -4272,6 +4278,73 @@
         row.appendChild(label);
         row.appendChild(removeButton);
         connectionList.appendChild(row);
+      });
+      renderWorldPreview();
+    };
+
+    const renderWorldPreview = () => {
+      if (!previewCanvas) return;
+      const ctx = previewCanvas.getContext('2d');
+      if (!ctx) return;
+
+      const container = previewCanvas.parentElement;
+      const width = container ? Math.max(320, container.clientWidth - 2) : previewCanvas.width;
+      const nodeCount = worldState.maps.length;
+      const columns = Math.max(1, Math.ceil(Math.sqrt(nodeCount || 1)));
+      const spacingX = 160;
+      const spacingY = 120;
+      const rows = Math.max(1, Math.ceil((nodeCount || 1) / columns));
+      const height = Math.max(240, rows * spacingY + 40);
+
+      previewCanvas.width = width;
+      previewCanvas.height = height;
+
+      ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+      ctx.fillStyle = '#0b0b0b';
+      ctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+      const positions = new Map();
+      worldState.maps.forEach((mapEntry, index) => {
+        const col = index % columns;
+        const row = Math.floor(index / columns);
+        const x = 80 + col * spacingX;
+        const y = 60 + row * spacingY;
+        positions.set(mapEntry.id, { x, y });
+      });
+
+      ctx.strokeStyle = 'rgba(0,148,174,0.5)';
+      ctx.lineWidth = 2;
+      worldState.connections.forEach((connection) => {
+        const from = positions.get(connection.fromMapId);
+        const to = positions.get(connection.toMapId);
+        if (!from || !to) return;
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(to.x, to.y);
+        ctx.stroke();
+      });
+
+      worldState.maps.forEach((mapEntry) => {
+        const position = positions.get(mapEntry.id);
+        if (!position) return;
+        const { x, y } = position;
+        ctx.fillStyle = '#101010';
+        ctx.strokeStyle = '#00b78f';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x, y, 26, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#f2f2f2';
+        ctx.font = '12px \"IBM Plex Sans\", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(getMapName(mapEntry), x, y);
+
+        ctx.fillStyle = '#9c9c9c';
+        ctx.font = '10px \"IBM Plex Sans\", sans-serif';
+        ctx.fillText(`${mapEntry.portals.length} portals`, x, y + 18);
       });
     };
 
@@ -4343,11 +4416,17 @@
     renderMapList();
     refreshSelects();
     renderConnections();
+    renderWorldPreview();
+
+    window.addEventListener('resize', () => {
+      renderWorldPreview();
+    });
 
     document.addEventListener('languagechange', () => {
       renderMapList();
       refreshSelects();
       renderConnections();
+      renderWorldPreview();
     });
   };
 
