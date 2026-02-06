@@ -144,6 +144,7 @@
       'map.viewNormal': 'Normal',
       'map.viewAssets': 'Assets',
       'map.viewCollision': 'Passable/Blocking',
+      'map.name': 'Map name',
       'map.shift': 'Shift',
       'map.shiftUp': 'Up',
       'map.shiftDown': 'Down',
@@ -345,6 +346,7 @@
       'map.viewNormal': 'Normal',
       'map.viewAssets': 'Assets',
       'map.viewCollision': 'Passant/Bloquant',
+      'map.name': 'Nom de map',
       'map.shift': 'Deplacer',
       'map.shiftUp': 'Haut',
       'map.shiftDown': 'Bas',
@@ -2990,6 +2992,7 @@
     const mapHeightInput = qs('#map-height');
     const mapApplyButton = qs('#apply-map-size');
     const mapCellSize = qs('#map-cell-size');
+    const mapNameInput = qs('#map-name');
     const mapExportButton = qs('#map-export');
     const mapImportButton = qs('#map-import');
     const mapImportFile = qs('#map-import-file');
@@ -3014,7 +3017,10 @@
       markerMode: null,
       randomize: false,
       view: 'normal',
+      shiftPaint: false,
+      shiftPaintIndex: null,
       map: {
+        name: '',
         width: 50,
         height: 50,
         cellSize: 16,
@@ -3026,6 +3032,8 @@
 
     const getText = (key, fallback = '') => translations[currentLanguage]?.[key] ?? fallback;
     const getAssetById = (id) => mapState.assets.find((asset) => asset.id === id);
+    const mapCacheKey = '8bits-map-cache-state';
+    let mapSaveTimer = null;
 
     const formatBytes = (bytes) => {
       if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
@@ -3308,6 +3316,33 @@
       }
     };
 
+    const scheduleMapSave = () => {
+      if (!window.localStorage) return;
+      if (mapSaveTimer) {
+        clearTimeout(mapSaveTimer);
+      }
+      mapSaveTimer = setTimeout(() => {
+        try {
+          localStorage.setItem(mapCacheKey, JSON.stringify(buildMapPayload()));
+        } catch (error) {
+          // ignore storage errors
+        }
+      }, 200);
+    };
+
+    const loadCachedMapState = () => {
+      if (!window.localStorage) return false;
+      try {
+        const raw = localStorage.getItem(mapCacheKey);
+        if (!raw) return false;
+        const payload = JSON.parse(raw);
+        applyMapPayload(payload);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    };
+
     const shiftMap = (dx, dy) => {
       const width = mapState.map.width;
       const height = mapState.map.height;
@@ -3335,6 +3370,7 @@
       mapState.map.cells = nextCells;
       mapState.map.markers = nextMarkers;
       renderMapGrid();
+      scheduleMapSave();
     };
 
     const getMapNeighbors = (x, y, assetId) => {
@@ -3680,16 +3716,19 @@
           renderAssetList();
           renderAssetGrid();
           renderMapGrid();
+          scheduleMapSave();
         });
 
         nameInput.addEventListener('input', () => {
           asset.name = nameInput.value;
           renderAssetGrid();
+          scheduleMapSave();
         });
 
         colorInput.addEventListener('input', () => {
           asset.color = colorInput.value;
           renderMapGrid();
+          scheduleMapSave();
         });
 
         numberInput.addEventListener('change', () => {
@@ -3698,6 +3737,7 @@
           renderAssetList();
           renderAssetGrid();
           renderMapGrid();
+          scheduleMapSave();
         });
 
         colsInput.addEventListener('change', () => {
@@ -3708,6 +3748,7 @@
           countInput.value = String(asset.spriteCount);
           renderAssetGrid();
           renderMapGrid();
+          scheduleMapSave();
         });
 
         rowsInput.addEventListener('change', () => {
@@ -3718,18 +3759,21 @@
           countInput.value = String(asset.spriteCount);
           renderAssetGrid();
           renderMapGrid();
+          scheduleMapSave();
         });
 
         widthInput.addEventListener('change', () => {
           asset.spriteWidth = clamp(Number.parseInt(widthInput.value, 10) || 1, 1, 256);
           widthInput.value = String(asset.spriteWidth);
           renderMapGrid();
+          scheduleMapSave();
         });
 
         heightInput.addEventListener('change', () => {
           asset.spriteHeight = clamp(Number.parseInt(heightInput.value, 10) || 1, 1, 256);
           heightInput.value = String(asset.spriteHeight);
           renderMapGrid();
+          scheduleMapSave();
         });
 
         countInput.addEventListener('change', () => {
@@ -3739,10 +3783,12 @@
             mapState.selectedSpriteIndex = asset.spriteCount;
           }
           renderAssetGrid();
+          scheduleMapSave();
         });
 
         typeSelect.addEventListener('change', () => {
           asset.type = typeSelect.value;
+          scheduleMapSave();
         });
 
         selectButton.addEventListener('click', () => {
@@ -3877,6 +3923,7 @@
       if (cell) renderMapCell(cell, index);
 
       renderMapGrid();
+      scheduleMapSave();
     };
 
     const bindMapGrid = () => {
@@ -3890,10 +3937,18 @@
       });
 
       mapGrid.addEventListener('pointermove', (event) => {
-        if (!mapState.isDrawing) return;
         const target = event.target.closest('.map-cell');
         if (!target) return;
-        applyMapCell(Number.parseInt(target.dataset.index, 10));
+        const index = Number.parseInt(target.dataset.index, 10);
+        if (mapState.isDrawing) {
+          applyMapCell(index);
+          return;
+        }
+        if (mapState.shiftPaint) {
+          if (mapState.shiftPaintIndex === index) return;
+          mapState.shiftPaintIndex = index;
+          applyMapCell(index);
+        }
       });
 
       const stopDrawing = (event) => {
@@ -3908,6 +3963,9 @@
 
       mapGrid.addEventListener('pointerup', stopDrawing);
       mapGrid.addEventListener('pointerleave', stopDrawing);
+      mapGrid.addEventListener('pointerleave', () => {
+        mapState.shiftPaintIndex = null;
+      });
     };
 
     const bindMapControls = () => {
@@ -3918,6 +3976,7 @@
         if (mapWidthInput) mapWidthInput.value = String(mapState.map.width);
         if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
         renderMapGrid();
+        scheduleMapSave();
       });
 
       mapWidthInput?.addEventListener('keydown', (event) => {
@@ -3930,6 +3989,12 @@
       mapCellSize?.addEventListener('input', () => {
         mapState.map.cellSize = clamp(Number.parseInt(mapCellSize.value, 10) || 16, 10, 32);
         renderMapGrid();
+        scheduleMapSave();
+      });
+
+      mapNameInput?.addEventListener('input', () => {
+        mapState.map.name = mapNameInput.value;
+        scheduleMapSave();
       });
 
       qsa('[data-map-mode]').forEach((button) => {
@@ -3995,6 +4060,7 @@
         type: asset.type
       })),
       map: {
+        name: mapState.map.name || '',
         width: mapState.map.width,
         height: mapState.map.height,
         cellSize: mapState.map.cellSize,
@@ -4040,6 +4106,7 @@
       mapState.selectedAssetId = mapState.assets[0]?.id || null;
       mapState.selectedSpriteIndex = 1;
 
+      mapState.map.name = payload.map.name || payload.name || '';
       mapState.map.width = clamp(Number.parseInt(payload.map.width, 10) || 50, 4, 200);
       mapState.map.height = clamp(Number.parseInt(payload.map.height, 10) || 50, 4, 200);
       mapState.map.cellSize = clamp(Number.parseInt(payload.map.cellSize, 10) || 16, 10, 32);
@@ -4072,6 +4139,7 @@
         }
       }
       mapState.map.markers = nextMarkers;
+      if (mapNameInput) mapNameInput.value = mapState.map.name;
       if (mapWidthInput) mapWidthInput.value = String(mapState.map.width);
       if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
       if (mapCellSize) mapCellSize.value = String(mapState.map.cellSize);
@@ -4083,6 +4151,7 @@
         renderAssetGrid();
         renderMapGrid();
       });
+      scheduleMapSave();
     };
 
     const exportMapJson = () => {
@@ -4120,10 +4189,13 @@
       renderAssetGrid();
     });
 
-    if (!mapState.assets.length) {
+    const cacheLoaded = loadCachedMapState();
+    if (!cacheLoaded && !mapState.assets.length) {
       createAsset();
+      scheduleMapSave();
     }
 
+    if (mapNameInput && !cacheLoaded) mapNameInput.value = mapState.map.name || '';
     if (mapWidthInput) mapWidthInput.value = String(mapState.map.width);
     if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
     if (mapCellSize) mapCellSize.value = String(mapState.map.cellSize);
@@ -4135,10 +4207,22 @@
     bindMapGrid();
     bindMapControls();
 
+    const handleShiftKey = (event) => {
+      if (event.key !== 'Shift') return;
+      mapState.shiftPaint = event.type === 'keydown';
+      if (!mapState.shiftPaint) {
+        mapState.shiftPaintIndex = null;
+      }
+    };
+
+    window.addEventListener('keydown', handleShiftKey);
+    window.addEventListener('keyup', handleShiftKey);
+
     addAssetButton?.addEventListener('click', () => {
       createAsset();
       renderAssetList();
       renderAssetGrid();
+      scheduleMapSave();
     });
 
     mapExportButton?.addEventListener('click', exportMapJson);
@@ -4899,7 +4983,7 @@
 
     const createMapEntry = (payload, fileName = '') => {
       const id = createId();
-      const name = fileName ? fileName.replace(/\.[^/.]+$/, '') : `Map ${worldState.maps.length + 1}`;
+      const name = payload?.map?.name || payload?.name || (fileName ? fileName.replace(/\.[^/.]+$/, '') : `Map ${worldState.maps.length + 1}`);
       const portals = buildPortalList(payload);
       worldState.maps.push({
         id,
