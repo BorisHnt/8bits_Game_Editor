@@ -6,10 +6,12 @@
       'title.tiles': '8bits Game Editor — Tiles Designer',
       'title.sprite': '8bits Game Editor — Sprite Designer',
       'title.walls': '8bits Game Editor — Walls Designer',
+      'title.map': '8bits Game Editor — Map Creator',
       'nav.home': 'Home',
       'nav.tiles': 'Tiles Designer',
       'nav.sprite': 'Sprite Designer',
       'nav.walls': 'Walls Designer',
+      'nav.map': 'Map Creator',
       'hero.kicker': 'Experimental Studio / Creative Workshop',
       'hero.subtitle': 'A professional digital workshop for pixel makers, indie developers, and sound architects.',
       'section.toolchain.title': 'Toolchain',
@@ -115,7 +117,34 @@
       'panel.addFrame': 'Add Frame',
       'panel.wallTiles': 'Wall Tiles',
       'panel.wallTilesSubtitle': 'Select a wall segment to edit.',
-      'palette.selectColor': 'Select color'
+      'palette.selectColor': 'Select color',
+      'map.title': 'Map Creator',
+      'map.subtitle': 'Import assets, map sprites, and paint layouts on a custom grid.',
+      'map.assets': 'Assets',
+      'map.assetsSubtitle': 'Add images and configure sprite metadata.',
+      'map.addAsset': 'Add Asset',
+      'map.importAsset': 'Import',
+      'map.assetGrid': 'Asset Grid',
+      'map.assetGridHint': 'Select an asset to preview its sprites.',
+      'map.mapBuilder': 'Map Builder',
+      'map.mapBuilderHint': 'Configure grid size and paint tiles.',
+      'map.mapSize': 'Map Size',
+      'map.cellSize': 'Cell Size',
+      'map.mode': 'Mode',
+      'map.modeManual': 'Manual',
+      'map.modeAuto': 'Auto (x13)',
+      'map.tool': 'Tool',
+      'map.toolPencil': 'Pencil',
+      'map.toolEraser': 'Eraser',
+      'map.assetName': 'Asset name',
+      'map.assetNumber': 'Image number',
+      'map.assetConfig': 'Config',
+      'map.spriteSize': 'Sprite size',
+      'map.spriteCount': 'Sprites',
+      'map.assetType': 'Type',
+      'map.typeBlocking': 'Blocking',
+      'map.typePassable': 'Passable',
+      'map.selectAsset': 'Select'
     },
     fr: {
       'title.home': "8bits Game Editor — Laboratoire créatif pour makers indés",
@@ -123,10 +152,12 @@
       'title.tiles': "8bits Game Editor — Design de tiles",
       'title.sprite': "8bits Game Editor — Design de sprites",
       'title.walls': "8bits Game Editor — Design de murs",
+      'title.map': "8bits Game Editor — Créateur de maps",
       'nav.home': 'Accueil',
       'nav.tiles': 'Designer Tiles',
       'nav.sprite': 'Designer Sprite',
       'nav.walls': 'Designer Murs',
+      'nav.map': 'Créateur de map',
       'hero.kicker': 'Atelier expérimental / Studio de création',
       'hero.subtitle': 'Un atelier numérique professionnel pour pixel artists, développeurs indés et designers sonores.',
       'section.toolchain.title': 'Chaîne de production',
@@ -232,7 +263,34 @@
       'panel.addFrame': 'Ajouter',
       'panel.wallTiles': 'Tiles de mur',
       'panel.wallTilesSubtitle': 'Sélectionner un segment à éditer.',
-      'palette.selectColor': 'Sélectionner la couleur'
+      'palette.selectColor': 'Sélectionner la couleur',
+      'map.title': 'Créateur de map',
+      'map.subtitle': 'Importer des assets, mapper les sprites et peindre une grille personnalisée.',
+      'map.assets': 'Assets',
+      'map.assetsSubtitle': 'Ajoutez des images et configurez les sprites.',
+      'map.addAsset': 'Ajouter un asset',
+      'map.importAsset': 'Importer',
+      'map.assetGrid': 'Grille de sprites',
+      'map.assetGridHint': 'Sélectionnez un asset pour afficher ses sprites.',
+      'map.mapBuilder': 'Construction de map',
+      'map.mapBuilderHint': 'Configurez la grille et dessinez la map.',
+      'map.mapSize': 'Taille de map',
+      'map.cellSize': 'Taille de cellule',
+      'map.mode': 'Mode',
+      'map.modeManual': 'Manuel',
+      'map.modeAuto': 'Auto (x13)',
+      'map.tool': 'Outil',
+      'map.toolPencil': 'Crayon',
+      'map.toolEraser': 'Gomme',
+      'map.assetName': "Nom de l'asset",
+      'map.assetNumber': 'Numero image',
+      'map.assetConfig': 'Config',
+      'map.spriteSize': 'Taille sprite',
+      'map.spriteCount': 'Sprites',
+      'map.assetType': 'Type',
+      'map.typeBlocking': 'Bloquant',
+      'map.typePassable': 'Passant',
+      'map.selectAsset': 'Selectionner'
     }
   };
 
@@ -2707,6 +2765,8 @@
     let pageTitleKey = 'title.graphic';
     if (document.body.classList.contains('page-home')) {
       pageTitleKey = 'title.home';
+    } else if (document.body.classList.contains('page-map')) {
+      pageTitleKey = 'title.map';
     } else {
       const designer = document.body.dataset.designer;
       if (designer === 'tiles') pageTitleKey = 'title.tiles';
@@ -2728,6 +2788,7 @@
     });
 
     updatePaletteAriaLabels();
+    document.dispatchEvent(new CustomEvent('languagechange', { detail: { language } }));
   };
 
   const bindExportButton = () => {
@@ -2804,6 +2865,635 @@
         event.preventDefault();
         redoHistory();
       }
+    });
+  };
+
+  const initMapCreator = () => {
+    const assetList = qs('#asset-list');
+    const assetGrid = qs('#asset-grid');
+    const assetGridLabel = qs('#asset-grid-label');
+    const addAssetButton = qs('#add-asset');
+    const mapGrid = qs('#map-grid');
+    const mapWidthInput = qs('#map-width');
+    const mapHeightInput = qs('#map-height');
+    const mapApplyButton = qs('#apply-map-size');
+    const mapCellSize = qs('#map-cell-size');
+
+    if (!assetList || !assetGrid || !mapGrid) return;
+
+    const mapState = {
+      assets: [],
+      selectedAssetId: null,
+      selectedSpriteIndex: 1,
+      mode: 'manual',
+      tool: 'pencil',
+      map: {
+        width: 50,
+        height: 50,
+        cellSize: 16,
+        cells: []
+      },
+      isDrawing: false
+    };
+
+    const getText = (key, fallback = '') => translations[currentLanguage]?.[key] ?? fallback;
+    const getAssetById = (id) => mapState.assets.find((asset) => asset.id === id);
+
+    const normalizeAssetNumbers = () => {
+      mapState.assets.forEach((asset, index) => {
+        if (!asset.number || asset.number < 1) asset.number = index + 1;
+      });
+    };
+
+    const createAsset = () => {
+      const id = createId();
+      const asset = {
+        id,
+        name: '',
+        fileName: '',
+        imageUrl: '',
+        number: mapState.assets.length + 1,
+        cols: 4,
+        rows: 4,
+        spriteWidth: 16,
+        spriteHeight: 16,
+        spriteCount: 16,
+        type: 'blocking'
+      };
+      mapState.assets.push(asset);
+      if (!mapState.selectedAssetId) {
+        mapState.selectedAssetId = id;
+      }
+    };
+
+    const resizeMap = (nextWidth, nextHeight) => {
+      const width = clamp(nextWidth, 4, 200);
+      const height = clamp(nextHeight, 4, 200);
+      const resized = Array.from({ length: width * height }, () => null);
+      const copyWidth = Math.min(mapState.map.width, width);
+      const copyHeight = Math.min(mapState.map.height, height);
+      for (let row = 0; row < copyHeight; row += 1) {
+        for (let col = 0; col < copyWidth; col += 1) {
+          const prevIndex = row * mapState.map.width + col;
+          const nextIndex = row * width + col;
+          resized[nextIndex] = mapState.map.cells[prevIndex];
+        }
+      }
+      mapState.map.width = width;
+      mapState.map.height = height;
+      mapState.map.cells = resized;
+    };
+
+    const ensureMapCells = () => {
+      if (mapState.map.cells.length === mapState.map.width * mapState.map.height) return;
+      mapState.map.cells = Array.from({ length: mapState.map.width * mapState.map.height }, () => null);
+    };
+
+    const getMapNeighbors = (x, y, assetId) => {
+      const { width, height, cells } = mapState.map;
+      const isSame = (cx, cy) => {
+        if (cx < 0 || cy < 0 || cx >= width || cy >= height) return false;
+        const cell = cells[cy * width + cx];
+        return cell?.assetId === assetId;
+      };
+
+      const n = isSame(x, y - 1);
+      const s = isSame(x, y + 1);
+      const w = isSame(x - 1, y);
+      const e = isSame(x + 1, y);
+      const nw = isSame(x - 1, y - 1);
+      const ne = isSame(x + 1, y - 1);
+      const sw = isSame(x - 1, y + 1);
+      const se = isSame(x + 1, y + 1);
+      return { n, s, w, e, nw, ne, sw, se };
+    };
+
+    const getMapTileIdX13 = (assetId, x, y) => {
+      const { width, height } = mapState.map;
+      const { n, s, w, e, nw, ne, sw, se } = getMapNeighbors(x, y, assetId);
+      const isBorder = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+
+      if (isBorder) {
+        if (x === 0 && y === 0) return 'corner-in-top-left';
+        if (x === width - 1 && y === 0) return 'corner-in-top-right';
+        if (x === 0 && y === height - 1) return 'corner-in-bottom-left';
+        if (x === width - 1 && y === height - 1) return 'corner-in-bottom-right';
+        if (y === 0) return 'edge-bottom';
+        if (y === height - 1) return 'edge-top';
+        if (x === 0) return 'edge-right';
+        if (x === width - 1) return 'edge-left';
+      }
+
+      const sample = [
+        nw, n, ne,
+        w, true, e,
+        sw, s, se
+      ];
+
+      const patterns = [
+        { id: 'corner-in-bottom-right', mask: patternFromRows(['OX+', 'XXX', '+X+']) },
+        { id: 'corner-in-bottom-left', mask: patternFromRows(['+XO', 'XXX', '+X+']) },
+        { id: 'corner-in-top-right', mask: patternFromRows(['+X+', 'XXX', 'OX+']) },
+        { id: 'corner-in-top-left', mask: patternFromRows(['+X+', 'XXX', '+XO']) },
+        { id: 'corner-out-bottom-right', mask: patternFromRows(['OO+', 'OXX', '+XX']) },
+        { id: 'corner-out-bottom-left', mask: patternFromRows(['+OO', 'XXO', 'XX+']) },
+        { id: 'corner-out-top-right', mask: patternFromRows(['+XX', 'OXX', 'OO+']) },
+        { id: 'corner-out-top-left', mask: patternFromRows(['XX+', 'XXO', '+OO']) },
+        { id: 'edge-top', mask: patternFromRows(['OOO', 'XXX', 'XXX']) },
+        { id: 'edge-bottom', mask: patternFromRows(['XXX', 'XXX', 'OOO']) },
+        { id: 'edge-left', mask: patternFromRows(['OXX', 'OXX', 'OXX']) },
+        { id: 'edge-right', mask: patternFromRows(['XXO', 'XXO', 'XXO']) },
+        { id: 'edge-top', mask: patternFromRows(['+O+', 'XXX', '+++']) },
+        { id: 'edge-bottom', mask: patternFromRows(['+++', 'XXX', '+O+']) },
+        { id: 'edge-left', mask: patternFromRows(['+X+', 'OX+', '+X+']) },
+        { id: 'edge-right', mask: patternFromRows(['+X+', '+XO', '+X+']) },
+        { id: 'center', mask: patternFromRows(['XXX', 'XXX', 'XXX']) }
+      ];
+
+      for (let i = 0; i < patterns.length; i += 1) {
+        const { id, mask } = patterns[i];
+        if (matchesPattern(mask, sample)) return id;
+      }
+
+      return 'center';
+    };
+
+    const autoTileOrder = [
+      'center',
+      'edge-top',
+      'edge-bottom',
+      'edge-left',
+      'edge-right',
+      'corner-out-top-left',
+      'corner-out-top-right',
+      'corner-out-bottom-left',
+      'corner-out-bottom-right',
+      'corner-in-top-left',
+      'corner-in-top-right',
+      'corner-in-bottom-left',
+      'corner-in-bottom-right'
+    ];
+
+    const computeAutoSpriteIndex = (asset, x, y) => {
+      if (!asset || asset.spriteCount < 13) return 1;
+      const tileId = getMapTileIdX13(asset.id, x, y);
+      const index = autoTileOrder.indexOf(tileId);
+      const spriteIndex = index >= 0 ? index + 1 : 1;
+      return spriteIndex <= asset.spriteCount ? spriteIndex : 1;
+    };
+
+    const renderAssetGrid = () => {
+      assetGrid.innerHTML = '';
+      const asset = getAssetById(mapState.selectedAssetId);
+      if (!asset) {
+        if (assetGridLabel) assetGridLabel.textContent = getText('map.assetGridHint', 'Select an asset to preview its sprites.');
+        return;
+      }
+
+      if (assetGridLabel) {
+        const name = asset.name || asset.fileName || `Asset ${asset.number}`;
+        assetGridLabel.textContent = name;
+      }
+
+      const cellSize = 40;
+      assetGrid.style.setProperty('--asset-grid-columns', asset.cols);
+      assetGrid.style.setProperty('--asset-cell-size', `${cellSize}px`);
+
+      for (let row = 0; row < asset.rows; row += 1) {
+        for (let col = 0; col < asset.cols; col += 1) {
+          const spriteIndex = row * asset.cols + col + 1;
+          const cell = document.createElement('button');
+          cell.type = 'button';
+          cell.className = 'asset-sprite';
+          cell.textContent = String(spriteIndex);
+
+          if (spriteIndex > asset.spriteCount) {
+            cell.classList.add('is-disabled');
+          }
+          if (spriteIndex === mapState.selectedSpriteIndex) {
+            cell.classList.add('is-active');
+          }
+          if (asset.imageUrl) {
+            cell.style.backgroundImage = `url(${asset.imageUrl})`;
+            cell.style.backgroundSize = `${asset.cols * cellSize}px ${asset.rows * cellSize}px`;
+            cell.style.backgroundPosition = `${-col * cellSize}px ${-row * cellSize}px`;
+          }
+
+          if (spriteIndex <= asset.spriteCount) {
+            cell.addEventListener('click', () => {
+              mapState.selectedSpriteIndex = spriteIndex;
+              renderAssetGrid();
+              renderMapGrid();
+            });
+          }
+
+          assetGrid.appendChild(cell);
+        }
+      }
+    };
+
+    const renderAssetList = () => {
+      assetList.innerHTML = '';
+      normalizeAssetNumbers();
+
+      mapState.assets.forEach((asset) => {
+        const row = document.createElement('div');
+        row.className = 'asset-row';
+        if (asset.id === mapState.selectedAssetId) {
+          row.classList.add('is-active');
+        }
+
+        const uploadField = document.createElement('label');
+        uploadField.className = 'asset-upload button-secondary';
+        uploadField.textContent = getText('map.importAsset', 'Import');
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        uploadField.appendChild(fileInput);
+
+        const nameField = document.createElement('div');
+        nameField.className = 'asset-field asset-name';
+        const nameLabel = document.createElement('label');
+        nameLabel.className = 'panel-label';
+        nameLabel.textContent = getText('map.assetName', 'Asset name');
+        const nameInput = document.createElement('input');
+        nameInput.className = 'asset-input';
+        nameInput.type = 'text';
+        nameInput.value = asset.name;
+        nameInput.placeholder = asset.fileName || `Asset ${asset.number}`;
+        const fileName = document.createElement('span');
+        fileName.className = 'asset-file-name';
+        fileName.textContent = asset.fileName || '';
+
+        nameField.appendChild(nameLabel);
+        nameField.appendChild(nameInput);
+        nameField.appendChild(fileName);
+
+        const numberField = document.createElement('div');
+        numberField.className = 'asset-field';
+        const numberLabel = document.createElement('label');
+        numberLabel.className = 'panel-label';
+        numberLabel.textContent = getText('map.assetNumber', 'Image number');
+        const numberInput = document.createElement('input');
+        numberInput.className = 'asset-input';
+        numberInput.type = 'number';
+        numberInput.min = '1';
+        numberInput.value = String(asset.number);
+        numberField.appendChild(numberLabel);
+        numberField.appendChild(numberInput);
+
+        const configField = document.createElement('div');
+        configField.className = 'asset-field';
+        const configLabel = document.createElement('label');
+        configLabel.className = 'panel-label';
+        configLabel.textContent = getText('map.assetConfig', 'Config');
+        const configInputs = document.createElement('div');
+        configInputs.className = 'asset-inline-inputs';
+        const colsInput = document.createElement('input');
+        colsInput.className = 'asset-input';
+        colsInput.type = 'number';
+        colsInput.min = '1';
+        colsInput.max = '64';
+        colsInput.value = String(asset.cols);
+        const rowsInput = document.createElement('input');
+        rowsInput.className = 'asset-input';
+        rowsInput.type = 'number';
+        rowsInput.min = '1';
+        rowsInput.max = '64';
+        rowsInput.value = String(asset.rows);
+        const separator = document.createElement('span');
+        separator.className = 'grid-separator';
+        separator.textContent = 'x';
+        configInputs.appendChild(colsInput);
+        configInputs.appendChild(separator);
+        configInputs.appendChild(rowsInput);
+        configField.appendChild(configLabel);
+        configField.appendChild(configInputs);
+
+        const sizeField = document.createElement('div');
+        sizeField.className = 'asset-field';
+        const sizeLabel = document.createElement('label');
+        sizeLabel.className = 'panel-label';
+        sizeLabel.textContent = getText('map.spriteSize', 'Sprite size');
+        const sizeInputs = document.createElement('div');
+        sizeInputs.className = 'asset-inline-inputs';
+        const widthInput = document.createElement('input');
+        widthInput.className = 'asset-input';
+        widthInput.type = 'number';
+        widthInput.min = '1';
+        widthInput.max = '256';
+        widthInput.value = String(asset.spriteWidth);
+        const heightInput = document.createElement('input');
+        heightInput.className = 'asset-input';
+        heightInput.type = 'number';
+        heightInput.min = '1';
+        heightInput.max = '256';
+        heightInput.value = String(asset.spriteHeight);
+        const sizeSeparator = document.createElement('span');
+        sizeSeparator.className = 'grid-separator';
+        sizeSeparator.textContent = 'x';
+        sizeInputs.appendChild(widthInput);
+        sizeInputs.appendChild(sizeSeparator);
+        sizeInputs.appendChild(heightInput);
+        sizeField.appendChild(sizeLabel);
+        sizeField.appendChild(sizeInputs);
+
+        const countField = document.createElement('div');
+        countField.className = 'asset-field';
+        const countLabel = document.createElement('label');
+        countLabel.className = 'panel-label';
+        countLabel.textContent = getText('map.spriteCount', 'Sprites');
+        const countInput = document.createElement('input');
+        countInput.className = 'asset-input';
+        countInput.type = 'number';
+        countInput.min = '1';
+        countInput.max = String(asset.cols * asset.rows);
+        countInput.value = String(asset.spriteCount);
+        countField.appendChild(countLabel);
+        countField.appendChild(countInput);
+
+        const typeField = document.createElement('div');
+        typeField.className = 'asset-field';
+        const typeLabel = document.createElement('label');
+        typeLabel.className = 'panel-label';
+        typeLabel.textContent = getText('map.assetType', 'Type');
+        const typeSelect = document.createElement('select');
+        typeSelect.className = 'asset-select';
+        const optionBlocking = document.createElement('option');
+        optionBlocking.value = 'blocking';
+        optionBlocking.textContent = getText('map.typeBlocking', 'Blocking');
+        const optionPassable = document.createElement('option');
+        optionPassable.value = 'passable';
+        optionPassable.textContent = getText('map.typePassable', 'Passable');
+        typeSelect.appendChild(optionBlocking);
+        typeSelect.appendChild(optionPassable);
+        typeSelect.value = asset.type;
+        typeField.appendChild(typeLabel);
+        typeField.appendChild(typeSelect);
+
+        const selectButton = document.createElement('button');
+        selectButton.type = 'button';
+        selectButton.className = 'button-secondary asset-select-button';
+        selectButton.textContent = getText('map.selectAsset', 'Select');
+
+        row.appendChild(uploadField);
+        row.appendChild(nameField);
+        row.appendChild(numberField);
+        row.appendChild(configField);
+        row.appendChild(sizeField);
+        row.appendChild(countField);
+        row.appendChild(typeField);
+        row.appendChild(selectButton);
+
+        fileInput.addEventListener('change', () => {
+          const file = fileInput.files?.[0];
+          if (!file) return;
+          asset.fileName = file.name;
+          if (!asset.name) asset.name = file.name.replace(/\\.[^/.]+$/, '');
+          if (asset.imageUrl) URL.revokeObjectURL(asset.imageUrl);
+          asset.imageUrl = URL.createObjectURL(file);
+          renderAssetList();
+          renderAssetGrid();
+          renderMapGrid();
+        });
+
+        nameInput.addEventListener('input', () => {
+          asset.name = nameInput.value;
+          renderAssetGrid();
+        });
+
+        numberInput.addEventListener('change', () => {
+          asset.number = clamp(Number.parseInt(numberInput.value, 10) || 1, 1, 9999);
+          numberInput.value = String(asset.number);
+          renderMapGrid();
+        });
+
+        colsInput.addEventListener('change', () => {
+          asset.cols = clamp(Number.parseInt(colsInput.value, 10) || 1, 1, 64);
+          colsInput.value = String(asset.cols);
+          countInput.max = String(asset.cols * asset.rows);
+          asset.spriteCount = clamp(asset.spriteCount, 1, asset.cols * asset.rows);
+          countInput.value = String(asset.spriteCount);
+          renderAssetGrid();
+          renderMapGrid();
+        });
+
+        rowsInput.addEventListener('change', () => {
+          asset.rows = clamp(Number.parseInt(rowsInput.value, 10) || 1, 1, 64);
+          rowsInput.value = String(asset.rows);
+          countInput.max = String(asset.cols * asset.rows);
+          asset.spriteCount = clamp(asset.spriteCount, 1, asset.cols * asset.rows);
+          countInput.value = String(asset.spriteCount);
+          renderAssetGrid();
+          renderMapGrid();
+        });
+
+        widthInput.addEventListener('change', () => {
+          asset.spriteWidth = clamp(Number.parseInt(widthInput.value, 10) || 1, 1, 256);
+          widthInput.value = String(asset.spriteWidth);
+          renderMapGrid();
+        });
+
+        heightInput.addEventListener('change', () => {
+          asset.spriteHeight = clamp(Number.parseInt(heightInput.value, 10) || 1, 1, 256);
+          heightInput.value = String(asset.spriteHeight);
+          renderMapGrid();
+        });
+
+        countInput.addEventListener('change', () => {
+          asset.spriteCount = clamp(Number.parseInt(countInput.value, 10) || 1, 1, asset.cols * asset.rows);
+          countInput.value = String(asset.spriteCount);
+          if (mapState.selectedSpriteIndex > asset.spriteCount) {
+            mapState.selectedSpriteIndex = asset.spriteCount;
+          }
+          renderAssetGrid();
+        });
+
+        typeSelect.addEventListener('change', () => {
+          asset.type = typeSelect.value;
+        });
+
+        selectButton.addEventListener('click', () => {
+          mapState.selectedAssetId = asset.id;
+          mapState.selectedSpriteIndex = Math.min(mapState.selectedSpriteIndex, asset.spriteCount);
+          renderAssetList();
+          renderAssetGrid();
+        });
+
+        assetList.appendChild(row);
+      });
+    };
+
+    const renderMapCell = (cell, index) => {
+      const { width, cellSize } = mapState.map;
+      const x = index % width;
+      const y = Math.floor(index / width);
+      const data = mapState.map.cells[index];
+
+      if (!data) {
+        cell.classList.add('is-empty');
+        cell.textContent = '0';
+        cell.style.backgroundImage = '';
+        cell.style.backgroundColor = '';
+        return;
+      }
+
+      const asset = getAssetById(data.assetId);
+      const assetNumber = asset?.number ?? '?';
+      let spriteIndex = data.spriteIndex || 1;
+
+      if (mapState.mode === 'auto') {
+        spriteIndex = computeAutoSpriteIndex(asset, x, y);
+      }
+
+      cell.classList.remove('is-empty');
+      cell.textContent = `${assetNumber}:${spriteIndex}`;
+      cell.style.backgroundColor = '';
+
+      if (asset?.imageUrl) {
+        const spriteRow = Math.floor((spriteIndex - 1) / asset.cols);
+        const spriteCol = (spriteIndex - 1) % asset.cols;
+        cell.style.backgroundImage = `url(${asset.imageUrl})`;
+        cell.style.backgroundSize = `${asset.cols * cellSize}px ${asset.rows * cellSize}px`;
+        cell.style.backgroundPosition = `${-spriteCol * cellSize}px ${-spriteRow * cellSize}px`;
+      } else {
+        const hue = (assetNumber * 37) % 360;
+        cell.style.backgroundImage = '';
+        cell.style.backgroundColor = `hsla(${hue}, 55%, 24%, 0.9)`;
+      }
+    };
+
+    const renderMapGrid = () => {
+      ensureMapCells();
+      mapGrid.innerHTML = '';
+      mapGrid.style.setProperty('--map-columns', mapState.map.width);
+      mapGrid.style.setProperty('--map-cell-size', `${mapState.map.cellSize}px`);
+
+      const total = mapState.map.width * mapState.map.height;
+      for (let i = 0; i < total; i += 1) {
+        const cell = document.createElement('div');
+        cell.className = 'map-cell';
+        cell.dataset.index = String(i);
+        renderMapCell(cell, i);
+        mapGrid.appendChild(cell);
+      }
+    };
+
+    const applyMapCell = (index) => {
+      if (index < 0 || index >= mapState.map.cells.length) return;
+      if (mapState.tool === 'eraser') {
+        mapState.map.cells[index] = null;
+      } else {
+        const asset = getAssetById(mapState.selectedAssetId);
+        if (!asset) return;
+        mapState.map.cells[index] = {
+          assetId: asset.id,
+          spriteIndex: mapState.mode === 'manual' ? mapState.selectedSpriteIndex : null
+        };
+      }
+      const cell = mapGrid.querySelector(`.map-cell[data-index=\"${index}\"]`);
+      if (cell) renderMapCell(cell, index);
+
+      if (mapState.mode === 'auto') {
+        renderMapGrid();
+      }
+    };
+
+    const bindMapGrid = () => {
+      mapGrid.addEventListener('pointerdown', (event) => {
+        const target = event.target.closest('.map-cell');
+        if (!target) return;
+        event.preventDefault();
+        mapState.isDrawing = true;
+        mapGrid.setPointerCapture(event.pointerId);
+        applyMapCell(Number.parseInt(target.dataset.index, 10));
+      });
+
+      mapGrid.addEventListener('pointermove', (event) => {
+        if (!mapState.isDrawing) return;
+        const target = event.target.closest('.map-cell');
+        if (!target) return;
+        applyMapCell(Number.parseInt(target.dataset.index, 10));
+      });
+
+      const stopDrawing = (event) => {
+        if (!mapState.isDrawing) return;
+        mapState.isDrawing = false;
+        try {
+          mapGrid.releasePointerCapture(event.pointerId);
+        } catch (error) {
+          // ignore
+        }
+      };
+
+      mapGrid.addEventListener('pointerup', stopDrawing);
+      mapGrid.addEventListener('pointerleave', stopDrawing);
+    };
+
+    const bindMapControls = () => {
+      mapApplyButton?.addEventListener('click', () => {
+        const width = clamp(Number.parseInt(mapWidthInput?.value, 10) || mapState.map.width, 4, 200);
+        const height = clamp(Number.parseInt(mapHeightInput?.value, 10) || mapState.map.height, 4, 200);
+        resizeMap(width, height);
+        if (mapWidthInput) mapWidthInput.value = String(mapState.map.width);
+        if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
+        renderMapGrid();
+      });
+
+      mapWidthInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') mapApplyButton?.click();
+      });
+      mapHeightInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') mapApplyButton?.click();
+      });
+
+      mapCellSize?.addEventListener('input', () => {
+        mapState.map.cellSize = clamp(Number.parseInt(mapCellSize.value, 10) || 16, 10, 32);
+        renderMapGrid();
+      });
+
+      qsa('[data-map-mode]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const mode = button.dataset.mapMode || 'manual';
+          mapState.mode = mode;
+          qsa('[data-map-mode]').forEach((btn) => btn.classList.toggle('is-active', btn === button));
+          renderMapGrid();
+        });
+      });
+
+      qsa('[data-map-tool]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const tool = button.dataset.mapTool || 'pencil';
+          mapState.tool = tool;
+          qsa('[data-map-tool]').forEach((btn) => btn.classList.toggle('is-active', btn === button));
+        });
+      });
+    };
+
+    document.addEventListener('languagechange', () => {
+      renderAssetList();
+      renderAssetGrid();
+    });
+
+    if (!mapState.assets.length) {
+      createAsset();
+    }
+
+    if (mapWidthInput) mapWidthInput.value = String(mapState.map.width);
+    if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
+    if (mapCellSize) mapCellSize.value = String(mapState.map.cellSize);
+
+    ensureMapCells();
+    renderAssetList();
+    renderAssetGrid();
+    renderMapGrid();
+    bindMapGrid();
+    bindMapControls();
+
+    addAssetButton?.addEventListener('click', () => {
+      createAsset();
+      renderAssetList();
+      renderAssetGrid();
     });
   };
 
@@ -2914,38 +3604,54 @@
   };
 
   document.addEventListener('DOMContentLoaded', () => {
-    initializeState();
-    createHeroAmbient();
-    buildPalette();
-    const cacheLoaded = loadCachedState();
-    if (!cacheLoaded) {
-      buildPixelCanvas();
-      renderActivePixelGrid();
-      renderFramesStrip();
-      renderWallTilesGrid();
+    const isHomePage = document.body.classList.contains('page-home');
+    const isEditorPage = document.body.classList.contains('page-graphic-assets');
+    const isMapPage = document.body.classList.contains('page-map');
+
+    if (isHomePage) {
+      createHeroAmbient();
     }
-    bindCanvasInteraction();
-    bindCtrlDrawing();
-    bindToolSelection();
-    bindZoomControl();
-    bindGridControls();
-    bindFramesControls();
-    bindPreviewModeTabs();
-    bindPreviewControls();
-    bindWallPaintInteraction();
-    bindExportButton();
-    bindPaletteControls();
+
+    if (isEditorPage) {
+      initializeState();
+      buildPalette();
+      const cacheLoaded = loadCachedState();
+      if (!cacheLoaded) {
+        buildPixelCanvas();
+        renderActivePixelGrid();
+        renderFramesStrip();
+        renderWallTilesGrid();
+      }
+      bindCanvasInteraction();
+      bindCtrlDrawing();
+      bindToolSelection();
+      bindZoomControl();
+      bindGridControls();
+      bindFramesControls();
+      bindPreviewModeTabs();
+      bindPreviewControls();
+      bindWallPaintInteraction();
+      bindExportButton();
+      bindPaletteControls();
+      bindUndoRedo();
+      bindCacheLifecycle();
+    }
+
+    if (isMapPage) {
+      initMapCreator();
+    }
+
     bindLanguageToggle();
-    bindUndoRedo();
-    bindCacheLifecycle();
 
     const storedLanguage = localStorage.getItem('preferredLanguage') || 'en';
     applyTranslations(storedLanguage);
-    updateActiveToolLabel();
-    const designer = document.body.dataset.designer || 'tiles';
-    setPreviewMode(designer);
-    const wallModeSelect = qs('#wall-mode');
-    if (wallModeSelect) wallModeSelect.value = state.wallMode;
-    renderPreviews();
+    if (isEditorPage) {
+      updateActiveToolLabel();
+      const designer = document.body.dataset.designer || 'tiles';
+      setPreviewMode(designer);
+      const wallModeSelect = qs('#wall-mode');
+      if (wallModeSelect) wallModeSelect.value = state.wallMode;
+      renderPreviews();
+    }
   });
 })();

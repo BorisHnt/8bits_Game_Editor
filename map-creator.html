@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8bits Game Editor — Map Creator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="page-map">
+  <header class="navigation-bar-sticky">
+    <div class="navigation-bar-inner">
+      <a class="brand-lockup" href="index.html" aria-label="8bits Game Editor home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter">
+            <rect x="2" y="2" width="8" height="8"></rect>
+            <rect x="14" y="2" width="8" height="8"></rect>
+            <rect x="2" y="14" width="8" height="8"></rect>
+            <rect x="14" y="14" width="8" height="8"></rect>
+          </svg>
+        </span>
+        <span class="brand-text">8bits Game Editor</span>
+      </a>
+      <div class="navigation-right">
+        <nav class="navigation-links">
+          <a class="navigation-link" href="index.html">
+            <span class="navigation-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12l7-7 7 7"></path>
+                <path d="M6 10v10h12V10"></path>
+              </svg>
+            </span>
+            <span class="navigation-text" data-i18n="nav.home">Home</span>
+          </a>
+          <a class="navigation-link" href="graphic-assets-tiles.html">
+            <span class="navigation-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+              </svg>
+            </span>
+            <span class="navigation-text" data-i18n="nav.tiles">Tiles Designer</span>
+          </a>
+          <a class="navigation-link" href="graphic-assets-sprite.html">
+            <span class="navigation-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <path d="M3 5v14a1 1 0 0 0 1.504 .864l12 -7a1 1 0 0 0 0 -1.728l-12 -7a1 1 0 0 0 -1.504 .864z" />
+                <path d="M20 4a1 1 0 0 1 .993 .883l.007 .117v14a1 1 0 0 1 -1.993 .117l-.007 -.117v-14a1 1 0 0 1 1 -1z" />
+              </svg>
+            </span>
+            <span class="navigation-text" data-i18n="nav.sprite">Sprite Designer</span>
+          </a>
+          <a class="navigation-link" href="graphic-assets-walls.html">
+            <span class="navigation-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 4m0 2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z" />
+                <path d="M4 8h16" />
+                <path d="M20 12h-16" />
+                <path d="M4 16h16" />
+                <path d="M9 4v4" />
+                <path d="M14 8v4" />
+                <path d="M8 12v4" />
+                <path d="M16 12v4" />
+                <path d="M11 16v4" />
+              </svg>
+            </span>
+            <span class="navigation-text" data-i18n="nav.walls">Walls Designer</span>
+          </a>
+          <a class="navigation-link" href="map-creator.html">
+            <span class="navigation-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z" />
+                <path d="M9 3v15" />
+                <path d="M15 6v15" />
+              </svg>
+            </span>
+            <span class="navigation-text" data-i18n="nav.map">Map Creator</span>
+          </a>
+        </nav>
+        <div class="language-toggle" role="group" aria-label="Language switcher">
+          <button class="language-toggle-button is-active" type="button" data-lang="en" aria-pressed="true">EN</button>
+          <button class="language-toggle-button" type="button" data-lang="fr" aria-pressed="false">FR</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="workspace-page map-creator">
+    <section class="workspace-header">
+      <div>
+        <h1 class="workspace-title" data-i18n="map.title">Map Creator</h1>
+        <p class="workspace-subtitle" data-i18n="map.subtitle">Import assets, map sprites, and paint layouts on a custom grid.</p>
+      </div>
+    </section>
+
+    <section class="workspace-layout map-layout">
+      <aside class="workspace-panel-left map-panel-left">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title" data-i18n="map.assets">Assets</h2>
+            <p class="panel-subtitle" data-i18n="map.assetsSubtitle">Add images and configure sprite metadata.</p>
+          </div>
+          <button class="button-secondary" type="button" id="add-asset" data-i18n="map.addAsset">Add Asset</button>
+        </div>
+        <div class="asset-list" id="asset-list"></div>
+      </aside>
+
+      <section class="workspace-panel-center map-panel-center">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title" data-i18n="map.assetGrid">Asset Grid</h2>
+            <p class="panel-subtitle" id="asset-grid-label" data-i18n="map.assetGridHint">Select an asset to preview its sprites.</p>
+          </div>
+        </div>
+        <div class="asset-grid" id="asset-grid"></div>
+      </section>
+
+      <aside class="workspace-panel-right map-panel-right">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title" data-i18n="map.mapBuilder">Map Builder</h2>
+            <p class="panel-subtitle" data-i18n="map.mapBuilderHint">Configure grid size and paint tiles.</p>
+          </div>
+        </div>
+        <div class="map-controls">
+          <div class="map-control-group">
+            <label class="panel-label" data-i18n="map.mapSize">Map Size</label>
+            <div class="grid-inputs">
+              <input class="grid-size-input" type="number" id="map-width" min="4" max="200" value="50" aria-label="Map width" />
+              <span class="grid-separator">x</span>
+              <input class="grid-size-input" type="number" id="map-height" min="4" max="200" value="50" aria-label="Map height" />
+              <button class="button-secondary" type="button" id="apply-map-size" data-i18n="panel.gridApply">Apply</button>
+            </div>
+          </div>
+          <div class="map-control-group">
+            <label class="panel-label" for="map-cell-size" data-i18n="map.cellSize">Cell Size</label>
+            <input type="range" id="map-cell-size" min="10" max="32" value="16" />
+          </div>
+          <div class="map-control-group">
+            <label class="panel-label" data-i18n="map.mode">Mode</label>
+            <div class="map-toggle">
+              <button class="button-secondary is-active" type="button" data-map-mode="manual" data-i18n="map.modeManual">Manual</button>
+              <button class="button-secondary" type="button" data-map-mode="auto" data-i18n="map.modeAuto">Auto (x13)</button>
+            </div>
+          </div>
+          <div class="map-control-group">
+            <label class="panel-label" data-i18n="map.tool">Tool</label>
+            <div class="map-toggle">
+              <button class="button-secondary is-active" type="button" data-map-tool="pencil" data-i18n="map.toolPencil">Pencil</button>
+              <button class="button-secondary" type="button" data-map-tool="eraser" data-i18n="map.toolEraser">Eraser</button>
+            </div>
+          </div>
+        </div>
+        <div class="map-grid-wrapper">
+          <div class="map-grid" id="map-grid"></div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
