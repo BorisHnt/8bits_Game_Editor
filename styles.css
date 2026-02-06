@@ -1802,48 +1802,8 @@ svg {
   image-rendering: pixelated;
 }
 
-.world-preview-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-  margin-top: 12px;
-}
-
-.world-preview-card {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  background: var(--color-panel-elevated);
-}
-
-.world-preview-title {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.world-preview-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 10px;
-  font-size: 0.7rem;
-  color: var(--color-text-secondary);
-}
-
-.world-preview-map {
-  width: 100%;
-  height: auto;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border-soft);
-  background: #0b0b0b;
-  display: block;
-  image-rendering: pixelated;
-}
-
 .world-preview-empty {
+  margin-top: 12px;
   font-size: 0.85rem;
   color: var(--color-text-secondary);
 }

@@ -4126,7 +4126,7 @@
     const connectionList = qs('#world-connection-list');
     const emptyState = qs('#world-empty');
     const exportButton = qs('#world-export');
-    const previewGrid = qs('#world-preview-grid');
+    const previewEmpty = qs('#world-preview-empty');
     const zoomRange = qs('#world-zoom');
     const zoomValue = qs('#world-zoom-value');
     const zoomReset = qs('#world-zoom-reset');
@@ -4135,7 +4135,7 @@
     const sandboxNodes = qs('#world-sandbox-nodes');
     const sandboxViewport = qs('#world-sandbox-viewport');
 
-    if (!mapList || !fromMapSelect || !fromPortalSelect || !toMapSelect || !toPortalSelect || !connectionList || !assetList || !previewGrid || !sandboxContent || !sandboxLinks || !sandboxNodes || !sandboxViewport) return;
+    if (!mapList || !fromMapSelect || !fromPortalSelect || !toMapSelect || !toPortalSelect || !connectionList || !assetList || !previewEmpty || !sandboxContent || !sandboxLinks || !sandboxNodes || !sandboxViewport) return;
 
     const worldState = {
       maps: [],
@@ -4552,82 +4552,6 @@
       return index >= 0 ? index + 1 : 1;
     };
 
-    const renderMapPreview = (mapEntry, canvas) => {
-      if (!mapEntry?.payload?.map || !canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      const map = mapEntry.payload.map;
-      const width = clamp(Number.parseInt(map.width, 10) || 1, 1, 200);
-      const height = clamp(Number.parseInt(map.height, 10) || 1, 1, 200);
-      const cells = Array.isArray(map.cells) ? map.cells : [];
-      const markers = Array.isArray(map.markers) ? map.markers : [];
-      const assets = Array.isArray(mapEntry.payload.assets) ? mapEntry.payload.assets : [];
-      const assetByNumber = new Map(assets.map((asset) => [Number(asset.number), asset]));
-      const maxDim = Math.max(width, height);
-      const containerWidth = canvas.parentElement ? Math.max(160, canvas.parentElement.clientWidth - 4) : 220;
-      const cellSize = clamp(Math.floor(containerWidth / maxDim), 1, 10);
-
-      canvas.width = width * cellSize;
-      canvas.height = height * cellSize;
-      ctx.imageSmoothingEnabled = false;
-      ctx.fillStyle = '#0b0b0b';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      for (let y = 0; y < height; y += 1) {
-        for (let x = 0; x < width; x += 1) {
-          const index = y * width + x;
-          const entry = cells[index];
-          if (!entry || entry.assetNumber == null) continue;
-          const assetNumber = Number(entry.assetNumber);
-          const assetDef = assetByNumber.get(assetNumber);
-          if (!assetDef) continue;
-          const assetEntry = findAssetEntryForDef(assetDef);
-          const image = assetEntry ? ensureAssetImage(assetEntry) : null;
-          const isAuto = entry.auto !== false;
-          let spriteIndex = entry.spriteIndex || 1;
-          if (isAuto) {
-            spriteIndex = computeAutoSpriteIndex(cells, width, height, assetDef, x, y, assetNumber);
-          }
-
-          if (image && image.complete && image.naturalWidth > 0) {
-            const cols = Math.max(1, Number.parseInt(assetDef.cols, 10) || 1);
-            const rows = Math.max(1, Number.parseInt(assetDef.rows, 10) || 1);
-            const spriteWidth = Math.max(1, Number.parseInt(assetDef.spriteWidth, 10) || Math.floor(image.naturalWidth / cols));
-            const spriteHeight = Math.max(1, Number.parseInt(assetDef.spriteHeight, 10) || Math.floor(image.naturalHeight / rows));
-            const spriteCol = (spriteIndex - 1) % cols;
-            const spriteRow = Math.floor((spriteIndex - 1) / cols);
-            const sx = spriteCol * spriteWidth;
-            const sy = spriteRow * spriteHeight;
-            ctx.drawImage(
-              image,
-              sx,
-              sy,
-              spriteWidth,
-              spriteHeight,
-              x * cellSize,
-              y * cellSize,
-              cellSize,
-              cellSize
-            );
-          } else {
-            ctx.fillStyle = assetDef.color || '#2a2a2a';
-            ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
-          }
-        }
-      }
-
-      for (let i = 0; i < Math.min(markers.length, width * height); i += 1) {
-        const marker = markers[i];
-        if (marker !== 'portal' && marker !== 'entry' && marker !== 'exit' && marker !== 1 && marker !== true) continue;
-        const row = Math.floor(i / width);
-        const col = i % width;
-        const size = Math.max(2, Math.floor(cellSize * 0.4));
-        const offset = Math.floor((cellSize - size) / 2);
-        ctx.fillStyle = '#ff3b3b';
-        ctx.fillRect(col * cellSize + offset, row * cellSize + offset, size, size);
-      }
-    };
-
     const ensureNodePosition = (mapEntry, index) => {
       if (mapEntry.position) return;
       const columns = Math.max(1, Math.ceil(Math.sqrt(worldState.maps.length || 1)));
@@ -4877,42 +4801,8 @@
 
     const renderWorldPreview = () => {
       renderWorldSandbox();
-      previewGrid.innerHTML = '';
-      if (!worldState.maps.length) {
-        const empty = document.createElement('p');
-        empty.className = 'world-preview-empty';
-        empty.textContent = getText('world.previewEmpty', 'Import maps to see the world preview.');
-        previewGrid.appendChild(empty);
-        return;
-      }
-      worldState.maps.forEach((mapEntry) => {
-        const card = document.createElement('div');
-        card.className = 'world-preview-card';
-        const title = document.createElement('div');
-        title.className = 'world-preview-title';
-        title.textContent = getMapName(mapEntry);
-
-        const meta = document.createElement('div');
-        meta.className = 'world-preview-meta';
-        const sizeLabel = document.createElement('span');
-        const mapData = mapEntry.payload?.map;
-        const width = clamp(Number.parseInt(mapData?.width, 10) || 1, 1, 200);
-        const height = clamp(Number.parseInt(mapData?.height, 10) || 1, 1, 200);
-        sizeLabel.textContent = `${width}x${height}`;
-        const portalLabel = document.createElement('span');
-        portalLabel.textContent = `${mapEntry.portals.length} ${getText('world.portals', 'Portals')}`;
-        meta.appendChild(sizeLabel);
-        meta.appendChild(portalLabel);
-
-        const canvas = document.createElement('canvas');
-        canvas.className = 'world-preview-map';
-
-        card.appendChild(title);
-        card.appendChild(meta);
-        card.appendChild(canvas);
-        previewGrid.appendChild(card);
-        renderMapPreview(mapEntry, canvas);
-      });
+      if (!previewEmpty) return;
+      previewEmpty.classList.toggle('is-hidden', worldState.maps.length > 0);
     };
 
     const handlePointerMove = (event) => {
