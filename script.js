@@ -144,6 +144,11 @@
       'map.viewNormal': 'Normal',
       'map.viewAssets': 'Assets',
       'map.viewCollision': 'Passable/Blocking',
+      'map.shift': 'Shift',
+      'map.shiftUp': 'Up',
+      'map.shiftDown': 'Down',
+      'map.shiftLeft': 'Left',
+      'map.shiftRight': 'Right',
       'map.options': 'Options',
       'map.cacheTitle': 'Cache',
       'map.cacheClose': 'Close',
@@ -340,6 +345,11 @@
       'map.viewNormal': 'Normal',
       'map.viewAssets': 'Assets',
       'map.viewCollision': 'Passant/Bloquant',
+      'map.shift': 'Deplacer',
+      'map.shiftUp': 'Haut',
+      'map.shiftDown': 'Bas',
+      'map.shiftLeft': 'Gauche',
+      'map.shiftRight': 'Droite',
       'map.options': 'Options',
       'map.cacheTitle': 'Cache',
       'map.cacheClose': 'Fermer',
@@ -3298,6 +3308,35 @@
       }
     };
 
+    const shiftMap = (dx, dy) => {
+      const width = mapState.map.width;
+      const height = mapState.map.height;
+      if (!Number.isFinite(dx) || !Number.isFinite(dy) || (dx === 0 && dy === 0)) return;
+      ensureMapCells();
+      const total = width * height;
+      const nextCells = Array.from({ length: total }, () => null);
+      const nextMarkers = Array.from({ length: total }, () => null);
+
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const index = y * width + x;
+          const cell = mapState.map.cells[index];
+          const marker = mapState.map.markers[index];
+          if (!cell && !marker) continue;
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+          const nextIndex = ny * width + nx;
+          if (cell) nextCells[nextIndex] = cell;
+          if (marker) nextMarkers[nextIndex] = marker;
+        }
+      }
+
+      mapState.map.cells = nextCells;
+      mapState.map.markers = nextMarkers;
+      renderMapGrid();
+    };
+
     const getMapNeighbors = (x, y, assetId) => {
       const { width, height, cells } = mapState.map;
       const isSame = (cx, cy) => {
@@ -3926,6 +3965,16 @@
           mapState.view = view;
           qsa('[data-map-view]').forEach((btn) => btn.classList.toggle('is-active', btn === button));
           renderMapGrid();
+        });
+      });
+
+      qsa('[data-map-shift]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const direction = button.dataset.mapShift;
+          if (direction === 'up') shiftMap(0, -1);
+          if (direction === 'down') shiftMap(0, 1);
+          if (direction === 'left') shiftMap(-1, 0);
+          if (direction === 'right') shiftMap(1, 0);
         });
       });
     };
