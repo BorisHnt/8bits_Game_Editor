@@ -149,6 +149,8 @@
       'map.assetName': 'Asset name',
       'map.assetColor': 'Color',
       'map.assetNumber': 'Image number',
+      'map.assetUp': 'Up',
+      'map.assetDown': 'Down',
       'map.assetConfig': 'Config',
       'map.spriteSize': 'Sprite size',
       'map.spriteCount': 'Sprites',
@@ -306,6 +308,8 @@
       'map.assetName': "Nom de l'asset",
       'map.assetColor': 'Couleur',
       'map.assetNumber': 'Numero image',
+      'map.assetUp': 'Monter',
+      'map.assetDown': 'Descendre',
       'map.assetConfig': 'Config',
       'map.spriteSize': 'Taille sprite',
       'map.spriteCount': 'Sprites',
@@ -3315,6 +3319,21 @@
         selectButton.className = 'button-secondary asset-select-button';
         selectButton.textContent = getText('map.selectAsset', 'Select');
 
+        const orderControls = document.createElement('div');
+        orderControls.className = 'asset-order-controls';
+        const upButton = document.createElement('button');
+        upButton.type = 'button';
+        upButton.className = 'asset-order-button';
+        upButton.textContent = getText('map.assetUp', 'Up');
+        const downButton = document.createElement('button');
+        downButton.type = 'button';
+        downButton.className = 'asset-order-button';
+        downButton.textContent = getText('map.assetDown', 'Down');
+        if (mapState.assets.indexOf(asset) === 0) upButton.disabled = true;
+        if (mapState.assets.indexOf(asset) === mapState.assets.length - 1) downButton.disabled = true;
+        orderControls.appendChild(upButton);
+        orderControls.appendChild(downButton);
+
         row.appendChild(uploadField);
         row.appendChild(nameField);
         row.appendChild(colorField);
@@ -3323,6 +3342,7 @@
         row.appendChild(sizeField);
         row.appendChild(countField);
         row.appendChild(typeField);
+        row.appendChild(orderControls);
         row.appendChild(selectButton);
 
         fileInput.addEventListener('change', () => {
@@ -3403,6 +3423,30 @@
           mapState.selectedSpriteIndex = Math.min(mapState.selectedSpriteIndex, asset.spriteCount);
           renderAssetList();
           renderAssetGrid();
+        });
+
+        upButton.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const index = mapState.assets.indexOf(asset);
+          if (index <= 0) return;
+          const temp = mapState.assets[index - 1];
+          mapState.assets[index - 1] = mapState.assets[index];
+          mapState.assets[index] = temp;
+          renderAssetList();
+          renderAssetGrid();
+          renderMapGrid();
+        });
+
+        downButton.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const index = mapState.assets.indexOf(asset);
+          if (index === -1 || index >= mapState.assets.length - 1) return;
+          const temp = mapState.assets[index + 1];
+          mapState.assets[index + 1] = mapState.assets[index];
+          mapState.assets[index] = temp;
+          renderAssetList();
+          renderAssetGrid();
+          renderMapGrid();
         });
 
         assetList.appendChild(row);

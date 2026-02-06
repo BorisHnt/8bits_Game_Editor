@@ -1324,6 +1324,36 @@ svg {
   align-self: flex-end;
 }
 
+.asset-order-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.asset-order-button {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  padding: 4px 8px;
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.asset-order-button:hover,
+.asset-order-button:focus-visible {
+  color: var(--color-text-primary);
+  border-color: var(--color-accent-2);
+}
+
+.asset-order-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .asset-grid {
   display: grid;
   grid-template-columns: repeat(var(--asset-grid-columns, 4), var(--asset-cell-size, 40px));
