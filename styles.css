@@ -1393,6 +1393,7 @@ svg {
 }
 
 .map-cell {
+  position: relative;
   width: var(--map-cell-size, 16px);
   height: var(--map-cell-size, 16px);
   background: #0d0d0d;
@@ -1409,6 +1410,19 @@ svg {
 .map-cell.is-empty {
   color: rgba(255, 255, 255, 0.35);
 }
+
+.map-cell.has-marker::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #ff3b3b;
+  box-shadow: 0 0 6px rgba(255, 59, 59, 0.5);
+}
+
 
 /* =============================
    Footer

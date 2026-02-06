@@ -136,6 +136,9 @@
       'map.tool': 'Tool',
       'map.toolPencil': 'Pencil',
       'map.toolEraser': 'Eraser',
+      'map.markers': 'Markers',
+      'map.markerEntry': 'Entry',
+      'map.markerExit': 'Exit',
       'map.data': 'Data',
       'map.exportJson': 'Export JSON',
       'map.importJson': 'Import JSON',
@@ -286,6 +289,9 @@
       'map.tool': 'Outil',
       'map.toolPencil': 'Crayon',
       'map.toolEraser': 'Gomme',
+      'map.markers': 'Marqueurs',
+      'map.markerEntry': 'Entree',
+      'map.markerExit': 'Sortie',
       'map.data': 'Data',
       'map.exportJson': 'Exporter JSON',
       'map.importJson': 'Importer JSON',
@@ -2899,11 +2905,14 @@
       selectedSpriteIndex: 1,
       mode: 'manual',
       tool: 'pencil',
+      markerMode: null,
+      randomize: false,
       map: {
         width: 50,
         height: 50,
         cellSize: 16,
-        cells: []
+        cells: [],
+        markers: []
       },
       isDrawing: false
     };
@@ -2942,6 +2951,7 @@
       const width = clamp(nextWidth, 4, 200);
       const height = clamp(nextHeight, 4, 200);
       const resized = Array.from({ length: width * height }, () => null);
+      const resizedMarkers = Array.from({ length: width * height }, () => null);
       const copyWidth = Math.min(mapState.map.width, width);
       const copyHeight = Math.min(mapState.map.height, height);
       for (let row = 0; row < copyHeight; row += 1) {
@@ -2949,16 +2959,23 @@
           const prevIndex = row * mapState.map.width + col;
           const nextIndex = row * width + col;
           resized[nextIndex] = mapState.map.cells[prevIndex];
+          resizedMarkers[nextIndex] = mapState.map.markers[prevIndex] || null;
         }
       }
       mapState.map.width = width;
       mapState.map.height = height;
       mapState.map.cells = resized;
+      mapState.map.markers = resizedMarkers;
     };
 
     const ensureMapCells = () => {
-      if (mapState.map.cells.length === mapState.map.width * mapState.map.height) return;
-      mapState.map.cells = Array.from({ length: mapState.map.width * mapState.map.height }, () => null);
+      const size = mapState.map.width * mapState.map.height;
+      if (mapState.map.cells.length !== size) {
+        mapState.map.cells = Array.from({ length: size }, () => null);
+      }
+      if (mapState.map.markers.length !== size) {
+        mapState.map.markers = Array.from({ length: size }, () => null);
+      }
     };
 
     const getMapNeighbors = (x, y, assetId) => {
@@ -3342,11 +3359,16 @@
       const y = Math.floor(index / width);
       const data = mapState.map.cells[index];
 
+      const marker = mapState.map.markers[index];
+
       if (!data) {
         cell.classList.add('is-empty');
         cell.textContent = '0';
         cell.style.backgroundImage = '';
         cell.style.backgroundColor = '';
+        cell.classList.toggle('has-marker', Boolean(marker));
+        cell.classList.toggle('marker-entry', marker === 'entry');
+        cell.classList.toggle('marker-exit', marker === 'exit');
         return;
       }
 
@@ -3374,6 +3396,10 @@
         cell.style.backgroundImage = '';
         cell.style.backgroundColor = `hsla(${hue}, 55%, 24%, 0.9)`;
       }
+
+      cell.classList.toggle('has-marker', Boolean(marker));
+      cell.classList.toggle('marker-entry', marker === 'entry');
+      cell.classList.toggle('marker-exit', marker === 'exit');
     };
 
     const renderMapGrid = () => {
@@ -3394,15 +3420,24 @@
 
     const applyMapCell = (index) => {
       if (index < 0 || index >= mapState.map.cells.length) return;
-      if (mapState.tool === 'eraser') {
+      if (mapState.markerMode) {
+        const current = mapState.map.markers[index];
+        mapState.map.markers[index] = current === mapState.markerMode ? null : mapState.markerMode;
+      } else if (mapState.tool === 'eraser') {
         mapState.map.cells[index] = null;
       } else {
         const asset = getAssetById(mapState.selectedAssetId);
         if (!asset) return;
+        const isManual = mapState.mode === 'manual';
+        const useRandom = isManual && mapState.randomize;
+        const maxIndex = Math.max(1, asset.spriteCount);
+        const nextSpriteIndex = useRandom
+          ? 1 + Math.floor(Math.random() * maxIndex)
+          : mapState.selectedSpriteIndex;
         mapState.map.cells[index] = {
           assetId: asset.id,
-          spriteIndex: mapState.mode === 'manual' ? mapState.selectedSpriteIndex : null,
-          auto: mapState.mode !== 'manual'
+          spriteIndex: isManual ? nextSpriteIndex : null,
+          auto: !isManual
         };
       }
       const cell = mapGrid.querySelector(`.map-cell[data-index=\"${index}\"]`);
@@ -3480,6 +3515,16 @@
           qsa('[data-map-tool]').forEach((btn) => btn.classList.toggle('is-active', btn === button));
         });
       });
+
+      qsa('[data-map-marker]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const marker = button.dataset.mapMarker || null;
+          mapState.markerMode = mapState.markerMode === marker ? null : marker;
+          qsa('[data-map-marker]').forEach((btn) => {
+            btn.classList.toggle('is-active', btn.dataset.mapMarker === mapState.markerMode);
+          });
+        });
+      });
     };
 
     const buildMapPayload = () => ({
@@ -3507,7 +3552,8 @@
             spriteIndex: cell.spriteIndex ?? null,
             auto: cell.auto !== false
           };
-        })
+        }),
+        markers: mapState.map.markers.slice()
       }
     });
 
@@ -3543,6 +3589,8 @@
       const total = mapState.map.width * mapState.map.height;
       const nextCells = Array.from({ length: total }, () => null);
       const cells = Array.isArray(payload.map.cells) ? payload.map.cells : [];
+      const nextMarkers = Array.from({ length: total }, () => null);
+      const markers = Array.isArray(payload.map.markers) ? payload.map.markers : [];
 
       for (let i = 0; i < Math.min(cells.length, total); i += 1) {
         const entry = cells[i];
@@ -3557,6 +3605,11 @@
       }
 
       mapState.map.cells = nextCells;
+      for (let i = 0; i < Math.min(markers.length, total); i += 1) {
+        const marker = markers[i];
+        nextMarkers[i] = marker === 'entry' || marker === 'exit' ? marker : null;
+      }
+      mapState.map.markers = nextMarkers;
       if (mapWidthInput) mapWidthInput.value = String(mapState.map.width);
       if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
       if (mapCellSize) mapCellSize.value = String(mapState.map.cellSize);
@@ -3590,19 +3643,9 @@
       reader.readAsText(file);
     };
 
-    const randomizeMap = () => {
-      const asset = getAssetById(mapState.selectedAssetId);
-      if (!asset) return;
-      const maxIndex = Math.max(1, asset.spriteCount);
-      mapState.map.cells = mapState.map.cells.map((cell) => {
-        if (!cell || cell.assetId !== asset.id) return cell;
-        return {
-          ...cell,
-          auto: false,
-          spriteIndex: 1 + Math.floor(Math.random() * maxIndex)
-        };
-      });
-      renderMapGrid();
+    const toggleRandomize = () => {
+      mapState.randomize = !mapState.randomize;
+      mapRandomizeButton?.classList.toggle('is-active', mapState.randomize);
     };
 
     document.addEventListener('languagechange', () => {
@@ -3640,7 +3683,7 @@
       }
       mapImportFile.value = '';
     });
-    mapRandomizeButton?.addEventListener('click', randomizeMap);
+    mapRandomizeButton?.addEventListener('click', toggleRandomize);
   };
 
   const bindCacheLifecycle = () => {
