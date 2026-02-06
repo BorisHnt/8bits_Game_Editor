@@ -138,11 +138,16 @@
       'map.toolEraser': 'Eraser',
       'map.markers': 'Markers',
       'map.markerPortal': 'Entry/Exit',
+      'map.view': 'View',
+      'map.viewNormal': 'Normal',
+      'map.viewAssets': 'Assets',
+      'map.viewCollision': 'Passable/Blocking',
       'map.data': 'Data',
       'map.exportJson': 'Export JSON',
       'map.importJson': 'Import JSON',
       'map.randomize': 'Randomize',
       'map.assetName': 'Asset name',
+      'map.assetColor': 'Color',
       'map.assetNumber': 'Image number',
       'map.assetConfig': 'Config',
       'map.spriteSize': 'Sprite size',
@@ -290,11 +295,16 @@
       'map.toolEraser': 'Gomme',
       'map.markers': 'Marqueurs',
       'map.markerPortal': 'Entree/Sortie',
+      'map.view': 'Vue',
+      'map.viewNormal': 'Normal',
+      'map.viewAssets': 'Assets',
+      'map.viewCollision': 'Passant/Bloquant',
       'map.data': 'Data',
       'map.exportJson': 'Exporter JSON',
       'map.importJson': 'Importer JSON',
       'map.randomize': 'Randomiser',
       'map.assetName': "Nom de l'asset",
+      'map.assetColor': 'Couleur',
       'map.assetNumber': 'Numero image',
       'map.assetConfig': 'Config',
       'map.spriteSize': 'Taille sprite',
@@ -2905,6 +2915,7 @@
       tool: 'pencil',
       markerMode: null,
       randomize: false,
+      view: 'normal',
       map: {
         width: 50,
         height: 50,
@@ -2924,20 +2935,49 @@
       });
     };
 
+    const hslToHex = (h, s, l) => {
+      const normalize = (value) => {
+        const v = Math.round(value * 255);
+        return v.toString(16).padStart(2, '0');
+      };
+      const sNorm = s / 100;
+      const lNorm = l / 100;
+      const c = (1 - Math.abs(2 * lNorm - 1)) * sNorm;
+      const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+      const m = lNorm - c / 2;
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      if (h < 60) [r, g, b] = [c, x, 0];
+      else if (h < 120) [r, g, b] = [x, c, 0];
+      else if (h < 180) [r, g, b] = [0, c, x];
+      else if (h < 240) [r, g, b] = [0, x, c];
+      else if (h < 300) [r, g, b] = [x, 0, c];
+      else [r, g, b] = [c, 0, x];
+      return `#${normalize(r + m)}${normalize(g + m)}${normalize(b + m)}`;
+    };
+
+    const getAssetColor = (number) => {
+      const hue = (number * 47) % 360;
+      return hslToHex(hue, 55, 38);
+    };
+
     const createAsset = () => {
       const id = createId();
+      const number = mapState.assets.length + 1;
       const asset = {
         id,
         name: '',
         fileName: '',
         imageUrl: '',
-        number: mapState.assets.length + 1,
+        number,
         cols: 4,
         rows: 4,
         spriteWidth: 16,
         spriteHeight: 16,
         spriteCount: 16,
-        type: 'blocking'
+        type: 'blocking',
+        color: getAssetColor(number)
       };
       mapState.assets.push(asset);
       if (!mapState.selectedAssetId) {
@@ -3156,6 +3196,18 @@
         nameField.appendChild(nameInput);
         nameField.appendChild(fileName);
 
+        const colorField = document.createElement('div');
+        colorField.className = 'asset-field';
+        const colorLabel = document.createElement('label');
+        colorLabel.className = 'panel-label';
+        colorLabel.textContent = getText('map.assetColor', 'Color');
+        const colorInput = document.createElement('input');
+        colorInput.className = 'asset-color-input';
+        colorInput.type = 'color';
+        colorInput.value = asset.color || '#2a2a2a';
+        colorField.appendChild(colorLabel);
+        colorField.appendChild(colorInput);
+
         const numberField = document.createElement('div');
         numberField.className = 'asset-field';
         const numberLabel = document.createElement('label');
@@ -3265,6 +3317,7 @@
 
         row.appendChild(uploadField);
         row.appendChild(nameField);
+        row.appendChild(colorField);
         row.appendChild(numberField);
         row.appendChild(configField);
         row.appendChild(sizeField);
@@ -3287,6 +3340,11 @@
         nameInput.addEventListener('input', () => {
           asset.name = nameInput.value;
           renderAssetGrid();
+        });
+
+        colorInput.addEventListener('input', () => {
+          asset.color = colorInput.value;
+          renderMapGrid();
         });
 
         numberInput.addEventListener('change', () => {
@@ -3383,7 +3441,14 @@
       cell.textContent = `${assetNumber}:${spriteIndex}:${isAuto ? 1 : 0}:${blockFlag}`;
       cell.style.backgroundColor = '';
 
-      if (asset?.imageUrl) {
+      const view = mapState.view;
+      if (view === 'collision') {
+        cell.style.backgroundImage = '';
+        cell.style.backgroundColor = asset?.type === 'blocking' ? '#7a1f1f' : '#1f6f3a';
+      } else if (view === 'assets') {
+        cell.style.backgroundImage = '';
+        cell.style.backgroundColor = asset?.color || '#2a2a2a';
+      } else if (asset?.imageUrl) {
         const spriteRow = Math.floor((spriteIndex - 1) / asset.cols);
         const spriteCol = (spriteIndex - 1) % asset.cols;
         cell.style.backgroundImage = `url(${asset.imageUrl})`;
@@ -3524,6 +3589,15 @@
           });
         });
       });
+
+      qsa('[data-map-view]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const view = button.dataset.mapView || 'normal';
+          mapState.view = view;
+          qsa('[data-map-view]').forEach((btn) => btn.classList.toggle('is-active', btn === button));
+          renderMapGrid();
+        });
+      });
     };
 
     const buildMapPayload = () => ({
@@ -3532,6 +3606,7 @@
         name: asset.name,
         fileName: asset.fileName,
         number: asset.number,
+        color: asset.color,
         cols: asset.cols,
         rows: asset.rows,
         spriteWidth: asset.spriteWidth,
@@ -3573,7 +3648,8 @@
         spriteWidth: clamp(Number.parseInt(asset.spriteWidth, 10) || 16, 1, 256),
         spriteHeight: clamp(Number.parseInt(asset.spriteHeight, 10) || 16, 1, 256),
         spriteCount: clamp(Number.parseInt(asset.spriteCount, 10) || 1, 1, maxSprites),
-        type: asset.type === 'passable' ? 'passable' : 'blocking'
+        type: asset.type === 'passable' ? 'passable' : 'blocking',
+        color: asset.color || getAssetColor(Number.parseInt(asset.number, 10) || 1)
         };
       });
 
