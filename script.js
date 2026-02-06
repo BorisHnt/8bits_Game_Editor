@@ -2933,10 +2933,34 @@
     const getText = (key, fallback = '') => translations[currentLanguage]?.[key] ?? fallback;
     const getAssetById = (id) => mapState.assets.find((asset) => asset.id === id);
 
+    const sortAssetsByNumber = () => {
+      mapState.assets.sort((a, b) => (a.number || 0) - (b.number || 0));
+    };
+
+    const getNextAvailableNumber = () => {
+      const used = new Set(mapState.assets.map((asset) => asset.number));
+      let next = 1;
+      while (used.has(next)) next += 1;
+      return next;
+    };
+
+    const getUniqueNumber = (desired, assetId) => {
+      let next = clamp(Number.parseInt(desired, 10) || 1, 1, 9999);
+      const used = new Set(mapState.assets.filter((asset) => asset.id !== assetId).map((asset) => asset.number));
+      while (used.has(next)) next += 1;
+      return next;
+    };
+
     const normalizeAssetNumbers = () => {
-      mapState.assets.forEach((asset, index) => {
-        if (!asset.number || asset.number < 1) asset.number = index + 1;
+      const used = new Set();
+      mapState.assets.forEach((asset) => {
+        let next = Number.parseInt(asset.number, 10);
+        if (!Number.isFinite(next) || next < 1) next = 1;
+        while (used.has(next)) next += 1;
+        asset.number = next;
+        used.add(next);
       });
+      sortAssetsByNumber();
     };
 
     const hslToHex = (h, s, l) => {
@@ -2968,7 +2992,7 @@
 
     const createAsset = () => {
       const id = createId();
-      const number = mapState.assets.length + 1;
+      const number = getNextAvailableNumber();
       const asset = {
         id,
         name: '',
@@ -3368,8 +3392,11 @@
         });
 
         numberInput.addEventListener('change', () => {
-          asset.number = clamp(Number.parseInt(numberInput.value, 10) || 1, 1, 9999);
+          asset.number = getUniqueNumber(numberInput.value, asset.id);
           numberInput.value = String(asset.number);
+          sortAssetsByNumber();
+          renderAssetList();
+          renderAssetGrid();
           renderMapGrid();
         });
 
@@ -3427,11 +3454,14 @@
 
         upButton.addEventListener('click', (event) => {
           event.stopPropagation();
+          sortAssetsByNumber();
           const index = mapState.assets.indexOf(asset);
           if (index <= 0) return;
-          const temp = mapState.assets[index - 1];
-          mapState.assets[index - 1] = mapState.assets[index];
-          mapState.assets[index] = temp;
+          const prev = mapState.assets[index - 1];
+          const tempNumber = asset.number;
+          asset.number = prev.number;
+          prev.number = tempNumber;
+          sortAssetsByNumber();
           renderAssetList();
           renderAssetGrid();
           renderMapGrid();
@@ -3439,11 +3469,14 @@
 
         downButton.addEventListener('click', (event) => {
           event.stopPropagation();
+          sortAssetsByNumber();
           const index = mapState.assets.indexOf(asset);
           if (index === -1 || index >= mapState.assets.length - 1) return;
-          const temp = mapState.assets[index + 1];
-          mapState.assets[index + 1] = mapState.assets[index];
-          mapState.assets[index] = temp;
+          const next = mapState.assets[index + 1];
+          const tempNumber = asset.number;
+          asset.number = next.number;
+          next.number = tempNumber;
+          sortAssetsByNumber();
           renderAssetList();
           renderAssetGrid();
           renderMapGrid();
@@ -3696,6 +3729,8 @@
         color: asset.color || getAssetColor(Number.parseInt(asset.number, 10) || 1)
         };
       });
+
+      normalizeAssetNumbers();
 
       const assetByNumber = new Map(mapState.assets.map((asset) => [asset.number, asset.id]));
       mapState.selectedAssetId = mapState.assets[0]?.id || null;
