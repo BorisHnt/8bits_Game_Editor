@@ -3378,8 +3378,9 @@
         spriteIndex = computeAutoSpriteIndex(asset, x, y);
       }
 
+      const blockFlag = asset?.type === 'blocking' ? 1 : 0;
       cell.classList.remove('is-empty');
-      cell.textContent = `${assetNumber}:${spriteIndex}:${isAuto ? 1 : 0}`;
+      cell.textContent = `${assetNumber}:${spriteIndex}:${isAuto ? 1 : 0}:${blockFlag}`;
       cell.style.backgroundColor = '';
 
       if (asset?.imageUrl) {
