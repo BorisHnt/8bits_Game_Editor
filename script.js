@@ -137,8 +137,7 @@
       'map.toolPencil': 'Pencil',
       'map.toolEraser': 'Eraser',
       'map.markers': 'Markers',
-      'map.markerEntry': 'Entry',
-      'map.markerExit': 'Exit',
+      'map.markerPortal': 'Entry/Exit',
       'map.data': 'Data',
       'map.exportJson': 'Export JSON',
       'map.importJson': 'Import JSON',
@@ -290,8 +289,7 @@
       'map.toolPencil': 'Crayon',
       'map.toolEraser': 'Gomme',
       'map.markers': 'Marqueurs',
-      'map.markerEntry': 'Entree',
-      'map.markerExit': 'Sortie',
+      'map.markerPortal': 'Entree/Sortie',
       'map.data': 'Data',
       'map.exportJson': 'Exporter JSON',
       'map.importJson': 'Importer JSON',
@@ -3367,8 +3365,8 @@
         cell.style.backgroundImage = '';
         cell.style.backgroundColor = '';
         cell.classList.toggle('has-marker', Boolean(marker));
-        cell.classList.toggle('marker-entry', marker === 'entry');
-        cell.classList.toggle('marker-exit', marker === 'exit');
+        cell.classList.toggle('marker-entry', marker === 'portal');
+        cell.classList.toggle('marker-exit', marker === 'portal');
         return;
       }
 
@@ -3398,8 +3396,8 @@
       }
 
       cell.classList.toggle('has-marker', Boolean(marker));
-      cell.classList.toggle('marker-entry', marker === 'entry');
-      cell.classList.toggle('marker-exit', marker === 'exit');
+      cell.classList.toggle('marker-entry', marker === 'portal');
+      cell.classList.toggle('marker-exit', marker === 'portal');
     };
 
     const renderMapGrid = () => {
@@ -3607,7 +3605,11 @@
       mapState.map.cells = nextCells;
       for (let i = 0; i < Math.min(markers.length, total); i += 1) {
         const marker = markers[i];
-        nextMarkers[i] = marker === 'entry' || marker === 'exit' ? marker : null;
+        if (marker === 'portal' || marker === 'entry' || marker === 'exit' || marker === 1 || marker === true) {
+          nextMarkers[i] = 'portal';
+        } else {
+          nextMarkers[i] = null;
+        }
       }
       mapState.map.markers = nextMarkers;
       if (mapWidthInput) mapWidthInput.value = String(mapState.map.width);
