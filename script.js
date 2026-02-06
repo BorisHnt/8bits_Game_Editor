@@ -2944,11 +2944,17 @@
       return next;
     };
 
-    const getUniqueNumber = (desired, assetId) => {
-      let next = clamp(Number.parseInt(desired, 10) || 1, 1, 9999);
-      const used = new Set(mapState.assets.filter((asset) => asset.id !== assetId).map((asset) => asset.number));
-      while (used.has(next)) next += 1;
-      return next;
+    const swapAssetNumbers = (assetId, desired) => {
+      const targetNumber = clamp(Number.parseInt(desired, 10) || 1, 1, 9999);
+      const currentAsset = mapState.assets.find((asset) => asset.id === assetId);
+      if (!currentAsset) return;
+      const currentNumber = currentAsset.number;
+      if (targetNumber === currentNumber) return;
+      const existing = mapState.assets.find((asset) => asset.id !== assetId && asset.number === targetNumber);
+      if (existing) {
+        existing.number = currentNumber;
+      }
+      currentAsset.number = targetNumber;
     };
 
     const normalizeAssetNumbers = () => {
@@ -3392,8 +3398,7 @@
         });
 
         numberInput.addEventListener('change', () => {
-          asset.number = getUniqueNumber(numberInput.value, asset.id);
-          numberInput.value = String(asset.number);
+          swapAssetNumbers(asset.id, numberInput.value);
           sortAssetsByNumber();
           renderAssetList();
           renderAssetGrid();
