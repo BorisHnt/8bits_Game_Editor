@@ -119,6 +119,14 @@
           <input class="world-file-input" type="file" id="world-import-file" accept=".json" />
         </div>
         <div class="world-map-list" id="world-map-list"></div>
+        <div class="panel-divider"></div>
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title" data-i18n="world.assets">Assets</h2>
+            <p class="panel-subtitle" data-i18n="world.assetsSubtitle">Images required by imported maps.</p>
+          </div>
+        </div>
+        <div class="world-asset-list" id="world-asset-list"></div>
       </aside>
 
       <section class="workspace-panel-center world-panel-center">
@@ -144,16 +152,19 @@
         </div>
         <div class="world-connection-list" id="world-connection-list"></div>
         <p class="panel-subtitle is-hidden" id="world-empty" data-i18n="world.noConnections">No connections yet.</p>
-        <div class="panel-header world-preview-header">
+      </section>
+    </section>
+
+    <section class="world-preview-section">
+      <div class="world-preview-panel">
+        <div class="panel-header">
           <div>
             <h2 class="panel-title" data-i18n="world.previewTitle">World Preview</h2>
             <p class="panel-subtitle" data-i18n="world.previewSubtitle">Overview of maps and links.</p>
           </div>
         </div>
-        <div class="world-preview-wrapper">
-          <canvas class="world-preview-canvas" id="world-preview-canvas" width="960" height="360"></canvas>
-        </div>
-      </section>
+        <div class="world-preview-grid" id="world-preview-grid"></div>
+      </div>
     </section>
   </main>
 

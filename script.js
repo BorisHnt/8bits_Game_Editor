@@ -156,6 +156,12 @@
       'world.maps': 'Maps',
       'world.mapsSubtitle': 'Import map JSON files with portal markers.',
       'world.import': 'Import Map',
+      'world.assets': 'Assets',
+      'world.assetsSubtitle': 'Images required by imported maps.',
+      'world.assetUpload': 'Upload',
+      'world.assetReplace': 'Replace',
+      'world.assetCached': 'Cached',
+      'world.assetMissing': 'Missing',
       'world.connections': 'Connections',
       'world.connectionsSubtitle': 'Link portals between maps.',
       'world.export': 'Export World',
@@ -165,6 +171,7 @@
       'world.noConnections': 'No connections yet.',
       'world.previewTitle': 'World Preview',
       'world.previewSubtitle': 'Overview of maps and links.',
+      'world.previewEmpty': 'Import maps to see the world preview.',
       'world.mapName': 'Map name',
       'world.portals': 'Portals',
       'world.file': 'File',
@@ -342,6 +349,12 @@
       'world.maps': 'Maps',
       'world.mapsSubtitle': 'Importer des JSON de map avec portails.',
       'world.import': 'Importer map',
+      'world.assets': 'Assets',
+      'world.assetsSubtitle': 'Images requises par les maps importees.',
+      'world.assetUpload': 'Televerser',
+      'world.assetReplace': 'Remplacer',
+      'world.assetCached': 'En cache',
+      'world.assetMissing': 'Manquant',
       'world.connections': 'Connexions',
       'world.connectionsSubtitle': 'Relier les portails entre maps.',
       'world.export': 'Exporter monde',
@@ -351,6 +364,7 @@
       'world.noConnections': 'Aucune connexion.',
       'world.previewTitle': 'Apercu du monde',
       'world.previewSubtitle': 'Vue generale des maps et liens.',
+      'world.previewEmpty': "Importez des maps pour voir l'apercu du monde.",
       'world.mapName': 'Nom de map',
       'world.portals': 'Portails',
       'world.file': 'Fichier',
@@ -4099,6 +4113,7 @@
     const importButton = qs('#world-import');
     const importFile = qs('#world-import-file');
     const mapList = qs('#world-map-list');
+    const assetList = qs('#world-asset-list');
     const fromMapSelect = qs('#world-from-map');
     const fromPortalSelect = qs('#world-from-portal');
     const toMapSelect = qs('#world-to-map');
@@ -4107,16 +4122,81 @@
     const connectionList = qs('#world-connection-list');
     const emptyState = qs('#world-empty');
     const exportButton = qs('#world-export');
-    const previewCanvas = qs('#world-preview-canvas');
+    const previewGrid = qs('#world-preview-grid');
 
-    if (!mapList || !fromMapSelect || !fromPortalSelect || !toMapSelect || !toPortalSelect || !connectionList) return;
+    if (!mapList || !fromMapSelect || !fromPortalSelect || !toMapSelect || !toPortalSelect || !connectionList || !assetList || !previewGrid) return;
 
     const worldState = {
       maps: [],
-      connections: []
+      connections: [],
+      assets: []
     };
 
+    const getText = (key, fallback = '') => translations[currentLanguage]?.[key] ?? fallback;
     const getMapName = (map) => map.name || map.fileName || `Map ${map.id}`;
+
+    const cacheDbName = '8bits-map-cache';
+    const cacheStoreName = 'images';
+
+    const openCacheDb = () => new Promise((resolve, reject) => {
+      if (!window.indexedDB) {
+        reject(new Error('IndexedDB not supported'));
+        return;
+      }
+      const request = indexedDB.open(cacheDbName, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(cacheStoreName)) {
+          const store = db.createObjectStore(cacheStoreName, { keyPath: 'key' });
+          store.createIndex('name', 'name', { unique: false });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+
+    const cachePut = (entry) => openCacheDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(cacheStoreName, 'readwrite');
+      const store = tx.objectStore(cacheStoreName);
+      const req = store.put(entry);
+      req.onsuccess = () => resolve(entry.key);
+      req.onerror = () => reject(req.error);
+    }));
+
+    const cacheGet = (key) => openCacheDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(cacheStoreName, 'readonly');
+      const store = tx.objectStore(cacheStoreName);
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    }));
+
+    const cacheGetByName = (name) => openCacheDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(cacheStoreName, 'readonly');
+      const store = tx.objectStore(cacheStoreName);
+      const index = store.index('name');
+      const req = index.getAll(name);
+      req.onsuccess = () => resolve((req.result || [])[0] || null);
+      req.onerror = () => reject(req.error);
+    }));
+
+    const cacheAssetImage = async (file) => {
+      if (!file) return null;
+      const key = `${file.name}::${file.size}::${file.lastModified}`;
+      try {
+        await cachePut({
+          key,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          lastModified: file.lastModified,
+          blob: file
+        });
+        return key;
+      } catch (error) {
+        return null;
+      }
+    };
 
     const buildPortalList = (payload) => {
       const markers = Array.isArray(payload?.map?.markers) ? payload.map.markers : [];
@@ -4132,9 +4212,421 @@
       return portals;
     };
 
+    const ensureAssetImage = (assetEntry) => {
+      if (!assetEntry?.imageUrl) return null;
+      if (assetEntry.imageElement) return assetEntry.imageElement;
+      const img = new Image();
+      img.onload = () => {
+        assetEntry.imageLoaded = true;
+        renderWorldPreview();
+      };
+      img.onerror = () => {
+        assetEntry.imageLoaded = false;
+      };
+      img.src = assetEntry.imageUrl;
+      assetEntry.imageElement = img;
+      return img;
+    };
+
+    const resolveAssetCache = async (assetEntry) => {
+      if (!assetEntry) return;
+      const previousCacheKey = assetEntry.cacheKey;
+      const previousFileName = assetEntry.fileName;
+      try {
+        let entry = null;
+        if (assetEntry.cacheKey) {
+          entry = await cacheGet(assetEntry.cacheKey);
+        }
+        if (!entry && assetEntry.fileName) {
+          entry = await cacheGetByName(assetEntry.fileName);
+        }
+        if (entry?.blob) {
+          assetEntry.cacheKey = entry.key;
+          assetEntry.fileName = entry.name || assetEntry.fileName;
+          assetEntry.cached = true;
+          assetEntry.imageUrl = URL.createObjectURL(entry.blob);
+          ensureAssetImage(assetEntry);
+          if (assetEntry.cacheKey !== previousCacheKey) {
+            updateMapsForAsset(assetEntry, previousFileName, previousCacheKey);
+          }
+        } else {
+          assetEntry.cached = false;
+        }
+      } catch (error) {
+        assetEntry.cached = false;
+      }
+    };
+
+    const rebuildAssets = async () => {
+      const previous = worldState.assets;
+      const previousByKey = new Map();
+      previous.forEach((entry) => {
+        entry.maps = new Set();
+        if (entry.cacheKey) previousByKey.set(`cache:${entry.cacheKey}`, entry);
+        if (entry.fileName) previousByKey.set(`name:${entry.fileName}`, entry);
+      });
+
+      const next = [];
+      const seen = new Map();
+      worldState.maps.forEach((mapEntry) => {
+        const assets = Array.isArray(mapEntry?.payload?.assets) ? mapEntry.payload.assets : [];
+        assets.forEach((asset, index) => {
+          const key = asset.cacheKey
+            ? `cache:${asset.cacheKey}`
+            : asset.fileName
+              ? `name:${asset.fileName}`
+              : `id:${asset.name || index}`;
+          let entry = seen.get(key) || previousByKey.get(key);
+          if (!entry) {
+            entry = {
+              key,
+              name: asset.name || asset.fileName || 'Asset',
+              fileName: asset.fileName || '',
+              cacheKey: asset.cacheKey || null,
+              color: asset.color || '#2a2a2a',
+              cached: false,
+              imageUrl: '',
+              imageElement: null,
+              imageLoaded: false,
+              maps: new Set()
+            };
+          } else {
+            entry.name = asset.name || entry.name || asset.fileName || 'Asset';
+            entry.fileName = asset.fileName || entry.fileName || '';
+            entry.cacheKey = asset.cacheKey || entry.cacheKey || null;
+            entry.color = asset.color || entry.color || '#2a2a2a';
+          }
+          entry.maps.add(mapEntry.id);
+          if (!seen.has(key)) {
+            seen.set(key, entry);
+            next.push(entry);
+          }
+        });
+      });
+      worldState.assets = next;
+      await Promise.all(worldState.assets.map((assetEntry) => resolveAssetCache(assetEntry)));
+      renderAssetList();
+      renderWorldPreview();
+    };
+
+    const updateMapsForAsset = (assetEntry, previousFileName, previousCacheKey) => {
+      worldState.maps.forEach((mapEntry) => {
+        const assets = Array.isArray(mapEntry?.payload?.assets) ? mapEntry.payload.assets : [];
+        assets.forEach((asset) => {
+          const matches = (
+            (previousCacheKey && asset.cacheKey === previousCacheKey) ||
+            (previousFileName && asset.fileName === previousFileName) ||
+            (assetEntry.cacheKey && asset.cacheKey === assetEntry.cacheKey) ||
+            (assetEntry.fileName && asset.fileName === assetEntry.fileName)
+          );
+          if (matches) {
+            asset.cacheKey = assetEntry.cacheKey || asset.cacheKey || null;
+            asset.fileName = assetEntry.fileName || asset.fileName || '';
+          }
+        });
+      });
+    };
+
+    const handleAssetUpload = async (assetEntry, file) => {
+      if (!assetEntry || !file) return;
+      const previousFileName = assetEntry.fileName;
+      const previousCacheKey = assetEntry.cacheKey;
+      const cacheKey = await cacheAssetImage(file);
+      if (!cacheKey) return;
+      assetEntry.cacheKey = cacheKey;
+      assetEntry.fileName = file.name;
+      assetEntry.cached = true;
+      assetEntry.imageUrl = URL.createObjectURL(file);
+      assetEntry.imageElement = null;
+      assetEntry.imageLoaded = false;
+      ensureAssetImage(assetEntry);
+      updateMapsForAsset(assetEntry, previousFileName, previousCacheKey);
+      renderAssetList();
+      renderWorldPreview();
+    };
+
+    const renderAssetList = () => {
+      assetList.innerHTML = '';
+      if (!worldState.assets.length) return;
+      worldState.assets.forEach((assetEntry) => {
+        const row = document.createElement('div');
+        row.className = 'world-asset-row';
+
+        const meta = document.createElement('div');
+        meta.className = 'world-asset-meta';
+        const color = document.createElement('span');
+        color.className = 'world-asset-color';
+        color.style.backgroundColor = assetEntry.color || '#2a2a2a';
+
+        const text = document.createElement('div');
+        text.className = 'world-asset-text';
+        const name = document.createElement('div');
+        name.className = 'world-asset-name';
+        name.textContent = assetEntry.name || assetEntry.fileName || 'Asset';
+        const file = document.createElement('div');
+        file.className = 'world-asset-file';
+        file.textContent = assetEntry.fileName || assetEntry.cacheKey || '';
+        text.appendChild(name);
+        text.appendChild(file);
+
+        meta.appendChild(color);
+        meta.appendChild(text);
+
+        const actions = document.createElement('div');
+        actions.className = 'world-asset-actions';
+        const status = document.createElement('span');
+        status.className = `world-asset-status ${assetEntry.cached ? 'is-cached' : 'is-missing'}`;
+        status.textContent = assetEntry.cached ? getText('world.assetCached', 'Cached') : getText('world.assetMissing', 'Missing');
+
+        const uploadButton = document.createElement('button');
+        uploadButton.type = 'button';
+        uploadButton.className = 'button-secondary';
+        uploadButton.textContent = assetEntry.cached ? getText('world.assetReplace', 'Replace') : getText('world.assetUpload', 'Upload');
+
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.className = 'world-file-input';
+
+        uploadButton.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', () => {
+          const fileEntry = fileInput.files?.[0];
+          if (fileEntry) {
+            handleAssetUpload(assetEntry, fileEntry);
+          }
+          fileInput.value = '';
+        });
+
+        actions.appendChild(status);
+        actions.appendChild(uploadButton);
+        actions.appendChild(fileInput);
+
+        row.appendChild(meta);
+        row.appendChild(actions);
+        assetList.appendChild(row);
+      });
+    };
+
+    const findAssetEntryForDef = (assetDef) => {
+      if (!assetDef) return null;
+      if (assetDef.cacheKey) {
+        const match = worldState.assets.find((entry) => entry.cacheKey === assetDef.cacheKey);
+        if (match) return match;
+      }
+      if (assetDef.fileName) {
+        const match = worldState.assets.find((entry) => entry.fileName === assetDef.fileName);
+        if (match) return match;
+      }
+      return null;
+    };
+
+    const getMapNeighbors = (cells, width, height, x, y, assetNumber) => {
+      const isSame = (cx, cy) => {
+        if (cx < 0 || cy < 0 || cx >= width || cy >= height) return false;
+        const cell = cells[cy * width + cx];
+        return Number(cell?.assetNumber) === assetNumber;
+      };
+      const n = isSame(x, y - 1);
+      const s = isSame(x, y + 1);
+      const w = isSame(x - 1, y);
+      const e = isSame(x + 1, y);
+      const nw = isSame(x - 1, y - 1);
+      const ne = isSame(x + 1, y - 1);
+      const sw = isSame(x - 1, y + 1);
+      const se = isSame(x + 1, y + 1);
+      return { n, s, w, e, nw, ne, sw, se };
+    };
+
+    const getMapTileIdX13 = (cells, width, height, x, y, assetNumber) => {
+      const { n, s, w, e, nw, ne, sw, se } = getMapNeighbors(cells, width, height, x, y, assetNumber);
+      const isBorder = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+
+      if (isBorder) {
+        if (x === 0 && y === 0) return 'corner-in-top-left';
+        if (x === width - 1 && y === 0) return 'corner-in-top-right';
+        if (x === 0 && y === height - 1) return 'corner-in-bottom-left';
+        if (x === width - 1 && y === height - 1) return 'corner-in-bottom-right';
+        if (y === 0) return 'edge-bottom';
+        if (y === height - 1) return 'edge-top';
+        if (x === 0) return 'edge-right';
+        if (x === width - 1) return 'edge-left';
+      }
+
+      const sample = [
+        nw, n, ne,
+        w, true, e,
+        sw, s, se
+      ];
+
+      const patterns = [
+        { id: 'corner-in-bottom-right', mask: patternFromRows(['OX+', 'XXX', '+X+']) },
+        { id: 'corner-in-bottom-left', mask: patternFromRows(['+XO', 'XXX', '+X+']) },
+        { id: 'corner-in-top-right', mask: patternFromRows(['+X+', 'XXX', 'OX+']) },
+        { id: 'corner-in-top-left', mask: patternFromRows(['+X+', 'XXX', '+XO']) },
+        { id: 'corner-out-bottom-right', mask: patternFromRows(['OO+', 'OXX', '+XX']) },
+        { id: 'corner-out-bottom-left', mask: patternFromRows(['+OO', 'XXO', 'XX+']) },
+        { id: 'corner-out-top-right', mask: patternFromRows(['+XX', 'OXX', 'OO+']) },
+        { id: 'corner-out-top-left', mask: patternFromRows(['XX+', 'XXO', '+OO']) },
+        { id: 'edge-top', mask: patternFromRows(['OOO', 'XXX', 'XXX']) },
+        { id: 'edge-bottom', mask: patternFromRows(['XXX', 'XXX', 'OOO']) },
+        { id: 'edge-left', mask: patternFromRows(['OXX', 'OXX', 'OXX']) },
+        { id: 'edge-right', mask: patternFromRows(['XXO', 'XXO', 'XXO']) },
+        { id: 'edge-top', mask: patternFromRows(['+O+', 'XXX', '+++']) },
+        { id: 'edge-bottom', mask: patternFromRows(['+++', 'XXX', '+O+']) },
+        { id: 'edge-left', mask: patternFromRows(['+X+', 'OX+', '+X+']) },
+        { id: 'edge-right', mask: patternFromRows(['+X+', '+XO', '+X+']) },
+        { id: 'center', mask: patternFromRows(['XXX', 'XXX', 'XXX']) }
+      ];
+
+      for (let i = 0; i < patterns.length; i += 1) {
+        const { id, mask } = patterns[i];
+        if (matchesPattern(mask, sample)) return id;
+      }
+
+      return 'center';
+    };
+
+    const autoTileOrder = [
+      'center',
+      'edge-top',
+      'edge-bottom',
+      'edge-left',
+      'edge-right',
+      'corner-out-top-left',
+      'corner-out-top-right',
+      'corner-out-bottom-left',
+      'corner-out-bottom-right',
+      'corner-in-top-left',
+      'corner-in-top-right',
+      'corner-in-bottom-left',
+      'corner-in-bottom-right'
+    ];
+
+    const computeAutoSpriteIndex = (cells, width, height, assetDef, x, y, assetNumber) => {
+      if (!assetDef || Number.parseInt(assetDef.spriteCount, 10) < 13) return 1;
+      const tileId = getMapTileIdX13(cells, width, height, x, y, assetNumber);
+      const index = autoTileOrder.indexOf(tileId);
+      return index >= 0 ? index + 1 : 1;
+    };
+
+    const renderMapPreview = (mapEntry, canvas) => {
+      if (!mapEntry?.payload?.map || !canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const map = mapEntry.payload.map;
+      const width = clamp(Number.parseInt(map.width, 10) || 1, 1, 200);
+      const height = clamp(Number.parseInt(map.height, 10) || 1, 1, 200);
+      const cells = Array.isArray(map.cells) ? map.cells : [];
+      const markers = Array.isArray(map.markers) ? map.markers : [];
+      const assets = Array.isArray(mapEntry.payload.assets) ? mapEntry.payload.assets : [];
+      const assetByNumber = new Map(assets.map((asset) => [Number(asset.number), asset]));
+      const maxDim = Math.max(width, height);
+      const containerWidth = canvas.parentElement ? Math.max(160, canvas.parentElement.clientWidth - 4) : 220;
+      const cellSize = clamp(Math.floor(containerWidth / maxDim), 1, 10);
+
+      canvas.width = width * cellSize;
+      canvas.height = height * cellSize;
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = '#0b0b0b';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const index = y * width + x;
+          const entry = cells[index];
+          if (!entry || entry.assetNumber == null) continue;
+          const assetNumber = Number(entry.assetNumber);
+          const assetDef = assetByNumber.get(assetNumber);
+          if (!assetDef) continue;
+          const assetEntry = findAssetEntryForDef(assetDef);
+          const image = assetEntry ? ensureAssetImage(assetEntry) : null;
+          const isAuto = entry.auto !== false;
+          let spriteIndex = entry.spriteIndex || 1;
+          if (isAuto) {
+            spriteIndex = computeAutoSpriteIndex(cells, width, height, assetDef, x, y, assetNumber);
+          }
+
+          if (image && image.complete && image.naturalWidth > 0) {
+            const cols = Math.max(1, Number.parseInt(assetDef.cols, 10) || 1);
+            const rows = Math.max(1, Number.parseInt(assetDef.rows, 10) || 1);
+            const spriteWidth = Math.max(1, Number.parseInt(assetDef.spriteWidth, 10) || Math.floor(image.naturalWidth / cols));
+            const spriteHeight = Math.max(1, Number.parseInt(assetDef.spriteHeight, 10) || Math.floor(image.naturalHeight / rows));
+            const spriteCol = (spriteIndex - 1) % cols;
+            const spriteRow = Math.floor((spriteIndex - 1) / cols);
+            const sx = spriteCol * spriteWidth;
+            const sy = spriteRow * spriteHeight;
+            ctx.drawImage(
+              image,
+              sx,
+              sy,
+              spriteWidth,
+              spriteHeight,
+              x * cellSize,
+              y * cellSize,
+              cellSize,
+              cellSize
+            );
+          } else {
+            ctx.fillStyle = assetDef.color || '#2a2a2a';
+            ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+
+      for (let i = 0; i < Math.min(markers.length, width * height); i += 1) {
+        const marker = markers[i];
+        if (marker !== 'portal' && marker !== 'entry' && marker !== 'exit' && marker !== 1 && marker !== true) continue;
+        const row = Math.floor(i / width);
+        const col = i % width;
+        const size = Math.max(2, Math.floor(cellSize * 0.4));
+        const offset = Math.floor((cellSize - size) / 2);
+        ctx.fillStyle = '#ff3b3b';
+        ctx.fillRect(col * cellSize + offset, row * cellSize + offset, size, size);
+      }
+    };
+
+    const renderWorldPreview = () => {
+      previewGrid.innerHTML = '';
+      if (!worldState.maps.length) {
+        const empty = document.createElement('p');
+        empty.className = 'world-preview-empty';
+        empty.textContent = getText('world.previewEmpty', 'Import maps to see the world preview.');
+        previewGrid.appendChild(empty);
+        return;
+      }
+      worldState.maps.forEach((mapEntry) => {
+        const card = document.createElement('div');
+        card.className = 'world-preview-card';
+        const title = document.createElement('div');
+        title.className = 'world-preview-title';
+        title.textContent = getMapName(mapEntry);
+
+        const meta = document.createElement('div');
+        meta.className = 'world-preview-meta';
+        const sizeLabel = document.createElement('span');
+        const mapData = mapEntry.payload?.map;
+        const width = clamp(Number.parseInt(mapData?.width, 10) || 1, 1, 200);
+        const height = clamp(Number.parseInt(mapData?.height, 10) || 1, 1, 200);
+        sizeLabel.textContent = `${width}x${height}`;
+        const portalLabel = document.createElement('span');
+        portalLabel.textContent = `${mapEntry.portals.length} ${getText('world.portals', 'Portals')}`;
+        meta.appendChild(sizeLabel);
+        meta.appendChild(portalLabel);
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'world-preview-map';
+
+        card.appendChild(title);
+        card.appendChild(meta);
+        card.appendChild(canvas);
+        previewGrid.appendChild(card);
+        renderMapPreview(mapEntry, canvas);
+      });
+    };
+
     const createMapEntry = (payload, fileName = '') => {
       const id = createId();
-      const name = fileName ? fileName.replace(/\\.[^/.]+$/, '') : `Map ${worldState.maps.length + 1}`;
+      const name = fileName ? fileName.replace(/\.[^/.]+$/, '') : `Map ${worldState.maps.length + 1}`;
       const portals = buildPortalList(payload);
       worldState.maps.push({
         id,
@@ -4155,7 +4647,7 @@
         nameField.className = 'world-map-field';
         const nameLabel = document.createElement('label');
         nameLabel.className = 'panel-label';
-        nameLabel.textContent = translations[currentLanguage]?.['world.mapName'] ?? 'Map name';
+        nameLabel.textContent = getText('world.mapName', 'Map name');
         const nameInput = document.createElement('input');
         nameInput.type = 'text';
         nameInput.className = 'world-input';
@@ -4167,7 +4659,7 @@
         portalField.className = 'world-map-field';
         const portalLabel = document.createElement('label');
         portalLabel.className = 'panel-label';
-        portalLabel.textContent = translations[currentLanguage]?.['world.portals'] ?? 'Portals';
+        portalLabel.textContent = getText('world.portals', 'Portals');
         const portalValue = document.createElement('span');
         portalValue.className = 'panel-value';
         portalValue.textContent = String(mapEntry.portals.length);
@@ -4178,7 +4670,7 @@
         fileField.className = 'world-map-field';
         const fileLabel = document.createElement('label');
         fileLabel.className = 'panel-label';
-        fileLabel.textContent = translations[currentLanguage]?.['world.file'] ?? 'File';
+        fileLabel.textContent = getText('world.file', 'File');
         const fileValue = document.createElement('span');
         fileValue.className = 'panel-value';
         fileValue.textContent = mapEntry.fileName || '—';
@@ -4188,7 +4680,7 @@
         const removeButton = document.createElement('button');
         removeButton.type = 'button';
         removeButton.className = 'button-secondary world-remove';
-        removeButton.textContent = translations[currentLanguage]?.['world.remove'] ?? 'Remove';
+        removeButton.textContent = getText('world.remove', 'Remove');
 
         row.appendChild(nameField);
         row.appendChild(portalField);
@@ -4200,6 +4692,7 @@
           mapEntry.name = nameInput.value;
           refreshSelects();
           renderConnections();
+          renderWorldPreview();
         });
 
         removeButton.addEventListener('click', () => {
@@ -4210,6 +4703,7 @@
           renderMapList();
           refreshSelects();
           renderConnections();
+          rebuildAssets();
         });
       });
     };
@@ -4269,7 +4763,7 @@
         const removeButton = document.createElement('button');
         removeButton.type = 'button';
         removeButton.className = 'button-secondary world-remove';
-        removeButton.textContent = translations[currentLanguage]?.['world.remove'] ?? 'Remove';
+        removeButton.textContent = getText('world.remove', 'Remove');
         removeButton.addEventListener('click', () => {
           worldState.connections.splice(index, 1);
           renderConnections();
@@ -4280,72 +4774,6 @@
         connectionList.appendChild(row);
       });
       renderWorldPreview();
-    };
-
-    const renderWorldPreview = () => {
-      if (!previewCanvas) return;
-      const ctx = previewCanvas.getContext('2d');
-      if (!ctx) return;
-
-      const container = previewCanvas.parentElement;
-      const width = container ? Math.max(320, container.clientWidth - 2) : previewCanvas.width;
-      const nodeCount = worldState.maps.length;
-      const columns = Math.max(1, Math.ceil(Math.sqrt(nodeCount || 1)));
-      const spacingX = 160;
-      const spacingY = 120;
-      const rows = Math.max(1, Math.ceil((nodeCount || 1) / columns));
-      const height = Math.max(240, rows * spacingY + 40);
-
-      previewCanvas.width = width;
-      previewCanvas.height = height;
-
-      ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-      ctx.fillStyle = '#0b0b0b';
-      ctx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
-
-      const positions = new Map();
-      worldState.maps.forEach((mapEntry, index) => {
-        const col = index % columns;
-        const row = Math.floor(index / columns);
-        const x = 80 + col * spacingX;
-        const y = 60 + row * spacingY;
-        positions.set(mapEntry.id, { x, y });
-      });
-
-      ctx.strokeStyle = 'rgba(0,148,174,0.5)';
-      ctx.lineWidth = 2;
-      worldState.connections.forEach((connection) => {
-        const from = positions.get(connection.fromMapId);
-        const to = positions.get(connection.toMapId);
-        if (!from || !to) return;
-        ctx.beginPath();
-        ctx.moveTo(from.x, from.y);
-        ctx.lineTo(to.x, to.y);
-        ctx.stroke();
-      });
-
-      worldState.maps.forEach((mapEntry) => {
-        const position = positions.get(mapEntry.id);
-        if (!position) return;
-        const { x, y } = position;
-        ctx.fillStyle = '#101010';
-        ctx.strokeStyle = '#00b78f';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(x, y, 26, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = '#f2f2f2';
-        ctx.font = '12px \"IBM Plex Sans\", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(getMapName(mapEntry), x, y);
-
-        ctx.fillStyle = '#9c9c9c';
-        ctx.font = '10px \"IBM Plex Sans\", sans-serif';
-        ctx.fillText(`${mapEntry.portals.length} portals`, x, y + 18);
-      });
     };
 
     const addConnection = () => {
@@ -4386,7 +4814,7 @@
     const importMap = (file) => {
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = () => {
+      reader.onload = async () => {
         try {
           const payload = JSON.parse(String(reader.result || '{}'));
           if (!payload?.map) return;
@@ -4394,6 +4822,7 @@
           renderMapList();
           refreshSelects();
           renderConnections();
+          await rebuildAssets();
         } catch (error) {
           // Ignore invalid JSON.
         }
@@ -4426,6 +4855,7 @@
       renderMapList();
       refreshSelects();
       renderConnections();
+      renderAssetList();
       renderWorldPreview();
     });
   };
