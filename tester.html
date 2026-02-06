@@ -134,6 +134,15 @@
           <input class="map-file-input" type="file" id="tester-map-file" accept=".json" />
           <input class="map-file-input" type="file" id="tester-world-file" accept=".json" />
         </div>
+        <div class="tester-zoom">
+          <span class="panel-label" data-i18n="tester.zoom">Zoom</span>
+          <div class="map-toggle">
+            <button class="button-secondary is-active" type="button" data-tester-zoom="1">x1</button>
+            <button class="button-secondary" type="button" data-tester-zoom="2">x2</button>
+            <button class="button-secondary" type="button" data-tester-zoom="3">x3</button>
+            <button class="button-secondary" type="button" data-tester-zoom="4">x4</button>
+          </div>
+        </div>
         <div class="tester-map-select">
           <label class="panel-label" for="tester-map-select" data-i18n="tester.mapLabel">Map</label>
           <select class="world-select" id="tester-map-select"></select>
@@ -162,7 +171,9 @@
             <p class="panel-subtitle" data-i18n="tester.previewSubtitle">Sprites are 16x16 px.</p>
           </div>
         </div>
-        <canvas class="tester-canvas" id="tester-canvas" width="320" height="240"></canvas>
+        <div class="tester-canvas-wrapper">
+          <canvas class="tester-canvas" id="tester-canvas" width="1200" height="1200"></canvas>
+        </div>
       </section>
     </section>
   </main>

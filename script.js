@@ -203,6 +203,7 @@
       'tester.mapLabel': 'Map',
       'tester.loaded': 'Loaded',
       'tester.loadedNone': 'None',
+      'tester.zoom': 'Zoom',
       'tester.dirUp': 'Up',
       'tester.dirDown': 'Down',
       'tester.dirLeft': 'Left',
@@ -429,6 +430,7 @@
       'tester.mapLabel': 'Map',
       'tester.loaded': 'Charge',
       'tester.loadedNone': 'Aucune',
+      'tester.zoom': 'Zoom',
       'tester.dirUp': 'Haut',
       'tester.dirDown': 'Bas',
       'tester.dirLeft': 'Gauche',
@@ -5431,13 +5433,68 @@
       mapCanvas: null,
       collision: [],
       mapWidth: 0,
-      mapHeight: 0
+      mapHeight: 0,
+      zoom: 1,
+      assetImages: new Map()
     };
 
     const mapState = {
       maps: [],
       currentIndex: -1
     };
+
+    const autoTileOrder = [
+      'center',
+      'edge-top',
+      'edge-bottom',
+      'edge-left',
+      'edge-right',
+      'corner-out-top-left',
+      'corner-out-top-right',
+      'corner-out-bottom-left',
+      'corner-out-bottom-right',
+      'corner-in-top-left',
+      'corner-in-top-right',
+      'corner-in-bottom-left',
+      'corner-in-bottom-right'
+    ];
+
+    const cacheDbName = '8bits-map-cache';
+    const cacheStoreName = 'images';
+
+    const openCacheDb = () => new Promise((resolve, reject) => {
+      if (!window.indexedDB) {
+        reject(new Error('IndexedDB not supported'));
+        return;
+      }
+      const request = indexedDB.open(cacheDbName, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(cacheStoreName)) {
+          const store = db.createObjectStore(cacheStoreName, { keyPath: 'key' });
+          store.createIndex('name', 'name', { unique: false });
+        }
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+
+    const cacheGet = (key) => openCacheDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(cacheStoreName, 'readonly');
+      const store = tx.objectStore(cacheStoreName);
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    }));
+
+    const cacheGetByName = (name) => openCacheDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(cacheStoreName, 'readonly');
+      const store = tx.objectStore(cacheStoreName);
+      const index = store.index('name');
+      const req = index.getAll(name);
+      req.onsuccess = () => resolve((req.result || [])[0] || null);
+      req.onerror = () => reject(req.error);
+    }));
 
     const getDirLabel = (dir) => {
       if (dir === 'up') return translations[currentLanguage]?.['tester.dirUp'] ?? 'Up';
@@ -5496,6 +5553,79 @@
       return [];
     };
 
+    const getMapNeighbors = (cells, width, height, x, y, assetNumber) => {
+      const isSame = (cx, cy) => {
+        if (cx < 0 || cy < 0 || cx >= width || cy >= height) return false;
+        const cell = cells[cy * width + cx];
+        return Number(cell?.assetNumber) === assetNumber;
+      };
+      const n = isSame(x, y - 1);
+      const s = isSame(x, y + 1);
+      const w = isSame(x - 1, y);
+      const e = isSame(x + 1, y);
+      const nw = isSame(x - 1, y - 1);
+      const ne = isSame(x + 1, y - 1);
+      const sw = isSame(x - 1, y + 1);
+      const se = isSame(x + 1, y + 1);
+      return { n, s, w, e, nw, ne, sw, se };
+    };
+
+    const getMapTileIdX13 = (cells, width, height, x, y, assetNumber) => {
+      const { n, s, w, e, nw, ne, sw, se } = getMapNeighbors(cells, width, height, x, y, assetNumber);
+      const isBorder = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+
+      if (isBorder) {
+        if (x === 0 && y === 0) return 'corner-in-top-left';
+        if (x === width - 1 && y === 0) return 'corner-in-top-right';
+        if (x === 0 && y === height - 1) return 'corner-in-bottom-left';
+        if (x === width - 1 && y === height - 1) return 'corner-in-bottom-right';
+        if (y === 0) return 'edge-bottom';
+        if (y === height - 1) return 'edge-top';
+        if (x === 0) return 'edge-right';
+        if (x === width - 1) return 'edge-left';
+      }
+
+      const sample = [
+        nw, n, ne,
+        w, true, e,
+        sw, s, se
+      ];
+
+      const patterns = [
+        { id: 'corner-in-bottom-right', mask: patternFromRows(['OX+', 'XXX', '+X+']) },
+        { id: 'corner-in-bottom-left', mask: patternFromRows(['+XO', 'XXX', '+X+']) },
+        { id: 'corner-in-top-right', mask: patternFromRows(['+X+', 'XXX', 'OX+']) },
+        { id: 'corner-in-top-left', mask: patternFromRows(['+X+', 'XXX', '+XO']) },
+        { id: 'corner-out-bottom-right', mask: patternFromRows(['OO+', 'OXX', '+XX']) },
+        { id: 'corner-out-bottom-left', mask: patternFromRows(['+OO', 'XXO', 'XX+']) },
+        { id: 'corner-out-top-right', mask: patternFromRows(['+XX', 'OXX', 'OO+']) },
+        { id: 'corner-out-top-left', mask: patternFromRows(['XX+', 'XXO', '+OO']) },
+        { id: 'edge-top', mask: patternFromRows(['OOO', 'XXX', 'XXX']) },
+        { id: 'edge-bottom', mask: patternFromRows(['XXX', 'XXX', 'OOO']) },
+        { id: 'edge-left', mask: patternFromRows(['OXX', 'OXX', 'OXX']) },
+        { id: 'edge-right', mask: patternFromRows(['XXO', 'XXO', 'XXO']) },
+        { id: 'edge-top', mask: patternFromRows(['+O+', 'XXX', '+++']) },
+        { id: 'edge-bottom', mask: patternFromRows(['+++', 'XXX', '+O+']) },
+        { id: 'edge-left', mask: patternFromRows(['+X+', 'OX+', '+X+']) },
+        { id: 'edge-right', mask: patternFromRows(['+X+', '+XO', '+X+']) },
+        { id: 'center', mask: patternFromRows(['XXX', 'XXX', 'XXX']) }
+      ];
+
+      for (let i = 0; i < patterns.length; i += 1) {
+        const { id, mask } = patterns[i];
+        if (matchesPattern(mask, sample)) return id;
+      }
+
+      return 'center';
+    };
+
+    const computeAutoSpriteIndex = (cells, width, height, asset, x, y, assetNumber) => {
+      if (!asset || Number.parseInt(asset.spriteCount, 10) < 13) return 1;
+      const tileId = getMapTileIdX13(cells, width, height, x, y, assetNumber);
+      const index = autoTileOrder.indexOf(tileId);
+      return index >= 0 ? index + 1 : 1;
+    };
+
     const buildCollision = (payload) => {
       const map = payload?.map || {};
       const width = clamp(Number.parseInt(map.width, 10) || 0, 0, 2000);
@@ -5514,6 +5644,30 @@
         }
       }
       return { collision, width, height };
+    };
+
+    const loadAssetImages = async (payload) => {
+      state.assetImages = new Map();
+      const assets = Array.isArray(payload?.assets) ? payload.assets : [];
+      await Promise.all(assets.map(async (asset) => {
+        let entry = null;
+        if (asset.cacheKey) {
+          entry = await cacheGet(asset.cacheKey).catch(() => null);
+        }
+        if (!entry && asset.fileName) {
+          entry = await cacheGetByName(asset.fileName).catch(() => null);
+        }
+        if (!entry?.blob) return;
+        const url = URL.createObjectURL(entry.blob);
+        const img = new Image();
+        img.src = url;
+        await new Promise((resolve) => {
+          if (img.complete) resolve(true);
+          img.onload = () => resolve(true);
+          img.onerror = () => resolve(true);
+        });
+        state.assetImages.set(Number(asset.number), { image: img, asset });
+      }));
     };
 
     const buildMapCanvas = (payload) => {
@@ -5537,10 +5691,38 @@
           const index = y * width + x;
           const entry = cells[index];
           if (!entry || entry.assetNumber == null) continue;
-          const asset = assetByNumber.get(Number(entry.assetNumber));
+          const assetNumber = Number(entry.assetNumber);
+          const asset = assetByNumber.get(assetNumber);
           if (!asset) continue;
-          mapCtx.fillStyle = asset.color || (asset.type === 'blocking' ? '#4a1c1c' : '#1f5a38');
-          mapCtx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+          const spriteIndex = entry.auto !== false
+            ? computeAutoSpriteIndex(cells, width, height, asset, x, y, assetNumber)
+            : (Number.isInteger(entry.spriteIndex) ? entry.spriteIndex : 1);
+
+          const cached = state.assetImages.get(assetNumber);
+          if (cached?.image && cached.image.naturalWidth > 0) {
+            const cols = Math.max(1, Number.parseInt(asset.cols, 10) || 1);
+            const rows = Math.max(1, Number.parseInt(asset.rows, 10) || 1);
+            const spriteWidth = Math.max(1, Number.parseInt(asset.spriteWidth, 10) || Math.floor(cached.image.naturalWidth / cols));
+            const spriteHeight = Math.max(1, Number.parseInt(asset.spriteHeight, 10) || Math.floor(cached.image.naturalHeight / rows));
+            const spriteCol = (spriteIndex - 1) % cols;
+            const spriteRow = Math.floor((spriteIndex - 1) / cols);
+            const sx = spriteCol * spriteWidth;
+            const sy = spriteRow * spriteHeight;
+            mapCtx.drawImage(
+              cached.image,
+              sx,
+              sy,
+              spriteWidth,
+              spriteHeight,
+              x * tileSize,
+              y * tileSize,
+              tileSize,
+              tileSize
+            );
+          } else {
+            mapCtx.fillStyle = asset.color || (asset.type === 'blocking' ? '#4a1c1c' : '#1f5a38');
+            mapCtx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+          }
         }
       }
       return canvasMap;
@@ -5570,12 +5752,13 @@
       };
     };
 
-    const applyMapPayload = (payload, name = '') => {
+    const applyMapPayload = async (payload, name = '') => {
       state.mapPayload = payload;
       const { collision, width, height } = buildCollision(payload);
       state.collision = collision;
       state.mapWidth = width;
       state.mapHeight = height;
+      await loadAssetImages(payload);
       state.mapCanvas = buildMapCanvas(payload);
       setLoadedLabel(name || payload?.map?.name || payload?.name || 'Map');
       resetPosition();
@@ -5613,7 +5796,7 @@
       }
     };
 
-    const importPayload = (file, type) => {
+    const importPayload = (file) => {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
@@ -5636,16 +5819,24 @@
       applyMapPayload(mapState.maps[idx].payload, mapState.maps[idx].name);
     });
 
+    qsa('[data-tester-zoom]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const zoom = Number.parseInt(button.dataset.testerZoom, 10) || 1;
+        state.zoom = zoom;
+        qsa('[data-tester-zoom]').forEach((btn) => btn.classList.toggle('is-active', btn === button));
+      });
+    });
+
     importMapButton?.addEventListener('click', () => mapFileInput?.click());
     importWorldButton?.addEventListener('click', () => worldFileInput?.click());
     mapFileInput?.addEventListener('change', () => {
       const file = mapFileInput.files?.[0];
-      if (file) importPayload(file, 'map');
+      if (file) importPayload(file);
       mapFileInput.value = '';
     });
     worldFileInput?.addEventListener('change', () => {
       const file = worldFileInput.files?.[0];
-      if (file) importPayload(file, 'world');
+      if (file) importPayload(file);
       worldFileInput.value = '';
     });
 
@@ -5706,8 +5897,8 @@
             state.y = nextY;
           }
         } else {
-          state.x = clamp(nextX, 0, canvas.width - spriteSize);
-          state.y = clamp(nextY, 0, canvas.height - spriteSize);
+          state.x = clamp(nextX, 0, canvas.width / state.zoom - spriteSize);
+          state.y = clamp(nextY, 0, canvas.height / state.zoom - spriteSize);
         }
 
         if (Math.abs(vx) > Math.abs(vy)) {
@@ -5740,19 +5931,23 @@
 
       let cameraX = 0;
       let cameraY = 0;
+      const viewScale = state.zoom || 1;
+      const viewWidth = canvas.width / viewScale;
+      const viewHeight = canvas.height / viewScale;
+
       if (state.mapCanvas) {
         const mapWidthPx = state.mapWidth * tileSize;
         const mapHeightPx = state.mapHeight * tileSize;
         const centerX = state.x + spriteSize / 2;
         const centerY = state.y + spriteSize / 2;
-        cameraX = clamp(centerX - canvas.width / 2, 0, Math.max(0, mapWidthPx - canvas.width));
-        cameraY = clamp(centerY - canvas.height / 2, 0, Math.max(0, mapHeightPx - canvas.height));
+        cameraX = clamp(centerX - viewWidth / 2, 0, Math.max(0, mapWidthPx - viewWidth));
+        cameraY = clamp(centerY - viewHeight / 2, 0, Math.max(0, mapHeightPx - viewHeight));
         ctx.drawImage(
           state.mapCanvas,
           cameraX,
           cameraY,
-          canvas.width,
-          canvas.height,
+          viewWidth,
+          viewHeight,
           0,
           0,
           canvas.width,
@@ -5765,16 +5960,17 @@
       const isMoving = pressedKeys.size > 0;
       const frameIndex = isMoving ? state.frame : info.idle;
       const sx = frameIndex * spriteSize;
-      const drawX = Math.round(state.x - cameraX);
-      const drawY = Math.round(state.y - cameraY);
+      const drawX = Math.round((state.x - cameraX) * viewScale);
+      const drawY = Math.round((state.y - cameraY) * viewScale);
+      const drawSize = spriteSize * viewScale;
 
       if (state.dir === 'left') {
         ctx.save();
         ctx.scale(-1, 1);
-        ctx.drawImage(sheet, sx, 0, spriteSize, spriteSize, -drawX - spriteSize, drawY, spriteSize, spriteSize);
+        ctx.drawImage(sheet, sx, 0, spriteSize, spriteSize, -drawX - drawSize, drawY, drawSize, drawSize);
         ctx.restore();
       } else {
-        ctx.drawImage(sheet, sx, 0, spriteSize, spriteSize, drawX, drawY, spriteSize, spriteSize);
+        ctx.drawImage(sheet, sx, 0, spriteSize, spriteSize, drawX, drawY, drawSize, drawSize);
       }
     };
 
