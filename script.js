@@ -6424,9 +6424,15 @@
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const gameplaySize = 1200;
-    canvas.width = gameplaySize;
-    canvas.height = gameplaySize;
+    const parseCanvasSize = (value, fallback) => {
+      const parsed = Number.parseInt(String(value || ''), 10);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    };
+    const computedStyle = window.getComputedStyle(canvas);
+    const fallbackWidth = parseCanvasSize(canvas.getAttribute('width'), 1200);
+    const fallbackHeight = parseCanvasSize(canvas.getAttribute('height'), 1200);
+    canvas.width = parseCanvasSize(computedStyle.width, fallbackWidth);
+    canvas.height = parseCanvasSize(computedStyle.height, fallbackHeight);
 
     const spriteSize = 16;
     const tileSize = 16;
