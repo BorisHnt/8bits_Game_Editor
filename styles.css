@@ -1315,6 +1315,18 @@ svg {
   gap: 12px;
 }
 
+.asset-type-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.asset-type-filter-button {
+  padding: 5px 10px;
+  font-size: 0.72rem;
+}
+
 .asset-row {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);

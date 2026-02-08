@@ -239,6 +239,7 @@
       'map.randomizePlaceholder': '1-4, 7, 9-11',
       'map.assetName': 'Asset name',
       'map.assetColor': 'Color',
+      'map.assetTypeAll': 'All',
       'map.assetNumber': 'Image number',
       'map.assetUp': 'Up',
       'map.assetDown': 'Down',
@@ -246,6 +247,7 @@
       'map.spriteSize': 'Sprite size',
       'map.spriteCount': 'Sprites',
       'map.assetType': 'Type',
+      'map.assetCollision': 'Collision',
       'map.typeBlocking': 'Blocking',
       'map.typePassable': 'Passable',
       'map.selectAsset': 'Select'
@@ -489,6 +491,7 @@
       'map.randomizePlaceholder': '1-4, 7, 9-11',
       'map.assetName': "Nom de l'asset",
       'map.assetColor': 'Couleur',
+      'map.assetTypeAll': 'Tous',
       'map.assetNumber': 'Numero image',
       'map.assetUp': 'Monter',
       'map.assetDown': 'Descendre',
@@ -496,6 +499,7 @@
       'map.spriteSize': 'Taille sprite',
       'map.spriteCount': 'Sprites',
       'map.assetType': 'Type',
+      'map.assetCollision': 'Collision',
       'map.typeBlocking': 'Bloquant',
       'map.typePassable': 'Passant',
       'map.selectAsset': 'Selectionner'
@@ -3524,6 +3528,7 @@
 
   const initMapCreator = () => {
     const assetList = qs('#asset-list');
+    const assetTypeFilters = qs('#asset-type-filters');
     const assetGrid = qs('#asset-grid');
     const assetGridLabel = qs('#asset-grid-label');
     const addAssetButton = qs('#add-asset');
@@ -3553,6 +3558,7 @@
 
     const mapState = {
       assets: [],
+      assetTypeFilter: 'all',
       selectedAssetId: null,
       selectedSpriteIndex: 1,
       mode: 'manual',
@@ -3751,6 +3757,33 @@
       mapState.assets.sort((a, b) => (a.number || 0) - (b.number || 0));
     };
 
+    const normalizeAssetType = (value) => String(value || '').trim();
+    const normalizeAssetTypeKey = (value) => normalizeAssetType(value).toLowerCase();
+
+    const buildAssetTypeList = () => {
+      const typeMap = new Map();
+      mapState.assets.forEach((asset) => {
+        const label = normalizeAssetType(asset.assetType);
+        if (!label) return;
+        const key = normalizeAssetTypeKey(label);
+        if (!typeMap.has(key)) {
+          typeMap.set(key, label);
+        }
+      });
+      return Array.from(typeMap.entries())
+        .map(([key, label]) => ({ key, label }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+    };
+
+    const getFilteredAssets = () => {
+      if (mapState.assetTypeFilter === 'all') {
+        return mapState.assets;
+      }
+      return mapState.assets.filter(
+        (asset) => normalizeAssetTypeKey(asset.assetType) === mapState.assetTypeFilter
+      );
+    };
+
     const getNextAvailableNumber = () => {
       const used = new Set(mapState.assets.map((asset) => asset.number));
       let next = 1;
@@ -3824,6 +3857,7 @@
         spriteWidth: 16,
         spriteHeight: 16,
         spriteCount: 16,
+        assetType: '',
         type: 'blocking',
         color: getAssetColor(number),
         cacheKey: null
@@ -4306,11 +4340,48 @@
       }
     };
 
+    const renderAssetTypeFilters = () => {
+      if (!assetTypeFilters) return;
+      const typeItems = buildAssetTypeList();
+      const validKeys = new Set(typeItems.map((item) => item.key));
+      if (mapState.assetTypeFilter !== 'all' && !validKeys.has(mapState.assetTypeFilter)) {
+        mapState.assetTypeFilter = 'all';
+      }
+
+      assetTypeFilters.innerHTML = '';
+      const makeButton = (key, label) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'button-secondary asset-type-filter-button';
+        if (mapState.assetTypeFilter === key) {
+          button.classList.add('is-active');
+        }
+        button.textContent = label;
+        button.addEventListener('click', () => {
+          mapState.assetTypeFilter = key;
+          renderAssetList();
+          renderAssetGrid();
+        });
+        assetTypeFilters.appendChild(button);
+      };
+
+      makeButton('all', getText('map.assetTypeAll', 'All'));
+      typeItems.forEach((item) => {
+        makeButton(item.key, item.label);
+      });
+    };
+
     const renderAssetList = () => {
       assetList.innerHTML = '';
       normalizeAssetNumbers();
+      renderAssetTypeFilters();
 
-      mapState.assets.forEach((asset) => {
+      const visibleAssets = getFilteredAssets();
+      if (!visibleAssets.some((asset) => asset.id === mapState.selectedAssetId)) {
+        mapState.selectedAssetId = visibleAssets[0]?.id || null;
+      }
+
+      visibleAssets.forEach((asset) => {
         const row = document.createElement('div');
         row.className = 'asset-row';
         if (asset.id === mapState.selectedAssetId) {
@@ -4438,11 +4509,23 @@
         countField.appendChild(countLabel);
         countField.appendChild(countInput);
 
-        const typeField = document.createElement('div');
-        typeField.className = 'asset-field';
-        const typeLabel = document.createElement('label');
-        typeLabel.className = 'panel-label';
-        typeLabel.textContent = getText('map.assetType', 'Type');
+        const assetTypeField = document.createElement('div');
+        assetTypeField.className = 'asset-field';
+        const assetTypeLabel = document.createElement('label');
+        assetTypeLabel.className = 'panel-label';
+        assetTypeLabel.textContent = getText('map.assetType', 'Type');
+        const assetTypeInput = document.createElement('input');
+        assetTypeInput.className = 'asset-input';
+        assetTypeInput.type = 'text';
+        assetTypeInput.value = asset.assetType || '';
+        assetTypeField.appendChild(assetTypeLabel);
+        assetTypeField.appendChild(assetTypeInput);
+
+        const collisionField = document.createElement('div');
+        collisionField.className = 'asset-field';
+        const collisionLabel = document.createElement('label');
+        collisionLabel.className = 'panel-label';
+        collisionLabel.textContent = getText('map.assetCollision', 'Collision');
         const typeSelect = document.createElement('select');
         typeSelect.className = 'asset-select';
         const optionBlocking = document.createElement('option');
@@ -4454,8 +4537,8 @@
         typeSelect.appendChild(optionBlocking);
         typeSelect.appendChild(optionPassable);
         typeSelect.value = asset.type;
-        typeField.appendChild(typeLabel);
-        typeField.appendChild(typeSelect);
+        collisionField.appendChild(collisionLabel);
+        collisionField.appendChild(typeSelect);
 
         const selectButton = document.createElement('button');
         selectButton.type = 'button';
@@ -4484,7 +4567,8 @@
         row.appendChild(configField);
         row.appendChild(sizeField);
         row.appendChild(countField);
-        row.appendChild(typeField);
+        row.appendChild(assetTypeField);
+        row.appendChild(collisionField);
         row.appendChild(orderControls);
         row.appendChild(selectButton);
 
@@ -4572,6 +4656,19 @@
           if (mapState.selectedSpriteIndex > asset.spriteCount) {
             mapState.selectedSpriteIndex = asset.spriteCount;
           }
+          renderAssetGrid();
+          scheduleMapSave();
+        });
+
+        assetTypeInput.addEventListener('input', () => {
+          asset.assetType = normalizeAssetType(assetTypeInput.value);
+          renderAssetTypeFilters();
+          scheduleMapSave();
+        });
+
+        assetTypeInput.addEventListener('change', () => {
+          asset.assetType = normalizeAssetType(assetTypeInput.value);
+          renderAssetList();
           renderAssetGrid();
           scheduleMapSave();
         });
@@ -4949,6 +5046,7 @@
       assets: mapState.assets.map((asset) => ({
         name: asset.name,
         fileName: asset.fileName,
+        assetType: asset.assetType || '',
         number: asset.number,
         color: asset.color,
         cacheKey: asset.cacheKey,
@@ -4991,6 +5089,7 @@
         id: createId(),
         name: asset.name || '',
         fileName: asset.fileName || '',
+        assetType: normalizeAssetType(asset.assetType || asset.category || ''),
         imageUrl: '',
         number: clamp(Number.parseInt(asset.number, 10) || 1, 1, 9999),
         cols,
@@ -5007,6 +5106,7 @@
       normalizeAssetNumbers();
 
       const assetByNumber = new Map(mapState.assets.map((asset) => [asset.number, asset.id]));
+      mapState.assetTypeFilter = 'all';
       mapState.selectedAssetId = mapState.assets[0]?.id || null;
       mapState.selectedSpriteIndex = 1;
       mapState.switchMode = false;
@@ -5169,6 +5269,7 @@
 
     addAssetButton?.addEventListener('click', () => {
       createAsset();
+      mapState.assetTypeFilter = 'all';
       renderAssetList();
       renderAssetGrid();
       scheduleMapSave();
