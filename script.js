@@ -232,6 +232,8 @@
       'map.data': 'Data',
       'map.exportJson': 'Export JSON',
       'map.importJson': 'Import JSON',
+      'map.undo': 'Undo',
+      'map.redo': 'Redo',
       'map.randomize': 'Randomize',
       'map.randomizePlaceholder': '1-4, 7, 9-11',
       'map.assetName': 'Asset name',
@@ -479,6 +481,8 @@
       'map.data': 'Data',
       'map.exportJson': 'Exporter JSON',
       'map.importJson': 'Importer JSON',
+      'map.undo': 'Annuler',
+      'map.redo': 'Retablir',
       'map.randomize': 'Randomiser',
       'map.randomizePlaceholder': '1-4, 7, 9-11',
       'map.assetName': "Nom de l'asset",
@@ -3527,6 +3531,8 @@
     const mapApplyButton = qs('#apply-map-size');
     const mapCellSize = qs('#map-cell-size');
     const mapNameInput = qs('#map-name');
+    const mapUndoButton = qs('#map-undo');
+    const mapRedoButton = qs('#map-redo');
     const mapExportButton = qs('#map-export');
     const mapImportButton = qs('#map-import');
     const mapImportFile = qs('#map-import-file');
@@ -3570,6 +3576,10 @@
     const getAssetById = (id) => mapState.assets.find((asset) => asset.id === id);
     const mapCacheKey = '8bits-map-cache-state';
     let mapSaveTimer = null;
+    const mapHistoryLimit = 10;
+    let mapUndoStack = [];
+    let mapRedoStack = [];
+    let mapHistoryBatchActive = false;
 
     const formatBytes = (bytes) => {
       if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
@@ -3824,6 +3834,7 @@
     const resizeMap = (nextWidth, nextHeight) => {
       const width = clamp(nextWidth, 4, 200);
       const height = clamp(nextHeight, 4, 200);
+      ensureMapHistorySnapshot();
       const resized = Array.from({ length: width * height }, () => null);
       const resizedMarkers = Array.from({ length: width * height }, () => null);
       const copyWidth = Math.min(mapState.map.width, width);
@@ -3850,6 +3861,135 @@
       if (mapState.map.markers.length !== size) {
         mapState.map.markers = Array.from({ length: size }, () => null);
       }
+    };
+
+    const cloneMapCell = (cell) => {
+      if (!cell) return null;
+      return {
+        assetId: cell.assetId || null,
+        spriteIndex: Number.isInteger(cell.spriteIndex) ? cell.spriteIndex : null,
+        auto: cell.auto !== false
+      };
+    };
+
+    const cloneMapAssets = (assets) => assets.map((asset) => ({ ...asset }));
+    const cloneMapCells = (cells) => cells.map((cell) => cloneMapCell(cell));
+
+    const buildMapHistorySnapshot = () => ({
+      assets: cloneMapAssets(mapState.assets),
+      selectedAssetId: mapState.selectedAssetId,
+      selectedSpriteIndex: mapState.selectedSpriteIndex,
+      mode: mapState.mode,
+      tool: mapState.tool,
+      markerMode: mapState.markerMode,
+      randomize: mapState.randomize,
+      randomizeRange: mapState.randomizeRange,
+      view: mapState.view,
+      map: {
+        name: mapState.map.name || '',
+        width: mapState.map.width,
+        height: mapState.map.height,
+        cellSize: mapState.map.cellSize,
+        cells: cloneMapCells(mapState.map.cells),
+        markers: mapState.map.markers.slice()
+      }
+    });
+
+    const updateMapUndoRedoControls = () => {
+      if (mapUndoButton) mapUndoButton.disabled = mapUndoStack.length === 0;
+      if (mapRedoButton) mapRedoButton.disabled = mapRedoStack.length === 0;
+    };
+
+    const pushMapHistorySnapshot = () => {
+      mapUndoStack.push(buildMapHistorySnapshot());
+      if (mapUndoStack.length > mapHistoryLimit) {
+        mapUndoStack.shift();
+      }
+      mapRedoStack = [];
+      updateMapUndoRedoControls();
+    };
+
+    const ensureMapHistorySnapshot = () => {
+      if (mapHistoryBatchActive) return;
+      pushMapHistorySnapshot();
+    };
+
+    const beginMapHistoryBatch = () => {
+      if (mapHistoryBatchActive) return;
+      pushMapHistorySnapshot();
+      mapHistoryBatchActive = true;
+    };
+
+    const endMapHistoryBatch = () => {
+      mapHistoryBatchActive = false;
+    };
+
+    const applyMapHistorySnapshot = (snapshot) => {
+      if (!snapshot?.map) return;
+      mapState.assets = cloneMapAssets(snapshot.assets || []);
+      mapState.selectedAssetId = snapshot.selectedAssetId || mapState.assets[0]?.id || null;
+      mapState.selectedSpriteIndex = snapshot.selectedSpriteIndex || 1;
+      mapState.mode = snapshot.mode || 'manual';
+      mapState.tool = snapshot.tool || 'pencil';
+      mapState.markerMode = snapshot.markerMode || null;
+      mapState.randomize = Boolean(snapshot.randomize);
+      mapState.randomizeRange = String(snapshot.randomizeRange || '');
+      mapState.view = snapshot.view || 'normal';
+      mapState.map.name = snapshot.map.name || '';
+      mapState.map.width = clamp(Number.parseInt(snapshot.map.width, 10) || 50, 4, 200);
+      mapState.map.height = clamp(Number.parseInt(snapshot.map.height, 10) || 50, 4, 200);
+      mapState.map.cellSize = clamp(Number.parseInt(snapshot.map.cellSize, 10) || 16, 10, 32);
+      mapState.map.cells = cloneMapCells(Array.isArray(snapshot.map.cells) ? snapshot.map.cells : []);
+      mapState.map.markers = Array.isArray(snapshot.map.markers) ? snapshot.map.markers.slice() : [];
+      ensureMapCells();
+
+      if (mapNameInput) mapNameInput.value = mapState.map.name;
+      if (mapWidthInput) mapWidthInput.value = String(mapState.map.width);
+      if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
+      if (mapCellSize) mapCellSize.value = String(mapState.map.cellSize);
+
+      qsa('[data-map-mode]').forEach((button) => {
+        button.classList.toggle('is-active', (button.dataset.mapMode || 'manual') === mapState.mode);
+      });
+      qsa('[data-map-tool]').forEach((button) => {
+        button.classList.toggle('is-active', (button.dataset.mapTool || 'pencil') === mapState.tool);
+      });
+      qsa('[data-map-marker]').forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.mapMarker === mapState.markerMode);
+      });
+      qsa('[data-map-view]').forEach((button) => {
+        button.classList.toggle('is-active', (button.dataset.mapView || 'normal') === mapState.view);
+      });
+
+      renderAssetList();
+      renderAssetGrid();
+      renderMapGrid();
+      updateRandomizeControls();
+      scheduleMapSave();
+    };
+
+    const undoMapHistory = () => {
+      if (!mapUndoStack.length) return;
+      const snapshot = mapUndoStack.pop();
+      mapRedoStack.push(buildMapHistorySnapshot());
+      if (mapRedoStack.length > mapHistoryLimit) {
+        mapRedoStack.shift();
+      }
+      endMapHistoryBatch();
+      applyMapHistorySnapshot(snapshot);
+      updateMapUndoRedoControls();
+    };
+
+    const redoMapHistory = () => {
+      if (!mapRedoStack.length) return;
+      const snapshot = mapRedoStack.pop();
+      mapUndoStack.push(buildMapHistorySnapshot());
+      if (mapUndoStack.length > mapHistoryLimit) {
+        mapUndoStack.shift();
+      }
+      endMapHistoryBatch();
+      applyMapHistorySnapshot(snapshot);
+      updateMapUndoRedoControls();
     };
 
     const scheduleMapSave = () => {
@@ -3883,6 +4023,7 @@
       const width = mapState.map.width;
       const height = mapState.map.height;
       if (!Number.isFinite(dx) || !Number.isFinite(dy) || (dx === 0 && dy === 0)) return;
+      ensureMapHistorySnapshot();
       ensureMapCells();
       const total = width * height;
       const nextCells = Array.from({ length: total }, () => null);
@@ -3985,6 +4126,7 @@
       if (!paintCell) return;
       const paintKey = getFillKey(paintCell);
       if (!mapState.randomize && targetKey === paintKey) return;
+      ensureMapHistorySnapshot();
 
       const stack = [startIndex];
       const visited = new Set();
@@ -4552,13 +4694,16 @@
         return;
       }
       if (mapState.markerMode) {
+        ensureMapHistorySnapshot();
         const current = mapState.map.markers[index];
         mapState.map.markers[index] = current === mapState.markerMode ? null : mapState.markerMode;
       } else if (mapState.tool === 'eraser') {
+        ensureMapHistorySnapshot();
         mapState.map.cells[index] = null;
       } else {
         const asset = getAssetById(mapState.selectedAssetId);
         if (!asset) return;
+        ensureMapHistorySnapshot();
         const isManual = mapState.mode === 'manual';
         const useRandom = isManual && mapState.randomize;
         const nextSpriteIndex = useRandom
@@ -4584,6 +4729,9 @@
         event.preventDefault();
         mapState.isDrawing = true;
         mapGrid.setPointerCapture(event.pointerId);
+        if (mapState.markerMode || mapState.tool !== 'eyedropper') {
+          beginMapHistoryBatch();
+        }
         applyMapCell(Number.parseInt(target.dataset.index, 10));
       });
 
@@ -4595,10 +4743,16 @@
           return;
         }
         if (mapState.isDrawing) {
+          if (!mapHistoryBatchActive && (mapState.markerMode || mapState.tool !== 'eyedropper')) {
+            beginMapHistoryBatch();
+          }
           applyMapCell(index);
           return;
         }
         if (mapState.shiftPaint) {
+          if (!mapHistoryBatchActive && (mapState.markerMode || mapState.tool !== 'eyedropper')) {
+            beginMapHistoryBatch();
+          }
           if (mapState.shiftPaintIndex === index) return;
           mapState.shiftPaintIndex = index;
           applyMapCell(index);
@@ -4613,12 +4767,14 @@
         } catch (error) {
           // ignore
         }
+        endMapHistoryBatch();
       };
 
       mapGrid.addEventListener('pointerup', stopDrawing);
       mapGrid.addEventListener('pointerleave', stopDrawing);
       mapGrid.addEventListener('pointerleave', () => {
         mapState.shiftPaintIndex = null;
+        endMapHistoryBatch();
       });
     };
 
@@ -4634,6 +4790,7 @@
       mapApplyButton?.addEventListener('click', () => {
         const width = clamp(Number.parseInt(mapWidthInput?.value, 10) || mapState.map.width, 4, 200);
         const height = clamp(Number.parseInt(mapHeightInput?.value, 10) || mapState.map.height, 4, 200);
+        if (width === mapState.map.width && height === mapState.map.height) return;
         resizeMap(width, height);
         if (mapWidthInput) mapWidthInput.value = String(mapState.map.width);
         if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
@@ -4715,6 +4872,9 @@
         mapState.randomizeRange = mapRandomizeRangeInput.value;
         scheduleMapSave();
       });
+
+      mapUndoButton?.addEventListener('click', undoMapHistory);
+      mapRedoButton?.addEventListener('click', redoMapHistory);
     };
 
     const buildMapPayload = () => ({
@@ -4866,6 +5026,9 @@
       reader.onload = () => {
         try {
           const payload = JSON.parse(String(reader.result || '{}'));
+          if (payload?.map && Array.isArray(payload.assets)) {
+            pushMapHistorySnapshot();
+          }
           applyMapPayload(payload);
         } catch (error) {
           // Ignore invalid JSON.
@@ -4897,17 +5060,40 @@
     bindMapGrid();
     bindMapControls();
     updateRandomizeControls();
+    updateMapUndoRedoControls();
 
     const handleShiftKey = (event) => {
       if (event.key !== 'Shift') return;
       mapState.shiftPaint = event.type === 'keydown';
       if (!mapState.shiftPaint) {
         mapState.shiftPaintIndex = null;
+        endMapHistoryBatch();
+      }
+    };
+
+    const handleMapUndoRedo = (event) => {
+      const target = event.target;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
+        return;
+      }
+      const platform = navigator.platform || '';
+      const isMac = /mac/i.test(platform);
+      const modKey = isMac ? event.metaKey : event.ctrlKey;
+      if (!modKey) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        undoMapHistory();
+      } else if (key === 'y' || (key === 'z' && event.shiftKey)) {
+        event.preventDefault();
+        redoMapHistory();
       }
     };
 
     window.addEventListener('keydown', handleShiftKey);
     window.addEventListener('keyup', handleShiftKey);
+    window.addEventListener('keydown', handleMapUndoRedo);
+    window.addEventListener('blur', endMapHistoryBatch);
 
     addAssetButton?.addEventListener('click', () => {
       createAsset();

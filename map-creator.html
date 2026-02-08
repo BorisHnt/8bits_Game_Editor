@@ -168,24 +168,28 @@
             <div class="map-control-group">
               <label class="panel-label" data-i18n="map.data">Data</label>
               <div class="map-toggle">
+                <button class="button-secondary" type="button" id="map-undo" data-i18n="map.undo">Undo</button>
+                <button class="button-secondary" type="button" id="map-redo" data-i18n="map.redo">Redo</button>
                 <button class="button-secondary" type="button" id="map-export" data-i18n="map.exportJson">Export JSON</button>
                 <button class="button-secondary" type="button" id="map-import" data-i18n="map.importJson">Import JSON</button>
                 <input class="map-file-input" type="file" id="map-import-file" accept=".json" />
               </div>
             </div>
           </div>
-          <div class="map-control-group">
-            <label class="panel-label" data-i18n="map.mapSize">Map Size</label>
-            <div class="grid-inputs">
-              <input class="grid-size-input" type="number" id="map-width" min="4" max="200" value="50" aria-label="Map width" />
-              <span class="grid-separator">x</span>
-              <input class="grid-size-input" type="number" id="map-height" min="4" max="200" value="50" aria-label="Map height" />
-              <button class="button-secondary" type="button" id="apply-map-size" data-i18n="panel.gridApply">Apply</button>
+          <div class="map-control-row map-control-row-2">
+            <div class="map-control-group">
+              <label class="panel-label" data-i18n="map.mapSize">Map Size</label>
+              <div class="grid-inputs">
+                <input class="grid-size-input" type="number" id="map-width" min="4" max="200" value="50" aria-label="Map width" />
+                <span class="grid-separator">x</span>
+                <input class="grid-size-input" type="number" id="map-height" min="4" max="200" value="50" aria-label="Map height" />
+                <button class="button-secondary" type="button" id="apply-map-size" data-i18n="panel.gridApply">Apply</button>
+              </div>
             </div>
-          </div>
-          <div class="map-control-group">
-            <label class="panel-label" for="map-cell-size" data-i18n="map.cellSize">Cell Size</label>
-            <input type="range" id="map-cell-size" min="10" max="32" value="16" />
+            <div class="map-control-group">
+              <label class="panel-label" for="map-cell-size" data-i18n="map.cellSize">Cell Size</label>
+              <input type="range" id="map-cell-size" min="10" max="32" value="16" />
+            </div>
           </div>
           <div class="map-control-row">
             <div class="map-control-group">
