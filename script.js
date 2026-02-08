@@ -4802,6 +4802,7 @@
       endMapHistoryBatch();
 
       let changed = false;
+      const previousMode = mapState.mode;
       const width = mapState.map.width;
       for (let index = 0; index < mapState.map.cells.length; index += 1) {
         const cell = mapState.map.cells[index];
@@ -4822,7 +4823,20 @@
         cell.spriteIndex = displayedSpriteIndex;
       }
 
-      if (!changed) return;
+      const nextMode = previousMode === 'manual' ? 'auto' : 'manual';
+      if (nextMode !== previousMode) {
+        if (!changed) {
+          ensureMapHistorySnapshot();
+        }
+        mapState.mode = nextMode;
+      }
+
+      qsa('[data-map-mode]').forEach((button) => {
+        const buttonMode = button.dataset.mapMode || 'manual';
+        button.classList.toggle('is-active', buttonMode === mapState.mode);
+      });
+
+      if (!changed && mapState.mode === previousMode) return;
       renderMapGrid();
       scheduleMapSave();
     };
