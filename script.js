@@ -3200,11 +3200,7 @@
       const seed = Math.abs((((x + 1) * 73856093) ^ ((y + 1) * 19349663)) >>> 0);
       return `center-${(seed % 4) + 1}`;
     }
-    if (state.wallMode !== 'x13') return tileId;
-    if (tileId !== 'center') return tileId;
-    const seed = Math.abs((((x + 1) * 73856093) ^ ((y + 1) * 19349663)) >>> 0);
-    const variants = ['center', 'variant-1', 'variant-2', 'variant-3'];
-    return variants[seed % variants.length];
+    return tileId;
   };
 
   const renderWallPaintGrid = () => {
