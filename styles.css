@@ -1995,8 +1995,8 @@ svg {
 }
 
 .tester-canvas {
-  width: 1200px;
-  height: 1200px;
+  width: 800px;
+  height: 800px;
   image-rendering: pixelated;
 }
 
