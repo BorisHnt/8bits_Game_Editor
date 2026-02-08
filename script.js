@@ -60,10 +60,13 @@
       'panel.copyMode': 'Copy workflow',
       'panel.copySelection': 'Copy',
       'panel.copySetOrigin': 'Set origin',
+      'panel.copyRotateLeft': 'Rotate -90',
+      'panel.copyRotateRight': 'Rotate +90',
       'panel.copyPaste': 'Paste',
       'panel.copyReset': 'Reset',
       'panel.copyStatusInactive': 'Activate Copy Mode to start.',
       'panel.copyStatusSelect': 'Drag to select pixels, then press Copy.',
+      'panel.copyStatusSquare': 'Rotation needs a square selection.',
       'panel.copyStatusReady': 'Selection copied. Pick an origin pixel.',
       'panel.copyStatusOrigin': 'Click a pixel to set top-left origin.',
       'panel.copyStatusPaste': 'Origin selected. Press Paste.',
@@ -298,10 +301,13 @@
       'panel.copyMode': 'Workflow copie',
       'panel.copySelection': 'Copier',
       'panel.copySetOrigin': 'Choisir origine',
+      'panel.copyRotateLeft': 'Rotation -90',
+      'panel.copyRotateRight': 'Rotation +90',
       'panel.copyPaste': 'Coller',
       'panel.copyReset': 'Reset',
       'panel.copyStatusInactive': 'Activez le mode copie pour commencer.',
       'panel.copyStatusSelect': 'Glissez pour selectionner, puis cliquez sur Copier.',
+      'panel.copyStatusSquare': 'La rotation demande une selection carree.',
       'panel.copyStatusReady': "Selection copiee. Choisissez un pixel d'origine.",
       'panel.copyStatusOrigin': "Cliquez un pixel pour l'origine haut-gauche.",
       'panel.copyStatusPaste': "Origine choisie. Cliquez sur Coller.",
@@ -1460,6 +1466,20 @@
     }
   };
 
+  const getCopySelectionDimensions = () => {
+    if (!copyModeState.selection) return null;
+    const { minRow, maxRow, minCol, maxCol } = copyModeState.selection;
+    return {
+      width: maxCol - minCol + 1,
+      height: maxRow - minRow + 1
+    };
+  };
+
+  const hasSquareCopySelection = () => {
+    const dimensions = getCopySelectionDimensions();
+    return Boolean(dimensions && dimensions.width === dimensions.height);
+  };
+
   const getCopyStatusText = () => {
     const getText = (key, fallback) => translations[currentLanguage]?.[key] ?? fallback;
     if (activeTool !== 'copy') {
@@ -1470,6 +1490,9 @@
     }
     if (!copyModeState.selection) {
       return getText('panel.copyStatusSelect', 'Drag to select pixels, then press Copy.');
+    }
+    if (!hasSquareCopySelection()) {
+      return getText('panel.copyStatusSquare', 'Rotation needs a square selection.');
     }
     if (!copyModeState.copied) {
       return getText('panel.copyStatusSelect', 'Drag to select pixels, then press Copy.');
@@ -1489,6 +1512,8 @@
     const canvas = qs('#pixel-canvas');
     const copySelectionButton = qs('#copy-selection');
     const setOriginButton = qs('#copy-set-origin');
+    const rotateLeftButton = qs('#copy-rotate-left');
+    const rotateRightButton = qs('#copy-rotate-right');
     const pasteButton = qs('#copy-paste');
     const resetButton = qs('#copy-reset');
     const status = qs('#copy-status');
@@ -1504,6 +1529,12 @@
     }
     if (setOriginButton) {
       setOriginButton.disabled = activeTool !== 'copy' || !copyModeState.copied;
+    }
+    if (rotateLeftButton) {
+      rotateLeftButton.disabled = activeTool !== 'copy' || !hasSquareCopySelection();
+    }
+    if (rotateRightButton) {
+      rotateRightButton.disabled = activeTool !== 'copy' || !hasSquareCopySelection();
     }
     if (pasteButton) {
       pasteButton.disabled = activeTool !== 'copy' || !copyModeState.copied || copyModeState.originIndex === null;
@@ -1796,9 +1827,11 @@
   const bindCopyModeControls = () => {
     const copySelectionButton = qs('#copy-selection');
     const setOriginButton = qs('#copy-set-origin');
+    const rotateLeftButton = qs('#copy-rotate-left');
+    const rotateRightButton = qs('#copy-rotate-right');
     const pasteButton = qs('#copy-paste');
     const resetButton = qs('#copy-reset');
-    if (!copySelectionButton && !setOriginButton && !pasteButton && !resetButton) return;
+    if (!copySelectionButton && !setOriginButton && !rotateLeftButton && !rotateRightButton && !pasteButton && !resetButton) return;
 
     copySelectionButton?.addEventListener('click', () => {
       if (activeTool !== 'copy' || !copyModeState.selection) return;
@@ -1830,6 +1863,53 @@
       copyModeState.awaitingOrigin = true;
       copyModeState.originIndex = null;
       renderCopyModeState();
+    });
+
+    const rotateSelection = (clockwise) => {
+      if (activeTool !== 'copy' || !copyModeState.selection || !hasSquareCopySelection()) return;
+      const pixels = getActivePixels();
+      if (!pixels) return;
+      const { minRow, maxRow, minCol, maxCol } = copyModeState.selection;
+      const size = maxCol - minCol + 1;
+      const source = [];
+
+      for (let row = minRow; row <= maxRow; row += 1) {
+        for (let col = minCol; col <= maxCol; col += 1) {
+          source.push(pixels[row * state.grid.width + col] ?? null);
+        }
+      }
+
+      let changed = false;
+      for (let row = 0; row < size; row += 1) {
+        for (let col = 0; col < size; col += 1) {
+          const targetIndex = (minRow + row) * state.grid.width + (minCol + col);
+          const sourceRow = clockwise ? size - 1 - col : col;
+          const sourceCol = clockwise ? row : size - 1 - row;
+          const sourceIndex = sourceRow * size + sourceCol;
+          const nextColor = source[sourceIndex] ?? null;
+          if (pixels[targetIndex] === nextColor) continue;
+          if (!changed) {
+            ensureHistorySnapshot();
+          }
+          changed = true;
+          pixels[targetIndex] = nextColor;
+          setCellColor(pixelCells[targetIndex], nextColor);
+        }
+      }
+
+      if (!changed) return;
+      renderFrameThumbnail(state.activeFrameIndex);
+      renderWallTileThumbnail(state.activeWallTileIndex);
+      renderPreviews();
+      scheduleCacheSave();
+    };
+
+    rotateLeftButton?.addEventListener('click', () => {
+      rotateSelection(false);
+    });
+
+    rotateRightButton?.addEventListener('click', () => {
+      rotateSelection(true);
     });
 
     pasteButton?.addEventListener('click', () => {
