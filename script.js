@@ -4459,37 +4459,6 @@
         colorField.appendChild(colorLabel);
         colorField.appendChild(colorInput);
 
-        const paletteColorField = document.createElement('div');
-        paletteColorField.className = 'asset-field';
-        const paletteColorLabel = document.createElement('label');
-        paletteColorLabel.className = 'panel-label';
-        paletteColorLabel.textContent = getText('map.colorPalette', 'Color palette');
-        const paletteColorSelect = document.createElement('select');
-        paletteColorSelect.className = 'asset-select';
-        const paletteColors = getAssetPaletteColors();
-        const normalizedAssetColor = String(asset.color || '').toLowerCase();
-        if (normalizedAssetColor && !paletteColors.some((entry) => entry.value === normalizedAssetColor)) {
-          const customOption = document.createElement('option');
-          customOption.value = normalizedAssetColor;
-          customOption.dataset.customColor = 'true';
-          customOption.textContent = `Custom (${normalizedAssetColor})`;
-          paletteColorSelect.appendChild(customOption);
-        }
-        paletteColors.forEach((entry, index) => {
-          const option = document.createElement('option');
-          option.value = entry.value;
-          option.textContent = `${index + 1}. ${entry.label}`;
-          paletteColorSelect.appendChild(option);
-        });
-        if (!asset.color && paletteColors.length) {
-          asset.color = paletteColors[0].value;
-        }
-        if (asset.color) {
-          paletteColorSelect.value = String(asset.color).toLowerCase();
-        }
-        paletteColorField.appendChild(paletteColorLabel);
-        paletteColorField.appendChild(paletteColorSelect);
-
         const numberField = document.createElement('div');
         numberField.className = 'asset-field';
         const numberLabel = document.createElement('label');
@@ -4627,7 +4596,6 @@
         row.appendChild(uploadField);
         row.appendChild(nameField);
         row.appendChild(colorField);
-        row.appendChild(paletteColorField);
         row.appendChild(numberField);
         row.appendChild(configField);
         row.appendChild(sizeField);
@@ -4666,29 +4634,6 @@
 
         colorInput.addEventListener('input', () => {
           asset.color = colorInput.value.toLowerCase();
-          const hasOption = Array.from(paletteColorSelect.options).some((option) => option.value === asset.color);
-          if (hasOption) {
-            paletteColorSelect.value = asset.color;
-          } else {
-            let customOption = paletteColorSelect.querySelector('option[data-custom-color="true"]');
-            if (!customOption) {
-              customOption = document.createElement('option');
-              customOption.dataset.customColor = 'true';
-              paletteColorSelect.prepend(customOption);
-            }
-            customOption.value = asset.color;
-            customOption.textContent = `Custom (${asset.color})`;
-            paletteColorSelect.value = asset.color;
-          }
-          renderMapGrid();
-          scheduleMapSave();
-        });
-
-        paletteColorSelect.addEventListener('change', () => {
-          asset.color = paletteColorSelect.value;
-          if (/^#[0-9a-f]{6}$/i.test(asset.color)) {
-            colorInput.value = asset.color;
-          }
           renderMapGrid();
           scheduleMapSave();
         });
