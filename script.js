@@ -706,9 +706,6 @@
   const wallTileSets = {
     x13: [
       { id: 'center', label: 'Center' },
-      { id: 'variant-1', label: 'Variant 1' },
-      { id: 'variant-2', label: 'Variant 2' },
-      { id: 'variant-3', label: 'Variant 3' },
       { id: 'edge-top', label: 'Edge Top' },
       { id: 'edge-bottom', label: 'Edge Bottom' },
       { id: 'edge-left', label: 'Edge Left' },
@@ -720,7 +717,10 @@
       { id: 'corner-in-top-left', label: 'Inner Corner Top Left' },
       { id: 'corner-in-top-right', label: 'Inner Corner Top Right' },
       { id: 'corner-in-bottom-left', label: 'Inner Corner Bottom Left' },
-      { id: 'corner-in-bottom-right', label: 'Inner Corner Bottom Right' }
+      { id: 'corner-in-bottom-right', label: 'Inner Corner Bottom Right' },
+      { id: 'variant-1', label: 'Variant 1' },
+      { id: 'variant-2', label: 'Variant 2' },
+      { id: 'variant-3', label: 'Variant 3' }
     ],
     x47: [
       { id: 'center', label: 'Center' },
