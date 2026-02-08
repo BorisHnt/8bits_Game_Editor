@@ -511,6 +511,8 @@
     originIndex: null,
     awaitingOrigin: false
   };
+  const sharedClipboardStorageKey = '8bits-shared-pixel-clipboard-v1';
+  let sharedClipboard = null;
 
   const state = {
     grid: {
@@ -1138,6 +1140,65 @@
   }
 
   const getDesignerKey = () => document.body.dataset.designer || 'tiles';
+  const loadSharedClipboard = () => {
+    if (sharedClipboard) return sharedClipboard;
+    try {
+      const raw = localStorage.getItem(sharedClipboardStorageKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.pixels)) return null;
+      const width = Number.parseInt(parsed.width, 10);
+      const height = Number.parseInt(parsed.height, 10);
+      if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+      if (parsed.pixels.length !== width * height) return null;
+      sharedClipboard = {
+        version: 1,
+        source: String(parsed.source || 'unknown'),
+        width,
+        height,
+        pixels: parsed.pixels.map((value) => (typeof value === 'string' ? value : null)),
+        copiedAt: Number(parsed.copiedAt) || Date.now()
+      };
+      return sharedClipboard;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const saveSharedClipboard = (copied) => {
+    if (!copied || !Array.isArray(copied.pixels)) return;
+    const width = Number.parseInt(copied.width, 10);
+    const height = Number.parseInt(copied.height, 10);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+    if (copied.pixels.length !== width * height) return;
+    sharedClipboard = {
+      version: 1,
+      source: getDesignerKey(),
+      width,
+      height,
+      pixels: copied.pixels.map((value) => (typeof value === 'string' ? value : null)),
+      copiedAt: Date.now()
+    };
+    try {
+      localStorage.setItem(sharedClipboardStorageKey, JSON.stringify(sharedClipboard));
+    } catch (error) {
+      // Ignore storage errors.
+    }
+  };
+
+  const getAvailableCopiedData = () => {
+    if (copyModeState.copied) {
+      return copyModeState.copied;
+    }
+    const clipboard = loadSharedClipboard();
+    if (!clipboard) return null;
+    return {
+      width: clipboard.width,
+      height: clipboard.height,
+      pixels: clipboard.pixels
+    };
+  };
+
   const getCacheKey = () => `8bits-editor:${getDesignerKey()}`;
   let cacheTimer = null;
 
@@ -1440,7 +1501,7 @@
     return state.frames[state.activeFrameIndex]?.pixels;
   };
 
-  const isTilesDesigner = () => document.body.dataset.designer === 'tiles';
+  const isGraphicDesigner = () => document.body.classList.contains('page-graphic-assets');
 
   const getCopySelectionRect = (indexA, indexB) => {
     const width = state.grid.width;
@@ -1482,6 +1543,7 @@
 
   const getCopyStatusText = () => {
     const getText = (key, fallback) => translations[currentLanguage]?.[key] ?? fallback;
+    const availableCopied = getAvailableCopiedData();
     if (activeTool !== 'copy') {
       return getText('panel.copyStatusInactive', 'Activate Copy Mode to start.');
     }
@@ -1489,12 +1551,15 @@
       return getText('panel.copyStatusOrigin', 'Click a pixel to set top-left origin.');
     }
     if (!copyModeState.selection) {
+      if (availableCopied) {
+        return getText('panel.copyStatusReady', 'Selection copied. Pick an origin pixel.');
+      }
       return getText('panel.copyStatusSelect', 'Drag to select pixels, then press Copy.');
     }
     if (!hasSquareCopySelection()) {
       return getText('panel.copyStatusSquare', 'Rotation needs a square selection.');
     }
-    if (!copyModeState.copied) {
+    if (!availableCopied) {
       return getText('panel.copyStatusSelect', 'Drag to select pixels, then press Copy.');
     }
     if (copyModeState.originIndex === null) {
@@ -1517,8 +1582,9 @@
     const pasteButton = qs('#copy-paste');
     const resetButton = qs('#copy-reset');
     const status = qs('#copy-status');
+    const availableCopied = getAvailableCopiedData();
 
-    panel.classList.toggle('is-hidden', !isTilesDesigner());
+    panel.classList.toggle('is-hidden', !isGraphicDesigner());
 
     if (status) {
       status.textContent = getCopyStatusText();
@@ -1528,7 +1594,7 @@
       copySelectionButton.disabled = activeTool !== 'copy' || !copyModeState.selection;
     }
     if (setOriginButton) {
-      setOriginButton.disabled = activeTool !== 'copy' || !copyModeState.copied;
+      setOriginButton.disabled = activeTool !== 'copy' || !availableCopied;
     }
     if (rotateLeftButton) {
       rotateLeftButton.disabled = activeTool !== 'copy' || !hasSquareCopySelection();
@@ -1537,7 +1603,7 @@
       rotateRightButton.disabled = activeTool !== 'copy' || !hasSquareCopySelection();
     }
     if (pasteButton) {
-      pasteButton.disabled = activeTool !== 'copy' || !copyModeState.copied || copyModeState.originIndex === null;
+      pasteButton.disabled = activeTool !== 'copy' || !availableCopied || copyModeState.originIndex === null;
     }
     if (resetButton) {
       const hasState = Boolean(copyModeState.selection || copyModeState.copied || copyModeState.awaitingOrigin || copyModeState.originIndex !== null);
@@ -1709,7 +1775,7 @@
       event.preventDefault();
       isDrawing = true;
       canvas.setPointerCapture(event.pointerId);
-      if (activeTool === 'copy' && isTilesDesigner()) {
+      if (activeTool === 'copy' && isGraphicDesigner()) {
         const index = Number(cell.dataset.index);
         if (Number.isNaN(index)) return;
         if (copyModeState.awaitingOrigin) {
@@ -1733,7 +1799,7 @@
     const handlePointerMove = (event) => {
       const cell = resolveCellFromEvent(event);
       if (!cell) return;
-      if (activeTool === 'copy' && isTilesDesigner()) {
+      if (activeTool === 'copy' && isGraphicDesigner()) {
         if (!isDrawing || copyModeState.awaitingOrigin || copyModeState.startIndex === null) return;
         const index = Number(cell.dataset.index);
         if (Number.isNaN(index)) return;
@@ -1853,13 +1919,22 @@
         height,
         pixels: data
       };
+      saveSharedClipboard(copyModeState.copied);
       copyModeState.originIndex = null;
       copyModeState.awaitingOrigin = false;
       renderCopyModeState();
     });
 
     setOriginButton?.addEventListener('click', () => {
-      if (activeTool !== 'copy' || !copyModeState.copied) return;
+      const availableCopied = getAvailableCopiedData();
+      if (activeTool !== 'copy' || !availableCopied) return;
+      if (!copyModeState.copied) {
+        copyModeState.copied = {
+          width: availableCopied.width,
+          height: availableCopied.height,
+          pixels: availableCopied.pixels.slice()
+        };
+      }
       copyModeState.awaitingOrigin = true;
       copyModeState.originIndex = null;
       renderCopyModeState();
@@ -1913,13 +1988,14 @@
     });
 
     pasteButton?.addEventListener('click', () => {
-      if (activeTool !== 'copy' || !copyModeState.copied || copyModeState.originIndex === null) return;
+      const availableCopied = getAvailableCopiedData();
+      if (activeTool !== 'copy' || !availableCopied || copyModeState.originIndex === null) return;
       const pixels = getActivePixels();
       if (!pixels) return;
 
       const originRow = Math.floor(copyModeState.originIndex / state.grid.width);
       const originCol = copyModeState.originIndex % state.grid.width;
-      const { width, height, pixels: copiedPixels } = copyModeState.copied;
+      const { width, height, pixels: copiedPixels } = availableCopied;
 
       let changed = false;
 

@@ -160,11 +160,33 @@
             </span>
             <span class="tool-label" data-i18n="tool.fill">Fill Bucket</span>
           </button>
+          <button class="tool-selector-button" data-tool="copy">
+            <span class="tool-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+                <rect x="4" y="4" width="11" height="11" rx="2"></rect>
+              </svg>
+            </span>
+            <span class="tool-label" data-i18n="tool.copy">Copy Mode</span>
+          </button>
         </div>
         <div class="panel-divider"></div>
         <div class="tool-info">
           <p class="panel-label" data-i18n="panel.activeTool">Active Tool</p>
           <p class="panel-value" id="active-tool-label">Pencil</p>
+        </div>
+        <div class="panel-divider"></div>
+        <div class="copy-mode-panel" id="copy-mode-panel">
+          <p class="panel-label" data-i18n="panel.copyMode">Copy workflow</p>
+          <p class="copy-mode-status" id="copy-status">Inactive</p>
+          <div class="copy-mode-actions">
+            <button class="button-secondary" type="button" id="copy-selection" data-i18n="panel.copySelection">Copy</button>
+            <button class="button-secondary" type="button" id="copy-set-origin" data-i18n="panel.copySetOrigin">Set origin</button>
+            <button class="button-secondary" type="button" id="copy-rotate-left" data-i18n="panel.copyRotateLeft">Rotate -90</button>
+            <button class="button-secondary" type="button" id="copy-rotate-right" data-i18n="panel.copyRotateRight">Rotate +90</button>
+            <button class="button-secondary" type="button" id="copy-paste" data-i18n="panel.copyPaste">Paste</button>
+            <button class="button-secondary" type="button" id="copy-reset" data-i18n="panel.copyReset">Reset</button>
+          </div>
         </div>
       </aside>
 
