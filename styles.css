@@ -539,6 +539,14 @@ svg {
   line-height: 1.35;
 }
 
+.copy-selection-size {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 0.74rem;
+  line-height: 1.3;
+  font-family: "Syne Mono", monospace;
+}
+
 .copy-mode-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;

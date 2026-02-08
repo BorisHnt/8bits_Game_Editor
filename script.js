@@ -64,6 +64,8 @@
       'panel.copyRotateRight': 'Rotate +90',
       'panel.copyPaste': 'Paste',
       'panel.copyReset': 'Reset',
+      'panel.copySelectionSize': 'Selection',
+      'panel.copySelectionSizeNone': 'No selection',
       'panel.copyStatusInactive': 'Activate Copy Mode to start.',
       'panel.copyStatusSelect': 'Drag to select pixels, then press Copy.',
       'panel.copyStatusSquare': 'Rotation needs a square selection.',
@@ -305,6 +307,8 @@
       'panel.copyRotateRight': 'Rotation +90',
       'panel.copyPaste': 'Coller',
       'panel.copyReset': 'Reset',
+      'panel.copySelectionSize': 'Selection',
+      'panel.copySelectionSizeNone': 'Aucune selection',
       'panel.copyStatusInactive': 'Activez le mode copie pour commencer.',
       'panel.copyStatusSelect': 'Glissez pour selectionner, puis cliquez sur Copier.',
       'panel.copyStatusSquare': 'La rotation demande une selection carree.',
@@ -1582,12 +1586,23 @@
     const pasteButton = qs('#copy-paste');
     const resetButton = qs('#copy-reset');
     const status = qs('#copy-status');
+    const selectionSize = qs('#copy-selection-size');
     const availableCopied = getAvailableCopiedData();
 
     panel.classList.toggle('is-hidden', !isGraphicDesigner());
 
     if (status) {
       status.textContent = getCopyStatusText();
+    }
+
+    if (selectionSize) {
+      const getText = (key, fallback) => translations[currentLanguage]?.[key] ?? fallback;
+      const dimensions = getCopySelectionDimensions();
+      if (!dimensions) {
+        selectionSize.textContent = getText('panel.copySelectionSizeNone', 'No selection');
+      } else {
+        selectionSize.textContent = `${getText('panel.copySelectionSize', 'Selection')}: ${dimensions.width} x ${dimensions.height} px`;
+      }
     }
 
     if (copySelectionButton) {
