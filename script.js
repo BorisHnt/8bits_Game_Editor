@@ -130,7 +130,7 @@
       'panel.wallPaint': 'Wall Paint Grid',
       'panel.wallResult': 'Rendered Walls',
       'panel.wallMode': 'Wall Mode',
-      'panel.wallMode13': 'Mode x13 (Minimal)',
+      'panel.wallMode13': 'Mode x13+3 (Minimal)',
       'panel.wallMode47': 'Mode x47 (RPG / Advanced)',
       'panel.wallRandom': 'Random Map',
       'panel.wallRandomButton': 'Generate',
@@ -158,7 +158,7 @@
       'map.cellSize': 'Cell Size',
       'map.mode': 'Mode',
       'map.modeManual': 'Manual',
-      'map.modeAuto': 'Auto (x13)',
+      'map.modeAuto': 'Auto',
       'map.modeSwitch': 'Switch',
       'map.tool': 'Tool',
       'map.toolPencil': 'Pencil',
@@ -385,7 +385,7 @@
       'panel.wallPaint': 'Grille de peinture',
       'panel.wallResult': 'Rendu des murs',
       'panel.wallMode': 'Mode de mur',
-      'panel.wallMode13': 'Mode x13 (Minimal)',
+      'panel.wallMode13': 'Mode x13+3 (Minimal)',
       'panel.wallMode47': 'Mode x47 (RPG / Avancé)',
       'panel.wallRandom': 'Carte aléatoire',
       'panel.wallRandomButton': 'Générer',
@@ -413,7 +413,7 @@
       'map.cellSize': 'Taille de cellule',
       'map.mode': 'Mode',
       'map.modeManual': 'Manuel',
-      'map.modeAuto': 'Auto (x13)',
+      'map.modeAuto': 'Auto',
       'map.modeSwitch': 'Switch',
       'map.tool': 'Outil',
       'map.toolPencil': 'Crayon',
@@ -706,6 +706,9 @@
   const wallTileSets = {
     x13: [
       { id: 'center', label: 'Center' },
+      { id: 'variant-1', label: 'Variant 1' },
+      { id: 'variant-2', label: 'Variant 2' },
+      { id: 'variant-3', label: 'Variant 3' },
       { id: 'edge-top', label: 'Edge Top' },
       { id: 'edge-bottom', label: 'Edge Bottom' },
       { id: 'edge-left', label: 'Edge Left' },
@@ -3191,11 +3194,17 @@
     return getHoleTileIdX47(neighbors);
   };
 
-  const resolveFloorCenterTileId = (tileId, x, y) => {
-    if (!isFloorDesigner()) return tileId;
-    if (tileId !== 'center' && tileId !== 'center-alt') return tileId;
+  const resolveRenderedWallTileId = (tileId, x, y) => {
+    if (isFloorDesigner()) {
+      if (tileId !== 'center' && tileId !== 'center-alt') return tileId;
+      const seed = Math.abs((((x + 1) * 73856093) ^ ((y + 1) * 19349663)) >>> 0);
+      return `center-${(seed % 4) + 1}`;
+    }
+    if (state.wallMode !== 'x13') return tileId;
+    if (tileId !== 'center') return tileId;
     const seed = Math.abs((((x + 1) * 73856093) ^ ((y + 1) * 19349663)) >>> 0);
-    return `center-${(seed % 4) + 1}`;
+    const variants = ['center', 'variant-1', 'variant-2', 'variant-3'];
+    return variants[seed % variants.length];
   };
 
   const renderWallPaintGrid = () => {
@@ -3271,7 +3280,7 @@
         const isWallCell = cells[y * width + x] === 1;
         const rawTileId = isWallCell ? getWallTileId(x, y) : getHoleTileId(x, y);
         if (!rawTileId) continue;
-        const tileId = resolveFloorCenterTileId(rawTileId, x, y);
+        const tileId = resolveRenderedWallTileId(rawTileId, x, y);
         const tile = tileMap.get(tileId);
         if (!tile) continue;
 
