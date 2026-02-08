@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>8bits Game Editor — Tiles Designer</title>
+  <title>8bits Game Editor — Floor Designer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="page-graphic-assets" data-designer="tiles">
+<body class="page-graphic-assets" data-designer="floor">
   <header class="navigation-bar-sticky">
     <div class="navigation-bar-inner">
       <a class="brand-lockup" href="index.html" aria-label="8bits Game Editor home">
@@ -124,7 +124,7 @@
   <main class="workspace-page">
     <section class="workspace-header">
       <div>
-        <h1 class="workspace-title" data-i18n="workspace.titleTiles">Tiles Designer</h1>
+        <h1 class="workspace-title" data-i18n="workspace.titleFloor">Floor Designer</h1>
         <p class="workspace-subtitle" data-i18n="workspace.subtitle">Pixel editor workspace for sprites, tiles, and texture systems.</p>
       </div>
     </section>
@@ -199,6 +199,19 @@
           </div>
           <p class="copy-selection-size" id="copy-selection-size" data-i18n="panel.copySelectionSizeNone">No selection</p>
         </div>
+        <div class="panel-divider"></div>
+        <div class="wall-tiles-panel" id="wall-tiles-panel">
+          <h2 class="panel-title" data-i18n="panel.wallTiles">Wall Tiles</h2>
+          <p class="panel-subtitle" data-i18n="panel.wallTilesSubtitle">Select a wall segment to edit.</p>
+          <div class="wall-mode-controls">
+            <label class="panel-label" for="wall-mode" data-i18n="panel.wallMode">Wall Mode</label>
+            <select class="wall-mode-select" id="wall-mode" aria-label="Wall mode">
+              <option value="x13" data-i18n="panel.wallMode13">Mode x13 (Minimal)</option>
+              <option value="x47" data-i18n="panel.wallMode47">Mode x47 (RPG / Advanced)</option>
+            </select>
+          </div>
+          <div class="wall-tiles-grid" id="wall-tiles-grid"></div>
+        </div>
       </aside>
 
       <div class="workspace-panel-center">
@@ -262,11 +275,12 @@
             <p class="panel-subtitle" data-i18n="panel.exportSubtitle">Ready for PNG output. Transparent background preserved.</p>
           </div>
           <div class="export-controls">
-            <input class="export-name-input" type="text" id="export-name" value="tile" aria-label="Export filename" />
+            <input class="export-name-input" type="text" id="export-name" value="wall-tile" aria-label="Export filename" />
             <div class="export-actions">
               <button class="button-primary" id="export-png" data-i18n="panel.exportButton">Export PNG</button>
               <button class="button-secondary" id="export-json" data-i18n="panel.exportJson">Export JSON</button>
               <button class="button-secondary" id="import-json" data-i18n="panel.importJson">Import JSON</button>
+              <button class="button-secondary" id="export-tiles-png" data-i18n="panel.exportTiles">Export Tiles PNG</button>
               <button class="button-secondary" id="clear-canvas" data-i18n="panel.clearCanvas">Clear Canvas</button>
               <input class="export-file-input" type="file" id="import-json-file" accept=".json" />
             </div>
@@ -276,37 +290,48 @@
 
       <aside class="workspace-panel-right">
         <div class="preview-header">
-          <h2 class="panel-title" data-i18n="panel.previewTilesTitle">Tiles Preview</h2>
+          <h2 class="panel-title" data-i18n="panel.previewWallsTitle">Walls Preview</h2>
         </div>
         <div class="preview-panel">
           <div class="preview-controls">
             <div class="preview-control-group">
-              <label class="panel-label" for="tiles-cols" data-i18n="panel.previewGrid">Grid</label>
+              <label class="panel-label" for="walls-cols" data-i18n="panel.wallGrid">Wall Grid</label>
               <div class="grid-inputs">
-                <input class="grid-size-input" type="number" id="tiles-cols" min="1" max="30" value="10" aria-label="Tile columns" />
+                <input class="grid-size-input" type="number" id="walls-cols" min="2" max="32" value="10" aria-label="Wall grid columns" />
                 <span class="grid-separator">x</span>
-                <input class="grid-size-input" type="number" id="tiles-rows" min="1" max="30" value="10" aria-label="Tile rows" />
-                <button class="button-secondary" type="button" id="tiles-apply" data-i18n="panel.previewApply">Apply</button>
+                <input class="grid-size-input" type="number" id="walls-rows" min="2" max="32" value="10" aria-label="Wall grid rows" />
+                <button class="button-secondary" type="button" id="walls-apply" data-i18n="panel.previewApply">Apply</button>
               </div>
+            </div>
+            <div class="preview-control-group">
+              <label class="panel-label" data-i18n="panel.wallRandom">Random Map</label>
+              <button class="button-secondary" type="button" id="walls-randomize" data-i18n="panel.wallRandomButton">Generate</button>
             </div>
             <div class="preview-control-group">
               <label class="panel-label" data-i18n="panel.previewOverlay">Overlay</label>
               <label class="toggle-switch">
-                <input type="checkbox" id="tiles-grid-toggle" checked />
+                <input type="checkbox" id="walls-grid-toggle" checked />
                 <span class="toggle-slider"></span>
               </label>
             </div>
             <div class="preview-control-group">
-              <label class="panel-label" for="tiles-zoom" data-i18n="panel.previewZoom">Zoom</label>
-              <input type="range" id="tiles-zoom" min="1" max="6" value="3" />
-            </div>
-            <div class="preview-control-group">
-              <label class="panel-label" for="tiles-bg" data-i18n="panel.previewBackground">Background</label>
-              <input class="color-input" type="color" id="tiles-bg" value="#050505" />
+              <label class="panel-label" for="walls-zoom" data-i18n="panel.previewZoom">Zoom</label>
+              <input type="range" id="walls-zoom" min="1" max="5" value="2" />
             </div>
           </div>
-          <div class="preview-canvas-wrapper">
-            <canvas class="preview-canvas" id="tiles-preview-canvas" width="420" height="420"></canvas>
+          <div class="preview-stack">
+            <div class="preview-stack-item">
+              <p class="panel-label" data-i18n="panel.wallPaint">Wall Paint Grid</p>
+              <div class="preview-canvas-wrapper">
+                <canvas class="preview-canvas" id="walls-paint-canvas" width="360" height="220"></canvas>
+              </div>
+            </div>
+            <div class="preview-stack-item">
+              <p class="panel-label" data-i18n="panel.wallResult">Rendered Walls</p>
+              <div class="preview-canvas-wrapper">
+                <canvas class="preview-canvas" id="walls-preview-canvas" width="360" height="220"></canvas>
+              </div>
+            </div>
           </div>
         </div>
       </aside>

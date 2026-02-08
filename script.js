@@ -6,6 +6,7 @@
       'title.tiles': '8bits Game Editor — Tiles Designer',
       'title.sprite': '8bits Game Editor — Sprite Designer',
       'title.walls': '8bits Game Editor — Walls Designer',
+      'title.floor': '8bits Game Editor — Floor Designer',
       'title.map': '8bits Game Editor — Map Creator',
       'title.world': '8bits Game Editor — World Creator',
       'title.tester': '8bits Game Editor — Map Tester',
@@ -13,6 +14,7 @@
       'nav.tiles': 'Tiles Designer',
       'nav.sprite': 'Sprite Designer',
       'nav.walls': 'Walls Designer',
+      'nav.floor': 'Floor Designer',
       'nav.map': 'Map Creator',
       'nav.world': 'World Creator',
       'nav.tester': 'Map Tester',
@@ -49,6 +51,7 @@
       'workspace.titleTiles': 'Tiles Designer',
       'workspace.titleSprite': 'Sprite Designer',
       'workspace.titleWalls': 'Walls Designer',
+      'workspace.titleFloor': 'Floor Designer',
       'workspace.subtitle': 'Pixel editor workspace for sprites, tiles, and texture systems.',
       'panel.tools': 'Tools',
       'tool.pencil': 'Pencil',
@@ -249,6 +252,7 @@
       'title.tiles': "8bits Game Editor — Design de tiles",
       'title.sprite': "8bits Game Editor — Design de sprites",
       'title.walls': "8bits Game Editor — Design de murs",
+      'title.floor': "8bits Game Editor — Design de sols",
       'title.map': "8bits Game Editor — Créateur de maps",
       'title.world': "8bits Game Editor — Créateur de monde",
       'title.tester': "8bits Game Editor — Map Tester",
@@ -256,6 +260,7 @@
       'nav.tiles': 'Designer Tiles',
       'nav.sprite': 'Designer Sprite',
       'nav.walls': 'Designer Murs',
+      'nav.floor': 'Designer Sols',
       'nav.map': 'Créateur de map',
       'nav.world': 'Créateur de monde',
       'nav.tester': 'Map Tester',
@@ -292,6 +297,7 @@
       'workspace.titleTiles': 'Designer Tiles',
       'workspace.titleSprite': 'Designer Sprite',
       'workspace.titleWalls': 'Designer Murs',
+      'workspace.titleFloor': 'Designer Sols',
       'workspace.subtitle': "Espace d'édition pixel pour sprites, tiles et systèmes de textures.",
       'panel.tools': 'Outils',
       'tool.pencil': 'Crayon',
@@ -746,7 +752,28 @@
     ]
   };
 
-  const getWallTileDefinitions = () => wallTileSets[state.wallMode] || wallTileSets.x13;
+  const buildFloorTileSet = (tiles) => {
+    const withoutCenter = tiles.filter((tile) => tile.id !== 'center' && tile.id !== 'center-alt');
+    return [
+      { id: 'center-1', label: 'Center 1' },
+      { id: 'center-2', label: 'Center 2' },
+      { id: 'center-3', label: 'Center 3' },
+      { id: 'center-4', label: 'Center 4' },
+      ...withoutCenter
+    ];
+  };
+
+  const floorTileSets = {
+    x13: buildFloorTileSet(wallTileSets.x13),
+    x47: buildFloorTileSet(wallTileSets.x47)
+  };
+
+  const isFloorDesigner = () => document.body.dataset.designer === 'floor';
+  const getDesignerWallTileSets = () => (isFloorDesigner() ? floorTileSets : wallTileSets);
+  const getWallTileDefinitions = () => {
+    const sets = getDesignerWallTileSets();
+    return sets[state.wallMode] || sets.x13;
+  };
 
   const paletteColors = [
     { name: 'Black', value: 'rgb(0,0,0)' },
@@ -2373,27 +2400,28 @@
   };
 
   const setPreviewMode = (mode) => {
-    state.preview.mode = mode;
+    const resolvedMode = mode === 'floor' ? 'walls' : mode;
+    state.preview.mode = resolvedMode;
     qsa('.preview-mode-tab').forEach((tab) => {
-      const isActive = tab.dataset.previewMode === mode;
+      const isActive = tab.dataset.previewMode === resolvedMode;
       tab.classList.toggle('is-active', isActive);
       tab.setAttribute('aria-selected', String(isActive));
     });
 
     qsa('.preview-mode-panel').forEach((panel) => {
-      panel.classList.toggle('is-active', panel.dataset.previewPanel === mode);
+      panel.classList.toggle('is-active', panel.dataset.previewPanel === resolvedMode);
     });
 
     const framesPanel = qs('#frames-panel');
     const wallTilesPanel = qs('#wall-tiles-panel');
     if (framesPanel) {
-      framesPanel.classList.toggle('is-hidden', mode !== 'sprite');
+      framesPanel.classList.toggle('is-hidden', resolvedMode !== 'sprite');
     }
     if (wallTilesPanel) {
-      wallTilesPanel.classList.toggle('is-hidden', mode !== 'walls');
+      wallTilesPanel.classList.toggle('is-hidden', resolvedMode !== 'walls');
     }
 
-    if (mode === 'sprite') {
+    if (resolvedMode === 'sprite') {
       state.preview.sprite.currentFrame = state.activeFrameIndex;
       startSpritePlayback();
     } else {
@@ -2701,7 +2729,10 @@
     if (Array.isArray(payload.wallTiles) && payload.wallTiles.length) {
       const tileMap = new Map(payload.wallTiles.map((tile) => [tile.id, tile]));
       state.wallTiles = wallDefinitions.map((definition) => {
-        const source = tileMap.get(definition.id);
+        let source = tileMap.get(definition.id);
+        if (!source && definition.id.startsWith('center-')) {
+          source = tileMap.get('center') || tileMap.get('center-alt');
+        }
         return {
           id: definition.id,
           label: definition.label,
@@ -3142,6 +3173,13 @@
     return getHoleTileIdX47(neighbors);
   };
 
+  const resolveFloorCenterTileId = (tileId, x, y) => {
+    if (!isFloorDesigner()) return tileId;
+    if (tileId !== 'center' && tileId !== 'center-alt') return tileId;
+    const seed = Math.abs((((x + 1) * 73856093) ^ ((y + 1) * 19349663)) >>> 0);
+    return `center-${(seed % 4) + 1}`;
+  };
+
   const renderWallPaintGrid = () => {
     const canvas = qs('#walls-paint-canvas');
     if (!canvas) return;
@@ -3213,8 +3251,9 @@
     for (let y = 0; y < height; y += 1) {
       for (let x = 0; x < width; x += 1) {
         const isWallCell = cells[y * width + x] === 1;
-        const tileId = isWallCell ? getWallTileId(x, y) : getHoleTileId(x, y);
-        if (!tileId) continue;
+        const rawTileId = isWallCell ? getWallTileId(x, y) : getHoleTileId(x, y);
+        if (!rawTileId) continue;
+        const tileId = resolveFloorCenterTileId(rawTileId, x, y);
         const tile = tileMap.get(tileId);
         if (!tile) continue;
 
@@ -3377,6 +3416,7 @@
       if (designer === 'tiles') pageTitleKey = 'title.tiles';
       if (designer === 'sprite') pageTitleKey = 'title.sprite';
       if (designer === 'walls') pageTitleKey = 'title.walls';
+      if (designer === 'floor') pageTitleKey = 'title.floor';
     }
     if (dictionary[pageTitleKey]) {
       document.title = dictionary[pageTitleKey];
