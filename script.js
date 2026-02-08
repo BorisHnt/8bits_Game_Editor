@@ -146,6 +146,9 @@
       'map.assets': 'Assets',
       'map.assetsSubtitle': 'Add images and configure sprite metadata.',
       'map.addAsset': 'Add Asset',
+      'map.colorPalette': 'Color palette',
+      'map.paletteStudio': 'Studio',
+      'map.paletteMaterial': 'Material',
       'map.importAsset': 'Import',
       'map.assetGrid': 'Asset Grid',
       'map.assetGridHint': 'Select an asset to preview its sprites.',
@@ -398,6 +401,9 @@
       'map.assets': 'Assets',
       'map.assetsSubtitle': 'Ajoutez des images et configurez les sprites.',
       'map.addAsset': 'Ajouter un asset',
+      'map.colorPalette': 'Palette de couleur',
+      'map.paletteStudio': 'Studio',
+      'map.paletteMaterial': 'Material',
       'map.importAsset': 'Importer',
       'map.assetGrid': 'Grille de sprites',
       'map.assetGridHint': 'Sélectionnez un asset pour afficher ses sprites.',
@@ -3529,6 +3535,7 @@
   const initMapCreator = () => {
     const assetList = qs('#asset-list');
     const assetTypeFilters = qs('#asset-type-filters');
+    const assetColorPaletteSelect = qs('#map-asset-color-palette');
     const assetGrid = qs('#asset-grid');
     const assetGridLabel = qs('#asset-grid-label');
     const addAssetButton = qs('#add-asset');
@@ -3559,6 +3566,7 @@
     const mapState = {
       assets: [],
       assetTypeFilter: 'all',
+      colorPaletteId: 'studio',
       selectedAssetId: null,
       selectedSpriteIndex: 1,
       mode: 'manual',
@@ -3816,31 +3824,47 @@
       sortAssetsByNumber();
     };
 
-    const hslToHex = (h, s, l) => {
-      const normalize = (value) => {
-        const v = Math.round(value * 255);
-        return v.toString(16).padStart(2, '0');
-      };
-      const sNorm = s / 100;
-      const lNorm = l / 100;
-      const c = (1 - Math.abs(2 * lNorm - 1)) * sNorm;
-      const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-      const m = lNorm - c / 2;
-      let r = 0;
-      let g = 0;
-      let b = 0;
-      if (h < 60) [r, g, b] = [c, x, 0];
-      else if (h < 120) [r, g, b] = [x, c, 0];
-      else if (h < 180) [r, g, b] = [0, c, x];
-      else if (h < 240) [r, g, b] = [0, x, c];
-      else if (h < 300) [r, g, b] = [x, 0, c];
-      else [r, g, b] = [c, 0, x];
-      return `#${normalize(r + m)}${normalize(g + m)}${normalize(b + m)}`;
+    const mapColorPalettes = {
+      studio: {
+        labelKey: 'map.paletteStudio',
+        fallback: 'Studio',
+        colors: studioPalette.map((entry) => ({
+          label: entry.label,
+          value: String(entry.value || '').toLowerCase()
+        })).filter((entry) => entry.value.startsWith('#'))
+      },
+      material: {
+        labelKey: 'map.paletteMaterial',
+        fallback: 'Material',
+        colors: materialPalette.map((entry) => ({
+          label: entry.label,
+          value: String(entry.value || '').toLowerCase()
+        })).filter((entry) => entry.value.startsWith('#'))
+      }
     };
 
+    const getAssetColorPalette = () => mapColorPalettes[mapState.colorPaletteId] || mapColorPalettes.studio;
+    const getAssetPaletteColors = () => getAssetColorPalette().colors;
+
     const getAssetColor = (number) => {
-      const hue = (number * 47) % 360;
-      return hslToHex(hue, 55, 38);
+      const colors = getAssetPaletteColors();
+      if (!colors.length) return '#2a2a2a';
+      const safeNumber = Number.parseInt(number, 10);
+      const index = Number.isFinite(safeNumber) && safeNumber > 0 ? safeNumber - 1 : 0;
+      return colors[index % colors.length].value;
+    };
+
+    const renderAssetColorPaletteSelect = () => {
+      if (!assetColorPaletteSelect) return;
+      const current = mapState.colorPaletteId;
+      assetColorPaletteSelect.innerHTML = '';
+      Object.entries(mapColorPalettes).forEach(([id, palette]) => {
+        const option = document.createElement('option');
+        option.value = id;
+        option.textContent = getText(palette.labelKey, palette.fallback);
+        if (id === current) option.selected = true;
+        assetColorPaletteSelect.appendChild(option);
+      });
     };
 
     const createAsset = () => {
@@ -3918,6 +3942,7 @@
       selectedSpriteIndex: mapState.selectedSpriteIndex,
       mode: mapState.mode,
       switchMode: mapState.switchMode,
+      colorPaletteId: mapState.colorPaletteId,
       tool: mapState.tool,
       markerMode: mapState.markerMode,
       randomize: mapState.randomize,
@@ -3969,6 +3994,7 @@
       mapState.selectedSpriteIndex = snapshot.selectedSpriteIndex || 1;
       mapState.mode = snapshot.mode || 'manual';
       mapState.switchMode = Boolean(snapshot.switchMode);
+      mapState.colorPaletteId = mapColorPalettes[snapshot.colorPaletteId] ? snapshot.colorPaletteId : 'studio';
       mapState.tool = snapshot.tool || 'pencil';
       mapState.markerMode = snapshot.markerMode || null;
       mapState.randomize = Boolean(snapshot.randomize);
@@ -3987,6 +4013,7 @@
       if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
       if (mapCellSize) mapCellSize.value = String(mapState.map.cellSize);
 
+      renderAssetColorPaletteSelect();
       updateMapModeButtons();
       updateMapInteractionControls();
       qsa('[data-map-view]').forEach((button) => {
@@ -4374,6 +4401,7 @@
     const renderAssetList = () => {
       assetList.innerHTML = '';
       normalizeAssetNumbers();
+      renderAssetColorPaletteSelect();
       renderAssetTypeFilters();
 
       const visibleAssets = getFilteredAssets();
@@ -4425,6 +4453,37 @@
         colorInput.value = asset.color || '#2a2a2a';
         colorField.appendChild(colorLabel);
         colorField.appendChild(colorInput);
+
+        const paletteColorField = document.createElement('div');
+        paletteColorField.className = 'asset-field';
+        const paletteColorLabel = document.createElement('label');
+        paletteColorLabel.className = 'panel-label';
+        paletteColorLabel.textContent = getText('map.colorPalette', 'Color palette');
+        const paletteColorSelect = document.createElement('select');
+        paletteColorSelect.className = 'asset-select';
+        const paletteColors = getAssetPaletteColors();
+        const normalizedAssetColor = String(asset.color || '').toLowerCase();
+        if (normalizedAssetColor && !paletteColors.some((entry) => entry.value === normalizedAssetColor)) {
+          const customOption = document.createElement('option');
+          customOption.value = normalizedAssetColor;
+          customOption.dataset.customColor = 'true';
+          customOption.textContent = `Custom (${normalizedAssetColor})`;
+          paletteColorSelect.appendChild(customOption);
+        }
+        paletteColors.forEach((entry, index) => {
+          const option = document.createElement('option');
+          option.value = entry.value;
+          option.textContent = `${index + 1}. ${entry.label}`;
+          paletteColorSelect.appendChild(option);
+        });
+        if (!asset.color && paletteColors.length) {
+          asset.color = paletteColors[0].value;
+        }
+        if (asset.color) {
+          paletteColorSelect.value = String(asset.color).toLowerCase();
+        }
+        paletteColorField.appendChild(paletteColorLabel);
+        paletteColorField.appendChild(paletteColorSelect);
 
         const numberField = document.createElement('div');
         numberField.className = 'asset-field';
@@ -4563,6 +4622,7 @@
         row.appendChild(uploadField);
         row.appendChild(nameField);
         row.appendChild(colorField);
+        row.appendChild(paletteColorField);
         row.appendChild(numberField);
         row.appendChild(configField);
         row.appendChild(sizeField);
@@ -4600,7 +4660,30 @@
         });
 
         colorInput.addEventListener('input', () => {
-          asset.color = colorInput.value;
+          asset.color = colorInput.value.toLowerCase();
+          const hasOption = Array.from(paletteColorSelect.options).some((option) => option.value === asset.color);
+          if (hasOption) {
+            paletteColorSelect.value = asset.color;
+          } else {
+            let customOption = paletteColorSelect.querySelector('option[data-custom-color="true"]');
+            if (!customOption) {
+              customOption = document.createElement('option');
+              customOption.dataset.customColor = 'true';
+              paletteColorSelect.prepend(customOption);
+            }
+            customOption.value = asset.color;
+            customOption.textContent = `Custom (${asset.color})`;
+            paletteColorSelect.value = asset.color;
+          }
+          renderMapGrid();
+          scheduleMapSave();
+        });
+
+        paletteColorSelect.addEventListener('change', () => {
+          asset.color = paletteColorSelect.value;
+          if (/^#[0-9a-f]{6}$/i.test(asset.color)) {
+            colorInput.value = asset.color;
+          }
           renderMapGrid();
           scheduleMapSave();
         });
@@ -5039,10 +5122,22 @@
 
       mapUndoButton?.addEventListener('click', undoMapHistory);
       mapRedoButton?.addEventListener('click', redoMapHistory);
+
+      assetColorPaletteSelect?.addEventListener('change', () => {
+        const nextPaletteId = String(assetColorPaletteSelect.value || '').toLowerCase();
+        if (!mapColorPalettes[nextPaletteId] || nextPaletteId === mapState.colorPaletteId) return;
+        ensureMapHistorySnapshot();
+        mapState.colorPaletteId = nextPaletteId;
+        renderAssetList();
+        renderAssetGrid();
+        renderMapGrid();
+        scheduleMapSave();
+      });
     };
 
     const buildMapPayload = () => ({
       version: 1,
+      assetColorPalette: mapState.colorPaletteId,
       assets: mapState.assets.map((asset) => ({
         name: asset.name,
         fileName: asset.fileName,
@@ -5062,6 +5157,7 @@
         width: mapState.map.width,
         height: mapState.map.height,
         cellSize: mapState.map.cellSize,
+        assetColorPalette: mapState.colorPaletteId,
         randomize: {
           enabled: mapState.randomize,
           range: mapState.randomizeRange
@@ -5081,6 +5177,12 @@
 
     const applyMapPayload = (payload) => {
       if (!payload?.map || !Array.isArray(payload.assets)) return;
+      const payloadColorPalette = String(
+        payload.assetColorPalette
+        || payload.map.assetColorPalette
+        || ''
+      ).toLowerCase();
+      mapState.colorPaletteId = mapColorPalettes[payloadColorPalette] ? payloadColorPalette : 'studio';
       mapState.assets = payload.assets.map((asset) => {
         const cols = clamp(Number.parseInt(asset.cols, 10) || 1, 1, 64);
         const rows = clamp(Number.parseInt(asset.rows, 10) || 1, 1, 64);

@@ -1327,6 +1327,13 @@ svg {
   font-size: 0.72rem;
 }
 
+.asset-color-palette-control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
 .asset-row {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
