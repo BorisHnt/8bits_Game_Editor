@@ -3954,12 +3954,7 @@
       if (mapCellSize) mapCellSize.value = String(mapState.map.cellSize);
 
       updateMapModeButtons();
-      qsa('[data-map-tool]').forEach((button) => {
-        button.classList.toggle('is-active', (button.dataset.mapTool || 'pencil') === mapState.tool);
-      });
-      qsa('[data-map-marker]').forEach((button) => {
-        button.classList.toggle('is-active', button.dataset.mapMarker === mapState.markerMode);
-      });
+      updateMapInteractionControls();
       qsa('[data-map-view]').forEach((button) => {
         button.classList.toggle('is-active', (button.dataset.mapView || 'normal') === mapState.view);
       });
@@ -4691,6 +4686,24 @@
 
     const applyMapCell = (index) => {
       if (index < 0 || index >= mapState.map.cells.length) return;
+      if (mapState.switchMode) {
+        const data = mapState.map.cells[index];
+        if (!data) return;
+        const asset = getAssetById(data.assetId);
+        if (!asset) return;
+        const x = index % mapState.map.width;
+        const y = Math.floor(index / mapState.map.width);
+        const nextAuto = mapState.mode === 'auto';
+        const nextSpriteIndex = getDisplayedSpriteIndex(data, asset, x, y);
+        const currentSpriteIndex = Number.isInteger(data.spriteIndex) ? data.spriteIndex : null;
+        if (data.auto === nextAuto && currentSpriteIndex === nextSpriteIndex) return;
+        ensureMapHistorySnapshot();
+        data.auto = nextAuto;
+        data.spriteIndex = nextSpriteIndex;
+        renderMapGrid();
+        scheduleMapSave();
+        return;
+      }
       if (mapState.tool === 'eyedropper') {
         const data = mapState.map.cells[index];
         if (!data) return;
@@ -4744,7 +4757,7 @@
         event.preventDefault();
         mapState.isDrawing = true;
         mapGrid.setPointerCapture(event.pointerId);
-        if (mapState.markerMode || mapState.tool !== 'eyedropper') {
+        if (mapState.switchMode || mapState.markerMode || mapState.tool !== 'eyedropper') {
           beginMapHistoryBatch();
         }
         applyMapCell(Number.parseInt(target.dataset.index, 10));
@@ -4754,18 +4767,18 @@
         const target = event.target.closest('.map-cell');
         if (!target) return;
         const index = Number.parseInt(target.dataset.index, 10);
-        if (mapState.tool === 'eyedropper' || mapState.tool === 'fill') {
+        if (!mapState.switchMode && (mapState.tool === 'eyedropper' || mapState.tool === 'fill')) {
           return;
         }
         if (mapState.isDrawing) {
-          if (!mapHistoryBatchActive && (mapState.markerMode || mapState.tool !== 'eyedropper')) {
+          if (!mapHistoryBatchActive && (mapState.switchMode || mapState.markerMode || mapState.tool !== 'eyedropper')) {
             beginMapHistoryBatch();
           }
           applyMapCell(index);
           return;
         }
         if (mapState.shiftPaint) {
-          if (!mapHistoryBatchActive && (mapState.markerMode || mapState.tool !== 'eyedropper')) {
+          if (!mapHistoryBatchActive && (mapState.switchMode || mapState.markerMode || mapState.tool !== 'eyedropper')) {
             beginMapHistoryBatch();
           }
           if (mapState.shiftPaintIndex === index) return;
@@ -4804,40 +4817,18 @@
       });
     };
 
-    const convertMapCellsToMode = (targetMode) => {
-      if (targetMode !== 'manual' && targetMode !== 'auto') return;
-      ensureMapCells();
-      if (!mapState.map.cells.length) return;
-
-      mapState.isDrawing = false;
-      mapState.shiftPaint = false;
-      mapState.shiftPaintIndex = null;
-      endMapHistoryBatch();
-
-      let changed = false;
-      const width = mapState.map.width;
-      for (let index = 0; index < mapState.map.cells.length; index += 1) {
-        const cell = mapState.map.cells[index];
-        if (!cell) continue;
-        const asset = getAssetById(cell.assetId);
-        if (!asset) continue;
-        const x = index % width;
-        const y = Math.floor(index / width);
-        const nextAuto = targetMode === 'auto';
-        const displayedSpriteIndex = getDisplayedSpriteIndex(cell, asset, x, y);
-        const currentSpriteIndex = Number.isInteger(cell.spriteIndex) ? cell.spriteIndex : null;
-        if (cell.auto === nextAuto && currentSpriteIndex === displayedSpriteIndex) continue;
-        if (!changed) {
-          ensureMapHistorySnapshot();
-        }
-        changed = true;
-        cell.auto = nextAuto;
-        cell.spriteIndex = displayedSpriteIndex;
-      }
-
-      if (!changed) return;
-      renderMapGrid();
-      scheduleMapSave();
+    const updateMapInteractionControls = () => {
+      const switching = mapState.switchMode;
+      qsa('[data-map-tool]').forEach((button) => {
+        const tool = button.dataset.mapTool || 'pencil';
+        button.disabled = switching;
+        button.classList.toggle('is-active', !switching && tool === mapState.tool);
+      });
+      qsa('[data-map-marker]').forEach((button) => {
+        const marker = button.dataset.mapMarker || null;
+        button.disabled = switching;
+        button.classList.toggle('is-active', !switching && marker === mapState.markerMode);
+      });
     };
 
     const updateRandomizeControls = () => {
@@ -4887,33 +4878,35 @@
             mapState.shiftPaintIndex = null;
             endMapHistoryBatch();
             mapState.switchMode = !mapState.switchMode;
+            if (mapState.switchMode) {
+              mapState.markerMode = null;
+            }
             updateMapModeButtons();
+            updateMapInteractionControls();
             return;
-          }
-          if (mapState.switchMode) {
-            convertMapCellsToMode(mode);
           }
           mapState.mode = mode;
           updateMapModeButtons();
+          updateMapInteractionControls();
           renderMapGrid();
         });
       });
 
       qsa('[data-map-tool]').forEach((button) => {
         button.addEventListener('click', () => {
+          if (mapState.switchMode) return;
           const tool = button.dataset.mapTool || 'pencil';
           mapState.tool = tool;
-          qsa('[data-map-tool]').forEach((btn) => btn.classList.toggle('is-active', btn === button));
+          updateMapInteractionControls();
         });
       });
 
       qsa('[data-map-marker]').forEach((button) => {
         button.addEventListener('click', () => {
+          if (mapState.switchMode) return;
           const marker = button.dataset.mapMarker || null;
           mapState.markerMode = mapState.markerMode === marker ? null : marker;
-          qsa('[data-map-marker]').forEach((btn) => {
-            btn.classList.toggle('is-active', btn.dataset.mapMarker === mapState.markerMode);
-          });
+          updateMapInteractionControls();
         });
       });
 
@@ -5073,6 +5066,7 @@
       if (mapCellSize) mapCellSize.value = String(mapState.map.cellSize);
       updateRandomizeControls();
       updateMapModeButtons();
+      updateMapInteractionControls();
       renderAssetList();
       renderAssetGrid();
       renderMapGrid();
@@ -5136,6 +5130,7 @@
     bindMapGrid();
     bindMapControls();
     updateMapModeButtons();
+    updateMapInteractionControls();
     updateRandomizeControls();
     updateMapUndoRedoControls();
 
