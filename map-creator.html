@@ -160,9 +160,19 @@
           <button class="button-secondary" type="button" id="map-options" data-i18n="map.options">Options</button>
         </div>
         <div class="map-controls">
-          <div class="map-control-group">
-            <label class="panel-label" data-i18n="map.name">Map name</label>
-            <input class="asset-input" type="text" id="map-name" placeholder="Map name" />
+          <div class="map-control-row map-control-row-2">
+            <div class="map-control-group">
+              <label class="panel-label" data-i18n="map.name">Map name</label>
+              <input class="asset-input" type="text" id="map-name" placeholder="Map name" />
+            </div>
+            <div class="map-control-group">
+              <label class="panel-label" data-i18n="map.data">Data</label>
+              <div class="map-toggle">
+                <button class="button-secondary" type="button" id="map-export" data-i18n="map.exportJson">Export JSON</button>
+                <button class="button-secondary" type="button" id="map-import" data-i18n="map.importJson">Import JSON</button>
+                <input class="map-file-input" type="file" id="map-import-file" accept=".json" />
+              </div>
+            </div>
           </div>
           <div class="map-control-group">
             <label class="panel-label" data-i18n="map.mapSize">Map Size</label>
@@ -210,29 +220,23 @@
               </div>
             </div>
           </div>
-          <div class="map-control-group">
-            <label class="panel-label" data-i18n="map.view">View</label>
-            <div class="map-toggle">
-              <button class="button-secondary is-active" type="button" data-map-view="normal" data-i18n="map.viewNormal">Normal</button>
-              <button class="button-secondary" type="button" data-map-view="assets" data-i18n="map.viewAssets">Assets</button>
-              <button class="button-secondary" type="button" data-map-view="collision" data-i18n="map.viewCollision">Passable/Bloquant</button>
+          <div class="map-control-row map-control-row-2">
+            <div class="map-control-group">
+              <label class="panel-label" data-i18n="map.shift">Shift</label>
+              <div class="map-toggle">
+                <button class="button-secondary" type="button" data-map-shift="up" data-i18n="map.shiftUp">Up</button>
+                <button class="button-secondary" type="button" data-map-shift="down" data-i18n="map.shiftDown">Down</button>
+                <button class="button-secondary" type="button" data-map-shift="left" data-i18n="map.shiftLeft">Left</button>
+                <button class="button-secondary" type="button" data-map-shift="right" data-i18n="map.shiftRight">Right</button>
+              </div>
             </div>
-          </div>
-          <div class="map-control-group">
-            <label class="panel-label" data-i18n="map.shift">Shift</label>
-            <div class="map-toggle">
-              <button class="button-secondary" type="button" data-map-shift="up" data-i18n="map.shiftUp">Up</button>
-              <button class="button-secondary" type="button" data-map-shift="down" data-i18n="map.shiftDown">Down</button>
-              <button class="button-secondary" type="button" data-map-shift="left" data-i18n="map.shiftLeft">Left</button>
-              <button class="button-secondary" type="button" data-map-shift="right" data-i18n="map.shiftRight">Right</button>
-            </div>
-          </div>
-          <div class="map-control-group">
-            <label class="panel-label" data-i18n="map.data">Data</label>
-            <div class="map-toggle">
-              <button class="button-secondary" type="button" id="map-export" data-i18n="map.exportJson">Export JSON</button>
-              <button class="button-secondary" type="button" id="map-import" data-i18n="map.importJson">Import JSON</button>
-              <input class="map-file-input" type="file" id="map-import-file" accept=".json" />
+            <div class="map-control-group">
+              <label class="panel-label" data-i18n="map.view">View</label>
+              <div class="map-toggle">
+                <button class="button-secondary is-active" type="button" data-map-view="normal" data-i18n="map.viewNormal">Normal</button>
+                <button class="button-secondary" type="button" data-map-view="assets" data-i18n="map.viewAssets">Assets</button>
+                <button class="button-secondary" type="button" data-map-view="collision" data-i18n="map.viewCollision">Passable/Bloquant</button>
+              </div>
             </div>
           </div>
         </div>
