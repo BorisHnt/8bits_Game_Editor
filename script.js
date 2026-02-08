@@ -3556,6 +3556,7 @@
       selectedAssetId: null,
       selectedSpriteIndex: 1,
       mode: 'manual',
+      switchMode: false,
       tool: 'pencil',
       markerMode: null,
       randomize: false,
@@ -3882,6 +3883,7 @@
       selectedAssetId: mapState.selectedAssetId,
       selectedSpriteIndex: mapState.selectedSpriteIndex,
       mode: mapState.mode,
+      switchMode: mapState.switchMode,
       tool: mapState.tool,
       markerMode: mapState.markerMode,
       randomize: mapState.randomize,
@@ -3932,6 +3934,7 @@
       mapState.selectedAssetId = snapshot.selectedAssetId || mapState.assets[0]?.id || null;
       mapState.selectedSpriteIndex = snapshot.selectedSpriteIndex || 1;
       mapState.mode = snapshot.mode || 'manual';
+      mapState.switchMode = Boolean(snapshot.switchMode);
       mapState.tool = snapshot.tool || 'pencil';
       mapState.markerMode = snapshot.markerMode || null;
       mapState.randomize = Boolean(snapshot.randomize);
@@ -3950,9 +3953,7 @@
       if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
       if (mapCellSize) mapCellSize.value = String(mapState.map.cellSize);
 
-      qsa('[data-map-mode]').forEach((button) => {
-        button.classList.toggle('is-active', (button.dataset.mapMode || 'manual') === mapState.mode);
-      });
+      updateMapModeButtons();
       qsa('[data-map-tool]').forEach((button) => {
         button.classList.toggle('is-active', (button.dataset.mapTool || 'pencil') === mapState.tool);
       });
@@ -4792,7 +4793,19 @@
       });
     };
 
-    const switchMapManualAuto = () => {
+    const updateMapModeButtons = () => {
+      qsa('[data-map-mode]').forEach((button) => {
+        const buttonMode = button.dataset.mapMode || 'manual';
+        if (buttonMode === 'switch') {
+          button.classList.toggle('is-active', mapState.switchMode);
+          return;
+        }
+        button.classList.toggle('is-active', buttonMode === mapState.mode);
+      });
+    };
+
+    const convertMapCellsToMode = (targetMode) => {
+      if (targetMode !== 'manual' && targetMode !== 'auto') return;
       ensureMapCells();
       if (!mapState.map.cells.length) return;
 
@@ -4802,7 +4815,6 @@
       endMapHistoryBatch();
 
       let changed = false;
-      const previousMode = mapState.mode;
       const width = mapState.map.width;
       for (let index = 0; index < mapState.map.cells.length; index += 1) {
         const cell = mapState.map.cells[index];
@@ -4811,7 +4823,7 @@
         if (!asset) continue;
         const x = index % width;
         const y = Math.floor(index / width);
-        const nextAuto = cell.auto === false;
+        const nextAuto = targetMode === 'auto';
         const displayedSpriteIndex = getDisplayedSpriteIndex(cell, asset, x, y);
         const currentSpriteIndex = Number.isInteger(cell.spriteIndex) ? cell.spriteIndex : null;
         if (cell.auto === nextAuto && currentSpriteIndex === displayedSpriteIndex) continue;
@@ -4823,20 +4835,7 @@
         cell.spriteIndex = displayedSpriteIndex;
       }
 
-      const nextMode = previousMode === 'manual' ? 'auto' : 'manual';
-      if (nextMode !== previousMode) {
-        if (!changed) {
-          ensureMapHistorySnapshot();
-        }
-        mapState.mode = nextMode;
-      }
-
-      qsa('[data-map-mode]').forEach((button) => {
-        const buttonMode = button.dataset.mapMode || 'manual';
-        button.classList.toggle('is-active', buttonMode === mapState.mode);
-      });
-
-      if (!changed && mapState.mode === previousMode) return;
+      if (!changed) return;
       renderMapGrid();
       scheduleMapSave();
     };
@@ -4883,14 +4882,19 @@
         button.addEventListener('click', () => {
           const mode = button.dataset.mapMode || 'manual';
           if (mode === 'switch') {
-            switchMapManualAuto();
+            mapState.isDrawing = false;
+            mapState.shiftPaint = false;
+            mapState.shiftPaintIndex = null;
+            endMapHistoryBatch();
+            mapState.switchMode = !mapState.switchMode;
+            updateMapModeButtons();
             return;
           }
+          if (mapState.switchMode) {
+            convertMapCellsToMode(mode);
+          }
           mapState.mode = mode;
-          qsa('[data-map-mode]').forEach((btn) => {
-            const nextMode = btn.dataset.mapMode || 'manual';
-            btn.classList.toggle('is-active', nextMode === mapState.mode);
-          });
+          updateMapModeButtons();
           renderMapGrid();
         });
       });
@@ -5012,6 +5016,7 @@
       const assetByNumber = new Map(mapState.assets.map((asset) => [asset.number, asset.id]));
       mapState.selectedAssetId = mapState.assets[0]?.id || null;
       mapState.selectedSpriteIndex = 1;
+      mapState.switchMode = false;
 
       mapState.map.name = payload.map.name || payload.name || '';
       mapState.map.width = clamp(Number.parseInt(payload.map.width, 10) || 50, 4, 200);
@@ -5067,6 +5072,7 @@
       if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
       if (mapCellSize) mapCellSize.value = String(mapState.map.cellSize);
       updateRandomizeControls();
+      updateMapModeButtons();
       renderAssetList();
       renderAssetGrid();
       renderMapGrid();
@@ -5129,6 +5135,7 @@
     renderMapGrid();
     bindMapGrid();
     bindMapControls();
+    updateMapModeButtons();
     updateRandomizeControls();
     updateMapUndoRedoControls();
 
