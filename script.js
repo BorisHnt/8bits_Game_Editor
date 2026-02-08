@@ -1477,7 +1477,10 @@
     if (copyModeState.originIndex === null) {
       return getText('panel.copyStatusReady', 'Selection copied. Pick an origin pixel.');
     }
-    return getText('panel.copyStatusPaste', 'Origin selected. Press Paste.');
+    const originX = (copyModeState.originIndex % state.grid.width) + 1;
+    const originY = Math.floor(copyModeState.originIndex / state.grid.width) + 1;
+    const baseText = getText('panel.copyStatusPaste', 'Origin selected. Press Paste.');
+    return `${baseText} (${originX},${originY})`;
   };
 
   const renderCopyModeState = () => {
@@ -1660,9 +1663,17 @@
     if (!canvas) return;
 
     let isDrawing = false;
+    const resolveCellFromEvent = (event) => {
+      const direct = event.target?.closest?.('.pixel-cell');
+      if (direct) return direct;
+      const pointed = document.elementFromPoint(event.clientX, event.clientY);
+      const fromPoint = pointed?.closest?.('.pixel-cell');
+      if (fromPoint && canvas.contains(fromPoint)) return fromPoint;
+      return null;
+    };
 
     const handlePointerDown = (event) => {
-      const cell = event.target.closest('.pixel-cell');
+      const cell = resolveCellFromEvent(event);
       if (!cell) return;
       event.preventDefault();
       isDrawing = true;
@@ -1689,7 +1700,7 @@
     };
 
     const handlePointerMove = (event) => {
-      const cell = event.target.closest('.pixel-cell');
+      const cell = resolveCellFromEvent(event);
       if (!cell) return;
       if (activeTool === 'copy' && isTilesDesigner()) {
         if (!isDrawing || copyModeState.awaitingOrigin || copyModeState.startIndex === null) return;
