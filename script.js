@@ -156,6 +156,7 @@
       'map.mode': 'Mode',
       'map.modeManual': 'Manual',
       'map.modeAuto': 'Auto (x13)',
+      'map.modeSwitch': 'Switch',
       'map.tool': 'Tool',
       'map.toolPencil': 'Pencil',
       'map.toolEraser': 'Eraser',
@@ -405,6 +406,7 @@
       'map.mode': 'Mode',
       'map.modeManual': 'Manuel',
       'map.modeAuto': 'Auto (x13)',
+      'map.modeSwitch': 'Switch',
       'map.tool': 'Outil',
       'map.toolPencil': 'Crayon',
       'map.toolEraser': 'Gomme',
@@ -4243,6 +4245,21 @@
       return spriteIndex <= asset.spriteCount ? spriteIndex : 1;
     };
 
+    const getDisplayedSpriteIndex = (cell, asset, x, y) => {
+      if (!cell || !asset) return 1;
+      const max = Math.max(1, asset.spriteCount || 1);
+      const manualIndex = Number.isInteger(cell.spriteIndex)
+        ? clamp(cell.spriteIndex, 1, max)
+        : null;
+      if (cell.auto === false) {
+        return manualIndex || 1;
+      }
+      if (manualIndex) {
+        return manualIndex;
+      }
+      return computeAutoSpriteIndex(asset, x, y);
+    };
+
     const renderAssetGrid = () => {
       assetGrid.innerHTML = '';
       const asset = getAssetById(mapState.selectedAssetId);
@@ -4623,10 +4640,7 @@
       const asset = getAssetById(data.assetId);
       const assetNumber = asset?.number ?? '?';
       const isAuto = data.auto !== false;
-      let spriteIndex = data.spriteIndex || 1;
-      if (isAuto) {
-        spriteIndex = computeAutoSpriteIndex(asset, x, y);
-      }
+      const spriteIndex = getDisplayedSpriteIndex(data, asset, x, y);
 
       const blockFlag = asset?.type === 'blocking' ? 1 : 0;
       cell.classList.remove('is-empty');
@@ -4778,6 +4792,41 @@
       });
     };
 
+    const switchMapManualAuto = () => {
+      ensureMapCells();
+      if (!mapState.map.cells.length) return;
+
+      mapState.isDrawing = false;
+      mapState.shiftPaint = false;
+      mapState.shiftPaintIndex = null;
+      endMapHistoryBatch();
+
+      let changed = false;
+      const width = mapState.map.width;
+      for (let index = 0; index < mapState.map.cells.length; index += 1) {
+        const cell = mapState.map.cells[index];
+        if (!cell) continue;
+        const asset = getAssetById(cell.assetId);
+        if (!asset) continue;
+        const x = index % width;
+        const y = Math.floor(index / width);
+        const nextAuto = cell.auto === false;
+        const displayedSpriteIndex = getDisplayedSpriteIndex(cell, asset, x, y);
+        const currentSpriteIndex = Number.isInteger(cell.spriteIndex) ? cell.spriteIndex : null;
+        if (cell.auto === nextAuto && currentSpriteIndex === displayedSpriteIndex) continue;
+        if (!changed) {
+          ensureMapHistorySnapshot();
+        }
+        changed = true;
+        cell.auto = nextAuto;
+        cell.spriteIndex = displayedSpriteIndex;
+      }
+
+      if (!changed) return;
+      renderMapGrid();
+      scheduleMapSave();
+    };
+
     const updateRandomizeControls = () => {
       mapRandomizeButton?.classList.toggle('is-active', mapState.randomize);
       if (mapRandomizeRangeInput) {
@@ -4819,8 +4868,15 @@
       qsa('[data-map-mode]').forEach((button) => {
         button.addEventListener('click', () => {
           const mode = button.dataset.mapMode || 'manual';
+          if (mode === 'switch') {
+            switchMapManualAuto();
+            return;
+          }
           mapState.mode = mode;
-          qsa('[data-map-mode]').forEach((btn) => btn.classList.toggle('is-active', btn === button));
+          qsa('[data-map-mode]').forEach((btn) => {
+            const nextMode = btn.dataset.mapMode || 'manual';
+            btn.classList.toggle('is-active', nextMode === mapState.mode);
+          });
           renderMapGrid();
         });
       });
