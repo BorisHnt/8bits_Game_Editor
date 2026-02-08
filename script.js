@@ -55,7 +55,18 @@
       'tool.eraser': 'Eraser',
       'tool.eyedropper': 'Eyedropper',
       'tool.fill': 'Fill Bucket',
+      'tool.copy': 'Copy Mode',
       'panel.activeTool': 'Active Tool',
+      'panel.copyMode': 'Copy workflow',
+      'panel.copySelection': 'Copy',
+      'panel.copySetOrigin': 'Set origin',
+      'panel.copyPaste': 'Paste',
+      'panel.copyReset': 'Reset',
+      'panel.copyStatusInactive': 'Activate Copy Mode to start.',
+      'panel.copyStatusSelect': 'Drag to select pixels, then press Copy.',
+      'panel.copyStatusReady': 'Selection copied. Pick an origin pixel.',
+      'panel.copyStatusOrigin': 'Click a pixel to set top-left origin.',
+      'panel.copyStatusPaste': 'Origin selected. Press Paste.',
       'panel.canvas': 'Pixel Canvas',
       'panel.canvasSubtitle': 'Adjustable grid. Pixel size follows zoom.',
       'panel.grid': 'Grid',
@@ -282,7 +293,18 @@
       'tool.eraser': 'Gomme',
       'tool.eyedropper': 'Pipette',
       'tool.fill': 'Pot de remplissage',
+      'tool.copy': 'Mode copie',
       'panel.activeTool': 'Outil actif',
+      'panel.copyMode': 'Workflow copie',
+      'panel.copySelection': 'Copier',
+      'panel.copySetOrigin': 'Choisir origine',
+      'panel.copyPaste': 'Coller',
+      'panel.copyReset': 'Reset',
+      'panel.copyStatusInactive': 'Activez le mode copie pour commencer.',
+      'panel.copyStatusSelect': 'Glissez pour selectionner, puis cliquez sur Copier.',
+      'panel.copyStatusReady': "Selection copiee. Choisissez un pixel d'origine.",
+      'panel.copyStatusOrigin': "Cliquez un pixel pour l'origine haut-gauche.",
+      'panel.copyStatusPaste': "Origine choisie. Cliquez sur Coller.",
       'panel.canvas': 'Canvas pixel',
       'panel.canvasSubtitle': 'Grille ajustable. La taille suit le zoom.',
       'panel.grid': 'Grille',
@@ -476,6 +498,13 @@
   let redoStack = [];
   let historyBatchActive = false;
   const historyLimit = 10;
+  const copyModeState = {
+    startIndex: null,
+    selection: null,
+    copied: null,
+    originIndex: null,
+    awaitingOrigin: false
+  };
 
   const state = {
     grid: {
@@ -1405,6 +1434,106 @@
     return state.frames[state.activeFrameIndex]?.pixels;
   };
 
+  const isTilesDesigner = () => document.body.dataset.designer === 'tiles';
+
+  const getCopySelectionRect = (indexA, indexB) => {
+    const width = state.grid.width;
+    const rowA = Math.floor(indexA / width);
+    const colA = indexA % width;
+    const rowB = Math.floor(indexB / width);
+    const colB = indexB % width;
+    return {
+      minRow: Math.min(rowA, rowB),
+      maxRow: Math.max(rowA, rowB),
+      minCol: Math.min(colA, colB),
+      maxCol: Math.max(colA, colB)
+    };
+  };
+
+  const clearCopyModeState = ({ keepCopied = false } = {}) => {
+    copyModeState.startIndex = null;
+    copyModeState.selection = null;
+    copyModeState.originIndex = null;
+    copyModeState.awaitingOrigin = false;
+    if (!keepCopied) {
+      copyModeState.copied = null;
+    }
+  };
+
+  const getCopyStatusText = () => {
+    const getText = (key, fallback) => translations[currentLanguage]?.[key] ?? fallback;
+    if (activeTool !== 'copy') {
+      return getText('panel.copyStatusInactive', 'Activate Copy Mode to start.');
+    }
+    if (copyModeState.awaitingOrigin) {
+      return getText('panel.copyStatusOrigin', 'Click a pixel to set top-left origin.');
+    }
+    if (!copyModeState.selection) {
+      return getText('panel.copyStatusSelect', 'Drag to select pixels, then press Copy.');
+    }
+    if (!copyModeState.copied) {
+      return getText('panel.copyStatusSelect', 'Drag to select pixels, then press Copy.');
+    }
+    if (copyModeState.originIndex === null) {
+      return getText('panel.copyStatusReady', 'Selection copied. Pick an origin pixel.');
+    }
+    return getText('panel.copyStatusPaste', 'Origin selected. Press Paste.');
+  };
+
+  const renderCopyModeState = () => {
+    const panel = qs('#copy-mode-panel');
+    if (!panel) return;
+    const canvas = qs('#pixel-canvas');
+    const copySelectionButton = qs('#copy-selection');
+    const setOriginButton = qs('#copy-set-origin');
+    const pasteButton = qs('#copy-paste');
+    const resetButton = qs('#copy-reset');
+    const status = qs('#copy-status');
+
+    panel.classList.toggle('is-hidden', !isTilesDesigner());
+
+    if (status) {
+      status.textContent = getCopyStatusText();
+    }
+
+    if (copySelectionButton) {
+      copySelectionButton.disabled = activeTool !== 'copy' || !copyModeState.selection;
+    }
+    if (setOriginButton) {
+      setOriginButton.disabled = activeTool !== 'copy' || !copyModeState.copied;
+    }
+    if (pasteButton) {
+      pasteButton.disabled = activeTool !== 'copy' || !copyModeState.copied || copyModeState.originIndex === null;
+    }
+    if (resetButton) {
+      const hasState = Boolean(copyModeState.selection || copyModeState.copied || copyModeState.awaitingOrigin || copyModeState.originIndex !== null);
+      resetButton.disabled = !hasState;
+    }
+
+    if (canvas) {
+      canvas.classList.toggle('is-copy-origin-pick', activeTool === 'copy' && copyModeState.awaitingOrigin);
+    }
+
+    if (!pixelCells.length) return;
+    pixelCells.forEach((cell) => {
+      cell.classList.remove('is-copy-selected', 'is-copy-origin');
+    });
+
+    if (copyModeState.selection) {
+      const { minRow, maxRow, minCol, maxCol } = copyModeState.selection;
+      for (let row = minRow; row <= maxRow; row += 1) {
+        for (let col = minCol; col <= maxCol; col += 1) {
+          const index = row * state.grid.width + col;
+          pixelCells[index]?.classList.add('is-copy-selected');
+        }
+      }
+    }
+
+    if (copyModeState.originIndex !== null) {
+      pixelCells[copyModeState.originIndex]?.classList.add('is-copy-origin');
+    }
+  };
+
   const renderActivePixelGrid = () => {
     const pixels = getActivePixels();
     if (!pixels || pixelCells.length === 0) return;
@@ -1427,6 +1556,7 @@
         cell.style.boxShadow = 'inset 0 0 0 2px var(--color-accent-2)';
       }
     });
+    renderCopyModeState();
   };
 
   const buildPixelCanvas = () => {
@@ -1537,6 +1667,21 @@
       event.preventDefault();
       isDrawing = true;
       canvas.setPointerCapture(event.pointerId);
+      if (activeTool === 'copy' && isTilesDesigner()) {
+        const index = Number(cell.dataset.index);
+        if (Number.isNaN(index)) return;
+        if (copyModeState.awaitingOrigin) {
+          copyModeState.originIndex = index;
+          copyModeState.awaitingOrigin = false;
+          renderCopyModeState();
+          return;
+        }
+        copyModeState.startIndex = index;
+        copyModeState.selection = getCopySelectionRect(index, index);
+        copyModeState.originIndex = null;
+        renderCopyModeState();
+        return;
+      }
       if (activeTool === 'pencil' || activeTool === 'eraser' || activeTool === 'fill') {
         beginHistoryBatch();
       }
@@ -1546,6 +1691,14 @@
     const handlePointerMove = (event) => {
       const cell = event.target.closest('.pixel-cell');
       if (!cell) return;
+      if (activeTool === 'copy' && isTilesDesigner()) {
+        if (!isDrawing || copyModeState.awaitingOrigin || copyModeState.startIndex === null) return;
+        const index = Number(cell.dataset.index);
+        if (Number.isNaN(index)) return;
+        copyModeState.selection = getCopySelectionRect(copyModeState.startIndex, index);
+        renderCopyModeState();
+        return;
+      }
       const allowDragTool = activeTool === 'pencil' || activeTool === 'eraser';
 
       if (isDrawing) {
@@ -1570,13 +1723,18 @@
       } catch (error) {
         // Ignore if pointer is already released.
       }
+      if (activeTool === 'copy') {
+        copyModeState.startIndex = null;
+        renderCopyModeState();
+        return;
+      }
       endHistoryBatch();
     };
 
-  canvas.addEventListener('pointerdown', handlePointerDown);
-  canvas.addEventListener('pointermove', handlePointerMove);
-  canvas.addEventListener('pointerup', stopDrawing);
-  canvas.addEventListener('pointerleave', stopDrawing);
+    canvas.addEventListener('pointerdown', handlePointerDown);
+    canvas.addEventListener('pointermove', handlePointerMove);
+    canvas.addEventListener('pointerup', stopDrawing);
+    canvas.addEventListener('pointerleave', stopDrawing);
   };
 
   const bindCtrlDrawing = () => {
@@ -1607,14 +1765,104 @@
 
     toolButtons.forEach((button) => {
       button.addEventListener('click', () => {
+        const previousTool = activeTool;
         const activeButton = qs('.tool-selector-button.is-active');
         if (activeButton) {
           activeButton.classList.remove('is-active');
         }
         button.classList.add('is-active');
         activeTool = button.dataset.tool || 'pencil';
+        if (previousTool === 'copy' && activeTool !== 'copy') {
+          copyModeState.awaitingOrigin = false;
+          copyModeState.startIndex = null;
+        }
         updateActiveToolLabel();
+        renderCopyModeState();
       });
+    });
+  };
+
+  const bindCopyModeControls = () => {
+    const copySelectionButton = qs('#copy-selection');
+    const setOriginButton = qs('#copy-set-origin');
+    const pasteButton = qs('#copy-paste');
+    const resetButton = qs('#copy-reset');
+    if (!copySelectionButton && !setOriginButton && !pasteButton && !resetButton) return;
+
+    copySelectionButton?.addEventListener('click', () => {
+      if (activeTool !== 'copy' || !copyModeState.selection) return;
+      const pixels = getActivePixels();
+      if (!pixels) return;
+      const { minRow, maxRow, minCol, maxCol } = copyModeState.selection;
+      const width = maxCol - minCol + 1;
+      const height = maxRow - minRow + 1;
+      const data = [];
+
+      for (let row = minRow; row <= maxRow; row += 1) {
+        for (let col = minCol; col <= maxCol; col += 1) {
+          data.push(pixels[row * state.grid.width + col] ?? null);
+        }
+      }
+
+      copyModeState.copied = {
+        width,
+        height,
+        pixels: data
+      };
+      copyModeState.originIndex = null;
+      copyModeState.awaitingOrigin = false;
+      renderCopyModeState();
+    });
+
+    setOriginButton?.addEventListener('click', () => {
+      if (activeTool !== 'copy' || !copyModeState.copied) return;
+      copyModeState.awaitingOrigin = true;
+      copyModeState.originIndex = null;
+      renderCopyModeState();
+    });
+
+    pasteButton?.addEventListener('click', () => {
+      if (activeTool !== 'copy' || !copyModeState.copied || copyModeState.originIndex === null) return;
+      const pixels = getActivePixels();
+      if (!pixels) return;
+
+      const originRow = Math.floor(copyModeState.originIndex / state.grid.width);
+      const originCol = copyModeState.originIndex % state.grid.width;
+      const { width, height, pixels: copiedPixels } = copyModeState.copied;
+
+      let changed = false;
+
+      for (let row = 0; row < height; row += 1) {
+        const destinationRow = originRow + row;
+        if (destinationRow < 0 || destinationRow >= state.grid.height) continue;
+        for (let col = 0; col < width; col += 1) {
+          const destinationCol = originCol + col;
+          if (destinationCol < 0 || destinationCol >= state.grid.width) continue;
+          const targetIndex = destinationRow * state.grid.width + destinationCol;
+          const sourceIndex = row * width + col;
+          const nextColor = copiedPixels[sourceIndex] ?? null;
+          if (pixels[targetIndex] === nextColor) continue;
+          if (!changed) {
+            ensureHistorySnapshot();
+          }
+          changed = true;
+          pixels[targetIndex] = nextColor;
+          setCellColor(pixelCells[targetIndex], nextColor);
+        }
+      }
+
+      if (!changed) return;
+      copyModeState.awaitingOrigin = false;
+      renderCopyModeState();
+      renderFrameThumbnail(state.activeFrameIndex);
+      renderWallTileThumbnail(state.activeWallTileIndex);
+      renderPreviews();
+      scheduleCacheSave();
+    });
+
+    resetButton?.addEventListener('click', () => {
+      clearCopyModeState();
+      renderCopyModeState();
     });
   };
 
@@ -1669,6 +1917,7 @@
         pixels: resizePixelBuffer(tile.pixels, oldWidth, oldHeight, nextWidth, nextHeight)
       }));
 
+      clearCopyModeState({ keepCopied: true });
       buildPixelCanvas();
       renderActivePixelGrid();
       renderFramesStrip();
@@ -2336,6 +2585,7 @@
     const checkerToggle = qs('#checker-toggle');
     if (checkerToggle) checkerToggle.checked = state.grid.checkerWhite;
 
+    clearCopyModeState();
     buildPixelCanvas();
     renderActivePixelGrid();
     renderFramesStrip();
@@ -2961,6 +3211,7 @@
     });
 
     updatePaletteAriaLabels();
+    renderCopyModeState();
     document.dispatchEvent(new CustomEvent('languagechange', { detail: { language } }));
   };
 
@@ -6136,6 +6387,7 @@
       bindCanvasInteraction();
       bindCtrlDrawing();
       bindToolSelection();
+      bindCopyModeControls();
       bindZoomControl();
       bindGridControls();
       bindFramesControls();
@@ -6169,6 +6421,7 @@
       const wallModeSelect = qs('#wall-mode');
       if (wallModeSelect) wallModeSelect.value = state.wallMode;
       renderPreviews();
+      renderCopyModeState();
     }
   });
 })();
