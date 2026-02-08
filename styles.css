@@ -1988,9 +1988,9 @@ svg {
 .tester-canvas-wrapper {
   width: 1200px;
   height: 1200px;
-  max-width: 100%;
-  max-height: 100%;
-  overflow: auto;
+  min-width: 1200px;
+  min-height: 1200px;
+  overflow: hidden;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
   background: #0b0b0b;

@@ -6424,6 +6424,10 @@
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    const gameplaySize = 1200;
+    canvas.width = gameplaySize;
+    canvas.height = gameplaySize;
+
     const spriteSize = 16;
     const tileSize = 16;
     const speed = 70;
@@ -6454,11 +6458,15 @@
       mapWidth: 0,
       mapHeight: 0,
       zoom: 1,
-      assetImages: new Map()
+      assetImages: new Map(),
+      isLoadingMap: false,
+      isTransitioningMap: false,
+      portalLockKey: null
     };
 
     const mapState = {
       maps: [],
+      connections: [],
       currentIndex: -1
     };
 
@@ -6527,9 +6535,23 @@
       loadedValue.textContent = text || translations[currentLanguage]?.['tester.loadedNone'] || 'None';
     };
 
-    const resetPosition = () => {
+    const getSpawnFromPortal = (portalIndex) => {
+      if (!state.mapPayload || !Number.isFinite(portalIndex)) return null;
+      const safeIndex = Number.parseInt(portalIndex, 10);
+      if (!Number.isFinite(safeIndex)) return null;
+      const total = state.mapWidth * state.mapHeight;
+      if (safeIndex < 0 || safeIndex >= total) return null;
+      const col = safeIndex % state.mapWidth;
+      const row = Math.floor(safeIndex / state.mapWidth);
+      return {
+        x: col * tileSize + Math.floor((tileSize - spriteSize) / 2),
+        y: row * tileSize + Math.floor((tileSize - spriteSize) / 2)
+      };
+    };
+
+    const resetPosition = (spawnPortalIndex = null) => {
       if (state.mapPayload) {
-        const spawn = findSpawn();
+        const spawn = getSpawnFromPortal(spawnPortalIndex) || findSpawn();
         state.x = spawn.x;
         state.y = spawn.y;
       } else {
@@ -6557,19 +6579,63 @@
       }
     };
 
+    const buildPortalIndexSet = (payload) => {
+      const markers = Array.isArray(payload?.map?.markers) ? payload.map.markers : [];
+      const portalIndexes = new Set();
+      markers.forEach((marker, index) => {
+        if (marker === 'portal' || marker === 'entry' || marker === 'exit' || marker === 1 || marker === true) {
+          portalIndexes.add(index);
+        }
+      });
+      return portalIndexes;
+    };
+
     const normalizeMapPayloads = (payload, fallbackName = '') => {
       if (payload?.map && Array.isArray(payload.assets)) {
         const name = payload.map.name || payload.name || fallbackName || 'Map';
-        return [{ name, payload }];
+        return {
+          maps: [{
+            id: null,
+            name,
+            payload,
+            portalIndexes: buildPortalIndexSet(payload)
+          }],
+          connections: []
+        };
       }
       if (Array.isArray(payload?.maps)) {
-        return payload.maps.map((entry, index) => {
+        const maps = payload.maps.map((entry, index) => {
           const mapPayload = entry.payload || entry;
           const name = entry.name || entry.fileName || mapPayload?.map?.name || `Map ${index + 1}`;
-          return { name, payload: mapPayload };
+          const id = entry.id != null ? String(entry.id) : `map-${index + 1}`;
+          return {
+            id,
+            name,
+            payload: mapPayload,
+            portalIndexes: buildPortalIndexSet(mapPayload)
+          };
         });
+        const mapIds = new Set(maps.map((entry) => entry.id));
+        const connections = Array.isArray(payload.connections)
+          ? payload.connections
+            .map((connection) => ({
+              fromMapId: connection?.fromMapId != null ? String(connection.fromMapId) : '',
+              toMapId: connection?.toMapId != null ? String(connection.toMapId) : '',
+              fromPortalIndex: Number.parseInt(connection?.fromPortalIndex, 10),
+              toPortalIndex: Number.parseInt(connection?.toPortalIndex, 10)
+            }))
+            .filter((connection) => (
+              connection.fromMapId
+              && connection.toMapId
+              && mapIds.has(connection.fromMapId)
+              && mapIds.has(connection.toMapId)
+              && Number.isFinite(connection.fromPortalIndex)
+              && Number.isFinite(connection.toPortalIndex)
+            ))
+          : [];
+        return { maps, connections };
       }
-      return [];
+      return { maps: [], connections: [] };
     };
 
     const getMapNeighbors = (cells, width, height, x, y, assetNumber) => {
@@ -6713,9 +6779,16 @@
           const assetNumber = Number(entry.assetNumber);
           const asset = assetByNumber.get(assetNumber);
           if (!asset) continue;
-          const spriteIndex = entry.auto !== false
-            ? computeAutoSpriteIndex(cells, width, height, asset, x, y, assetNumber)
-            : (Number.isInteger(entry.spriteIndex) ? entry.spriteIndex : 1);
+          const maxSpriteCount = Math.max(1, Number.parseInt(asset.spriteCount, 10) || 1);
+          const parsedSpriteIndex = Number.parseInt(entry?.spriteIndex, 10);
+          let spriteIndex = Number.isFinite(parsedSpriteIndex) ? parsedSpriteIndex : null;
+          if (spriteIndex == null && entry.auto !== false) {
+            spriteIndex = computeAutoSpriteIndex(cells, width, height, asset, x, y, assetNumber);
+          }
+          if (!Number.isFinite(spriteIndex)) {
+            spriteIndex = 1;
+          }
+          spriteIndex = clamp(Number.parseInt(spriteIndex, 10) || 1, 1, maxSpriteCount);
 
           const cached = state.assetImages.get(assetNumber);
           if (cached?.image && cached.image.naturalWidth > 0) {
@@ -6771,21 +6844,35 @@
       };
     };
 
-    const applyMapPayload = async (payload, name = '') => {
+    let mapLoadToken = 0;
+    const applyMapPayload = async (payload, name = '', options = {}) => {
+      const token = mapLoadToken + 1;
+      mapLoadToken = token;
+      state.isLoadingMap = true;
       state.mapPayload = payload;
       const { collision, width, height } = buildCollision(payload);
       state.collision = collision;
       state.mapWidth = width;
       state.mapHeight = height;
-      await loadAssetImages(payload);
-      state.mapCanvas = buildMapCanvas(payload);
-      setLoadedLabel(name || payload?.map?.name || payload?.name || 'Map');
-      resetPosition();
+      try {
+        await loadAssetImages(payload);
+        if (token !== mapLoadToken) return;
+        state.mapCanvas = buildMapCanvas(payload);
+        setLoadedLabel(name || payload?.map?.name || payload?.name || 'Map');
+        resetPosition(options.spawnPortalIndex);
+      } finally {
+        if (token === mapLoadToken) {
+          state.isLoadingMap = false;
+        }
+      }
     };
 
-    const setMapList = (maps) => {
+    const setMapList = (maps, connections = []) => {
       mapState.maps = maps;
+      mapState.connections = connections;
       mapState.currentIndex = maps.length ? 0 : -1;
+      state.portalLockKey = null;
+      state.isTransitioningMap = false;
       if (mapSelect) {
         mapSelect.innerHTML = '';
         if (!maps.length) {
@@ -6821,9 +6908,9 @@
       reader.onload = () => {
         try {
           const payload = JSON.parse(String(reader.result || '{}'));
-          const maps = normalizeMapPayloads(payload, file.name.replace(/\.[^/.]+$/, ''));
-          if (!maps.length) return;
-          setMapList(maps);
+          const normalized = normalizeMapPayloads(payload, file.name.replace(/\.[^/.]+$/, ''));
+          if (!normalized.maps.length) return;
+          setMapList(normalized.maps, normalized.connections);
         } catch (error) {
           // ignore
         }
@@ -6835,6 +6922,8 @@
       const idx = Number.parseInt(mapSelect.value, 10);
       if (!Number.isFinite(idx) || !mapState.maps[idx]) return;
       mapState.currentIndex = idx;
+      state.portalLockKey = null;
+      state.isTransitioningMap = false;
       applyMapPayload(mapState.maps[idx].payload, mapState.maps[idx].name);
     });
 
@@ -6882,6 +6971,62 @@
         [nx + spriteSize - 1, ny + spriteSize - 1]
       ];
       return !corners.some(([cx, cy]) => isBlocked(cx, cy));
+    };
+
+    const getCurrentMapEntry = () => (
+      Number.isFinite(mapState.currentIndex) && mapState.currentIndex >= 0
+        ? mapState.maps[mapState.currentIndex] || null
+        : null
+    );
+
+    const findConnectedPortal = (mapId, portalIndex) => {
+      const sourceId = mapId != null ? String(mapId) : '';
+      if (!sourceId || !Number.isFinite(portalIndex)) return null;
+      for (let i = 0; i < mapState.connections.length; i += 1) {
+        const connection = mapState.connections[i];
+        if (!connection) continue;
+        if (connection.fromMapId === sourceId && connection.fromPortalIndex === portalIndex) {
+          return {
+            mapId: connection.toMapId,
+            portalIndex: connection.toPortalIndex
+          };
+        }
+        if (connection.toMapId === sourceId && connection.toPortalIndex === portalIndex) {
+          return {
+            mapId: connection.fromMapId,
+            portalIndex: connection.fromPortalIndex
+          };
+        }
+      }
+      return null;
+    };
+
+    const applyPortalTransition = async (target) => {
+      if (!target?.mapId) return;
+      const nextIndex = mapState.maps.findIndex((entry) => String(entry.id) === String(target.mapId));
+      if (nextIndex < 0) return;
+      mapState.currentIndex = nextIndex;
+      if (mapSelect) {
+        mapSelect.value = String(nextIndex);
+      }
+      await applyMapPayload(
+        mapState.maps[nextIndex].payload,
+        mapState.maps[nextIndex].name,
+        { spawnPortalIndex: target.portalIndex }
+      );
+      state.portalLockKey = `${String(target.mapId)}:${Number.parseInt(target.portalIndex, 10)}`;
+    };
+
+    const resolveCurrentPortalIndex = () => {
+      const currentMap = getCurrentMapEntry();
+      if (!currentMap || !currentMap.portalIndexes?.size || !state.mapPayload) return null;
+      const centerX = state.x + spriteSize / 2;
+      const centerY = state.y + spriteSize / 2;
+      const col = Math.floor(centerX / tileSize);
+      const row = Math.floor(centerY / tileSize);
+      if (col < 0 || row < 0 || col >= state.mapWidth || row >= state.mapHeight) return null;
+      const index = row * state.mapWidth + col;
+      return currentMap.portalIndexes.has(index) ? index : null;
     };
 
     const update = (delta) => {
@@ -6940,6 +7085,29 @@
       }
       if (directionValue) {
         directionValue.textContent = getDirLabel(state.dir);
+      }
+
+      const currentMap = getCurrentMapEntry();
+      const portalIndex = resolveCurrentPortalIndex();
+      if (portalIndex == null) {
+        state.portalLockKey = null;
+      } else if (
+        currentMap?.id
+        && mapState.connections.length
+        && !state.isLoadingMap
+        && !state.isTransitioningMap
+      ) {
+        const currentKey = `${String(currentMap.id)}:${portalIndex}`;
+        if (state.portalLockKey !== currentKey) {
+          const target = findConnectedPortal(currentMap.id, portalIndex);
+          if (target) {
+            state.isTransitioningMap = true;
+            state.portalLockKey = currentKey;
+            applyPortalTransition(target).finally(() => {
+              state.isTransitioningMap = false;
+            });
+          }
+        }
       }
     };
 
