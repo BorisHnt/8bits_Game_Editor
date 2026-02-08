@@ -233,6 +233,7 @@
       'map.exportJson': 'Export JSON',
       'map.importJson': 'Import JSON',
       'map.randomize': 'Randomize',
+      'map.randomizePlaceholder': '1-4, 7, 9-11',
       'map.assetName': 'Asset name',
       'map.assetColor': 'Color',
       'map.assetNumber': 'Image number',
@@ -479,6 +480,7 @@
       'map.exportJson': 'Exporter JSON',
       'map.importJson': 'Importer JSON',
       'map.randomize': 'Randomiser',
+      'map.randomizePlaceholder': '1-4, 7, 9-11',
       'map.assetName': "Nom de l'asset",
       'map.assetColor': 'Couleur',
       'map.assetNumber': 'Numero image',
@@ -3529,6 +3531,7 @@
     const mapImportButton = qs('#map-import');
     const mapImportFile = qs('#map-import-file');
     const mapRandomizeButton = qs('#map-randomize');
+    const mapRandomizeRangeInput = qs('#map-randomize-range');
     const mapOptionsButton = qs('#map-options');
     const cacheModal = qs('#map-cache-modal');
     const cacheCloseButton = qs('#map-cache-close');
@@ -3548,6 +3551,7 @@
       tool: 'pencil',
       markerMode: null,
       randomize: false,
+      randomizeRange: '',
       view: 'normal',
       shiftPaint: false,
       shiftPaintIndex: null,
@@ -3913,14 +3917,56 @@
       return `manual:${assetId}:${spriteIndex}`;
     };
 
+    const parseRandomizeRange = (value, maxSpriteIndex) => {
+      const max = Math.max(1, Number.parseInt(maxSpriteIndex, 10) || 1);
+      const text = String(value || '').trim();
+      if (!text) return [];
+      const selected = new Set();
+      text.split(',').forEach((chunk) => {
+        const token = chunk.trim();
+        if (!token) return;
+        const rangeMatch = token.match(/^(\d+)\s*-\s*(\d+)$/);
+        if (rangeMatch) {
+          let start = Number.parseInt(rangeMatch[1], 10);
+          let end = Number.parseInt(rangeMatch[2], 10);
+          if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+          if (start > end) {
+            const temp = start;
+            start = end;
+            end = temp;
+          }
+          for (let valueIndex = start; valueIndex <= end; valueIndex += 1) {
+            if (valueIndex >= 1 && valueIndex <= max) {
+              selected.add(valueIndex);
+            }
+          }
+          return;
+        }
+        if (!/^\d+$/.test(token)) return;
+        const single = Number.parseInt(token, 10);
+        if (single >= 1 && single <= max) {
+          selected.add(single);
+        }
+      });
+      return Array.from(selected).sort((a, b) => a - b);
+    };
+
+    const getRandomSpriteIndex = (asset) => {
+      const maxIndex = Math.max(1, asset?.spriteCount || 1);
+      const allowed = parseRandomizeRange(mapState.randomizeRange, maxIndex);
+      if (allowed.length) {
+        return allowed[Math.floor(Math.random() * allowed.length)];
+      }
+      return 1 + Math.floor(Math.random() * maxIndex);
+    };
+
     const createPaintCell = () => {
       const asset = getAssetById(mapState.selectedAssetId);
       if (!asset) return null;
       const isManual = mapState.mode === 'manual';
       const useRandom = isManual && mapState.randomize;
-      const maxIndex = Math.max(1, asset.spriteCount);
       const nextSpriteIndex = useRandom
-        ? 1 + Math.floor(Math.random() * maxIndex)
+        ? getRandomSpriteIndex(asset)
         : mapState.selectedSpriteIndex;
       return {
         assetId: asset.id,
@@ -4515,9 +4561,8 @@
         if (!asset) return;
         const isManual = mapState.mode === 'manual';
         const useRandom = isManual && mapState.randomize;
-        const maxIndex = Math.max(1, asset.spriteCount);
         const nextSpriteIndex = useRandom
-          ? 1 + Math.floor(Math.random() * maxIndex)
+          ? getRandomSpriteIndex(asset)
           : mapState.selectedSpriteIndex;
         mapState.map.cells[index] = {
           assetId: asset.id,
@@ -4575,6 +4620,14 @@
       mapGrid.addEventListener('pointerleave', () => {
         mapState.shiftPaintIndex = null;
       });
+    };
+
+    const updateRandomizeControls = () => {
+      mapRandomizeButton?.classList.toggle('is-active', mapState.randomize);
+      if (mapRandomizeRangeInput) {
+        mapRandomizeRangeInput.value = mapState.randomizeRange;
+        mapRandomizeRangeInput.disabled = !mapState.randomize;
+      }
     };
 
     const bindMapControls = () => {
@@ -4651,6 +4704,17 @@
           if (direction === 'right') shiftMap(1, 0);
         });
       });
+
+      mapRandomizeButton?.addEventListener('click', () => {
+        mapState.randomize = !mapState.randomize;
+        updateRandomizeControls();
+        scheduleMapSave();
+      });
+
+      mapRandomizeRangeInput?.addEventListener('input', () => {
+        mapState.randomizeRange = mapRandomizeRangeInput.value;
+        scheduleMapSave();
+      });
     };
 
     const buildMapPayload = () => ({
@@ -4673,6 +4737,10 @@
         width: mapState.map.width,
         height: mapState.map.height,
         cellSize: mapState.map.cellSize,
+        randomize: {
+          enabled: mapState.randomize,
+          range: mapState.randomizeRange
+        },
         cells: mapState.map.cells.map((cell) => {
           if (!cell) return null;
           const asset = getAssetById(cell.assetId);
@@ -4719,6 +4787,22 @@
       mapState.map.width = clamp(Number.parseInt(payload.map.width, 10) || 50, 4, 200);
       mapState.map.height = clamp(Number.parseInt(payload.map.height, 10) || 50, 4, 200);
       mapState.map.cellSize = clamp(Number.parseInt(payload.map.cellSize, 10) || 16, 10, 32);
+      const randomizeConfig = payload.map.randomize || {};
+      const legacyRandomizeEnabled = typeof payload.map.randomize === 'boolean'
+        ? payload.map.randomize
+        : false;
+      mapState.randomize = Boolean(
+        randomizeConfig.enabled
+        || legacyRandomizeEnabled
+        || payload.map.randomizeEnabled
+        || payload.randomizeEnabled
+      );
+      mapState.randomizeRange = String(
+        randomizeConfig.range
+        || payload.map.randomizeRange
+        || payload.randomizeRange
+        || ''
+      );
 
       const total = mapState.map.width * mapState.map.height;
       const nextCells = Array.from({ length: total }, () => null);
@@ -4752,6 +4836,7 @@
       if (mapWidthInput) mapWidthInput.value = String(mapState.map.width);
       if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
       if (mapCellSize) mapCellSize.value = String(mapState.map.cellSize);
+      updateRandomizeControls();
       renderAssetList();
       renderAssetGrid();
       renderMapGrid();
@@ -4789,11 +4874,6 @@
       reader.readAsText(file);
     };
 
-    const toggleRandomize = () => {
-      mapState.randomize = !mapState.randomize;
-      mapRandomizeButton?.classList.toggle('is-active', mapState.randomize);
-    };
-
     document.addEventListener('languagechange', () => {
       renderAssetList();
       renderAssetGrid();
@@ -4816,6 +4896,7 @@
     renderMapGrid();
     bindMapGrid();
     bindMapControls();
+    updateRandomizeControls();
 
     const handleShiftKey = (event) => {
       if (event.key !== 'Shift') return;
@@ -4844,7 +4925,6 @@
       }
       mapImportFile.value = '';
     });
-    mapRandomizeButton?.addEventListener('click', toggleRandomize);
     mapOptionsButton?.addEventListener('click', openCacheModal);
     cacheCloseButton?.addEventListener('click', closeCacheModal);
     cacheModal?.addEventListener('click', (event) => {

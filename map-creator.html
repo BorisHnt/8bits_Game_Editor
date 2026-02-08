@@ -192,6 +192,15 @@
                 <button class="button-secondary" type="button" data-map-tool="eraser" data-i18n="map.toolEraser">Eraser</button>
                 <button class="button-secondary" type="button" data-map-tool="eyedropper" data-i18n="map.toolEyedropper">Eyedropper</button>
                 <button class="button-secondary" type="button" data-map-tool="fill" data-i18n="map.toolFill">Fill Bucket</button>
+                <button class="button-secondary" type="button" id="map-randomize" data-i18n="map.randomize">Randomize</button>
+                <input
+                  class="asset-input map-randomize-range"
+                  type="text"
+                  id="map-randomize-range"
+                  data-i18n-placeholder="map.randomizePlaceholder"
+                  placeholder="1-4, 7, 9-11"
+                  aria-label="Randomize tile range"
+                />
               </div>
             </div>
             <div class="map-control-group">
@@ -223,7 +232,6 @@
             <div class="map-toggle">
               <button class="button-secondary" type="button" id="map-export" data-i18n="map.exportJson">Export JSON</button>
               <button class="button-secondary" type="button" id="map-import" data-i18n="map.importJson">Import JSON</button>
-              <button class="button-secondary" type="button" id="map-randomize" data-i18n="map.randomize">Randomize</button>
               <input class="map-file-input" type="file" id="map-import-file" accept=".json" />
             </div>
           </div>

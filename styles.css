@@ -1486,6 +1486,11 @@ svg {
   flex-wrap: wrap;
 }
 
+.map-randomize-range {
+  min-width: 170px;
+  flex: 1 1 190px;
+}
+
 .map-file-input {
   display: none;
 }
