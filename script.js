@@ -7124,6 +7124,8 @@
 
       let cameraX = 0;
       let cameraY = 0;
+      let worldOffsetX = 0;
+      let worldOffsetY = 0;
       const viewScale = state.zoom || 1;
       const viewWidth = canvas.width / viewScale;
       const viewHeight = canvas.height / viewScale;
@@ -7133,18 +7135,33 @@
         const mapHeightPx = state.mapHeight * tileSize;
         const centerX = state.x + spriteSize / 2;
         const centerY = state.y + spriteSize / 2;
-        cameraX = clamp(centerX - viewWidth / 2, 0, Math.max(0, mapWidthPx - viewWidth));
-        cameraY = clamp(centerY - viewHeight / 2, 0, Math.max(0, mapHeightPx - viewHeight));
+
+        if (mapWidthPx <= viewWidth) {
+          cameraX = 0;
+          worldOffsetX = Math.round(((viewWidth - mapWidthPx) * viewScale) / 2);
+        } else {
+          cameraX = clamp(centerX - viewWidth / 2, 0, Math.max(0, mapWidthPx - viewWidth));
+        }
+
+        if (mapHeightPx <= viewHeight) {
+          cameraY = 0;
+          worldOffsetY = Math.round(((viewHeight - mapHeightPx) * viewScale) / 2);
+        } else {
+          cameraY = clamp(centerY - viewHeight / 2, 0, Math.max(0, mapHeightPx - viewHeight));
+        }
+
+        const sourceWidth = Math.max(1, Math.min(viewWidth, mapWidthPx - cameraX));
+        const sourceHeight = Math.max(1, Math.min(viewHeight, mapHeightPx - cameraY));
         ctx.drawImage(
           state.mapCanvas,
           cameraX,
           cameraY,
-          viewWidth,
-          viewHeight,
-          0,
-          0,
-          canvas.width,
-          canvas.height
+          sourceWidth,
+          sourceHeight,
+          worldOffsetX,
+          worldOffsetY,
+          Math.round(sourceWidth * viewScale),
+          Math.round(sourceHeight * viewScale)
         );
       }
 
@@ -7153,8 +7170,8 @@
       const isMoving = pressedKeys.size > 0;
       const frameIndex = isMoving ? state.frame : info.idle;
       const sx = frameIndex * spriteSize;
-      const drawX = Math.round((state.x - cameraX) * viewScale);
-      const drawY = Math.round((state.y - cameraY) * viewScale);
+      const drawX = Math.round((state.x - cameraX) * viewScale + worldOffsetX);
+      const drawY = Math.round((state.y - cameraY) * viewScale + worldOffsetY);
       const drawSize = spriteSize * viewScale;
 
       if (state.dir === 'left') {
