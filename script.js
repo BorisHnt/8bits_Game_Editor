@@ -528,6 +528,10 @@
   const qsa = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
   const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
   const createId = () => `id-${Math.random().toString(36).slice(2, 9)}`;
+  const isEditableTarget = (target) => Boolean(
+    target
+    && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)
+  );
 
   let currentLanguage = 'en';
   let pixelCells = [];
@@ -539,6 +543,9 @@
   let activePaletteIndex = 0;
   let spriteTimerId = null;
   let isCtrlDrawing = false;
+  let isAltEraserActive = false;
+  let isSpaceEyedropperActive = false;
+  let temporaryToolOverride = null;
   let copiedFramePixels = null;
   let undoStack = [];
   let redoStack = [];
@@ -553,6 +560,7 @@
   };
   const sharedClipboardStorageKey = '8bits-shared-pixel-clipboard-v1';
   let sharedClipboard = null;
+  const getEffectiveGraphicTool = () => temporaryToolOverride || activeTool;
 
   const state = {
     grid: {
@@ -1539,8 +1547,23 @@
 
   const updateActiveToolLabel = () => {
     const activeLabel = qs('#active-tool-label');
+    if (!activeLabel) return;
+    const effectiveTool = getEffectiveGraphicTool();
+    if (temporaryToolOverride) {
+      const toolKeys = {
+        pencil: 'tool.pencil',
+        eraser: 'tool.eraser',
+        eyedropper: 'tool.eyedropper',
+        fill: 'tool.fill',
+        copy: 'tool.copy'
+      };
+      const key = toolKeys[effectiveTool];
+      const translated = key ? (translations[currentLanguage]?.[key] ?? '') : '';
+      activeLabel.textContent = translated || effectiveTool;
+      return;
+    }
     const activeButton = qs('.tool-selector-button.is-active');
-    if (!activeLabel || !activeButton) return;
+    if (!activeButton) return;
     const label = activeButton.querySelector('.tool-label');
     activeLabel.textContent = label ? label.textContent.trim() : activeButton.textContent.trim();
   };
@@ -1608,7 +1631,7 @@
   const getCopyStatusText = () => {
     const getText = (key, fallback) => translations[currentLanguage]?.[key] ?? fallback;
     const availableCopied = getAvailableCopiedData();
-    if (activeTool !== 'copy') {
+    if (getEffectiveGraphicTool() !== 'copy') {
       return getText('panel.copyStatusInactive', 'Activate Copy Mode to start.');
     }
     if (copyModeState.awaitingOrigin) {
@@ -1648,6 +1671,8 @@
     const status = qs('#copy-status');
     const selectionSize = qs('#copy-selection-size');
     const availableCopied = getAvailableCopiedData();
+    const effectiveTool = getEffectiveGraphicTool();
+    const isCopyTool = effectiveTool === 'copy';
 
     panel.classList.toggle('is-hidden', !isGraphicDesigner());
 
@@ -1666,19 +1691,19 @@
     }
 
     if (copySelectionButton) {
-      copySelectionButton.disabled = activeTool !== 'copy' || !copyModeState.selection;
+      copySelectionButton.disabled = !isCopyTool || !copyModeState.selection;
     }
     if (setOriginButton) {
-      setOriginButton.disabled = activeTool !== 'copy' || !availableCopied;
+      setOriginButton.disabled = !isCopyTool || !availableCopied;
     }
     if (rotateLeftButton) {
-      rotateLeftButton.disabled = activeTool !== 'copy' || !hasSquareCopySelection();
+      rotateLeftButton.disabled = !isCopyTool || !hasSquareCopySelection();
     }
     if (rotateRightButton) {
-      rotateRightButton.disabled = activeTool !== 'copy' || !hasSquareCopySelection();
+      rotateRightButton.disabled = !isCopyTool || !hasSquareCopySelection();
     }
     if (pasteButton) {
-      pasteButton.disabled = activeTool !== 'copy' || !availableCopied || copyModeState.originIndex === null;
+      pasteButton.disabled = !isCopyTool || !availableCopied || copyModeState.originIndex === null;
     }
     if (resetButton) {
       const hasState = Boolean(copyModeState.selection || copyModeState.copied || copyModeState.awaitingOrigin || copyModeState.originIndex !== null);
@@ -1686,7 +1711,7 @@
     }
 
     if (canvas) {
-      canvas.classList.toggle('is-copy-origin-pick', activeTool === 'copy' && copyModeState.awaitingOrigin);
+      canvas.classList.toggle('is-copy-origin-pick', isCopyTool && copyModeState.awaitingOrigin);
     }
 
     if (!pixelCells.length) return;
@@ -1817,15 +1842,16 @@
     if (!cell) return;
     const index = Number(cell.dataset.index);
     if (Number.isNaN(index)) return;
+    const tool = getEffectiveGraphicTool();
 
-    if (activeTool === 'pencil') {
+    if (tool === 'pencil') {
       paintCell(index, activeColor);
-    } else if (activeTool === 'eraser') {
+    } else if (tool === 'eraser') {
       paintCell(index, null);
-    } else if (activeTool === 'eyedropper' && !dragging) {
+    } else if (tool === 'eyedropper' && !dragging) {
       const pixels = getActivePixels();
       setActiveColor(pixels?.[index] ?? null);
-    } else if (activeTool === 'fill' && !dragging) {
+    } else if (tool === 'fill' && !dragging) {
       floodFill(index, activeColor);
     }
   };
@@ -1835,6 +1861,7 @@
     if (!canvas) return;
 
     let isDrawing = false;
+    let pointerDrawTool = null;
     const resolveCellFromEvent = (event) => {
       const direct = event.target?.closest?.('.pixel-cell');
       if (direct) return direct;
@@ -1847,10 +1874,12 @@
     const handlePointerDown = (event) => {
       const cell = resolveCellFromEvent(event);
       if (!cell) return;
+      const tool = getEffectiveGraphicTool();
       event.preventDefault();
       isDrawing = true;
+      pointerDrawTool = tool;
       canvas.setPointerCapture(event.pointerId);
-      if (activeTool === 'copy' && isGraphicDesigner()) {
+      if (tool === 'copy' && isGraphicDesigner()) {
         const index = Number(cell.dataset.index);
         if (Number.isNaN(index)) return;
         if (copyModeState.awaitingOrigin) {
@@ -1865,7 +1894,7 @@
         renderCopyModeState();
         return;
       }
-      if (activeTool === 'pencil' || activeTool === 'eraser' || activeTool === 'fill') {
+      if (tool === 'pencil' || tool === 'eraser' || tool === 'fill') {
         beginHistoryBatch();
       }
       applyToolToCell(cell);
@@ -1874,7 +1903,8 @@
     const handlePointerMove = (event) => {
       const cell = resolveCellFromEvent(event);
       if (!cell) return;
-      if (activeTool === 'copy' && isGraphicDesigner()) {
+      const tool = getEffectiveGraphicTool();
+      if (pointerDrawTool === 'copy' && isGraphicDesigner()) {
         if (!isDrawing || copyModeState.awaitingOrigin || copyModeState.startIndex === null) return;
         const index = Number(cell.dataset.index);
         if (Number.isNaN(index)) return;
@@ -1882,7 +1912,7 @@
         renderCopyModeState();
         return;
       }
-      const allowDragTool = activeTool === 'pencil' || activeTool === 'eraser';
+      const allowDragTool = tool === 'pencil' || tool === 'eraser';
 
       if (isDrawing) {
         if (!allowDragTool) return;
@@ -1906,11 +1936,13 @@
       } catch (error) {
         // Ignore if pointer is already released.
       }
-      if (activeTool === 'copy') {
+      if (pointerDrawTool === 'copy') {
         copyModeState.startIndex = null;
         renderCopyModeState();
+        pointerDrawTool = null;
         return;
       }
+      pointerDrawTool = null;
       endHistoryBatch();
     };
 
@@ -1921,9 +1953,29 @@
   };
 
   const bindCtrlDrawing = () => {
+    const refreshToolOverride = () => {
+      const next = isSpaceEyedropperActive ? 'eyedropper' : isAltEraserActive ? 'eraser' : null;
+      if (temporaryToolOverride === next) return;
+      temporaryToolOverride = next;
+      updateActiveToolLabel();
+    };
+
     const handleKeyDown = (event) => {
+      if (isEditableTarget(event.target)) return;
       if (event.key === 'Control') {
         isCtrlDrawing = true;
+        return;
+      }
+      if (event.key === 'Alt') {
+        event.preventDefault();
+        isAltEraserActive = true;
+        refreshToolOverride();
+        return;
+      }
+      if (event.code === 'Space') {
+        event.preventDefault();
+        isSpaceEyedropperActive = true;
+        refreshToolOverride();
       }
     };
 
@@ -1931,6 +1983,16 @@
       if (event.key === 'Control') {
         isCtrlDrawing = false;
         endHistoryBatch();
+        return;
+      }
+      if (event.key === 'Alt') {
+        isAltEraserActive = false;
+        refreshToolOverride();
+        return;
+      }
+      if (event.code === 'Space') {
+        isSpaceEyedropperActive = false;
+        refreshToolOverride();
       }
     };
 
@@ -1938,6 +2000,10 @@
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('blur', () => {
       isCtrlDrawing = false;
+      isAltEraserActive = false;
+      isSpaceEyedropperActive = false;
+      temporaryToolOverride = null;
+      updateActiveToolLabel();
       endHistoryBatch();
     });
   };
@@ -3334,15 +3400,16 @@
       if (state.preview.mode !== 'walls') return;
       const cell = getCellFromEvent(event);
       if (!cell) return;
+      const tool = getEffectiveGraphicTool();
       event.preventDefault();
       isDrawing = true;
       canvas.setPointerCapture(event.pointerId);
-      if (activeTool === 'pencil' || activeTool === 'eraser' || activeTool === 'fill') {
+      if (tool === 'pencil' || tool === 'eraser' || tool === 'fill') {
         beginHistoryBatch();
       }
-      if (activeTool === 'eraser') {
+      if (tool === 'eraser') {
         paintWallCell(cell.x, cell.y, 0);
-      } else if (activeTool === 'fill') {
+      } else if (tool === 'fill') {
         floodFillWall(cell.x, cell.y, 1);
       } else {
         paintWallCell(cell.x, cell.y, 1);
@@ -3354,7 +3421,8 @@
     const handlePointerMove = (event) => {
       const cell = getCellFromEvent(event);
       if (!cell) return;
-      const allowDragTool = activeTool === 'pencil' || activeTool === 'eraser';
+      const tool = getEffectiveGraphicTool();
+      const allowDragTool = tool === 'pencil' || tool === 'eraser';
 
       if (!isDrawing && !(isCtrlDrawing || event.ctrlKey)) return;
       if (!allowDragTool) return;
@@ -3362,7 +3430,7 @@
       if (!isDrawing && !historyBatchActive) {
         beginHistoryBatch();
       }
-      if (activeTool === 'eraser') {
+      if (tool === 'eraser') {
         paintWallCell(cell.x, cell.y, 0);
       } else {
         paintWallCell(cell.x, cell.y, 1);
@@ -3609,6 +3677,17 @@
         markers: []
       },
       isDrawing: false
+    };
+    let mapAltEraserActive = false;
+    let mapSpaceEyedropperActive = false;
+    let mapTemporaryTool = null;
+    const getEffectiveMapTool = () => mapTemporaryTool || mapState.tool;
+    const refreshMapTemporaryTool = () => {
+      if (mapState.switchMode) {
+        mapTemporaryTool = null;
+        return;
+      }
+      mapTemporaryTool = mapSpaceEyedropperActive ? 'eyedropper' : mapAltEraserActive ? 'eraser' : null;
     };
 
     const getText = (key, fallback = '') => translations[currentLanguage]?.[key] ?? fallback;
@@ -4845,6 +4924,7 @@
 
     const applyMapCell = (index) => {
       if (index < 0 || index >= mapState.map.cells.length) return;
+      const currentTool = getEffectiveMapTool();
       if (mapState.switchMode) {
         const data = mapState.map.cells[index];
         if (!data) return;
@@ -4863,7 +4943,7 @@
         scheduleMapSave();
         return;
       }
-      if (mapState.tool === 'eyedropper') {
+      if (currentTool === 'eyedropper') {
         const data = mapState.map.cells[index];
         if (!data) return;
         const asset = getAssetById(data.assetId);
@@ -4876,7 +4956,7 @@
         renderAssetGrid();
         return;
       }
-      if (mapState.tool === 'fill') {
+      if (currentTool === 'fill') {
         floodFill(index);
         return;
       }
@@ -4884,7 +4964,7 @@
         ensureMapHistorySnapshot();
         const current = mapState.map.markers[index];
         mapState.map.markers[index] = current === mapState.markerMode ? null : mapState.markerMode;
-      } else if (mapState.tool === 'eraser') {
+      } else if (currentTool === 'eraser') {
         ensureMapHistorySnapshot();
         mapState.map.cells[index] = null;
       } else {
@@ -4913,10 +4993,11 @@
       mapGrid.addEventListener('pointerdown', (event) => {
         const target = event.target.closest('.map-cell');
         if (!target) return;
+        const currentTool = getEffectiveMapTool();
         event.preventDefault();
         mapState.isDrawing = true;
         mapGrid.setPointerCapture(event.pointerId);
-        if (mapState.switchMode || mapState.markerMode || mapState.tool !== 'eyedropper') {
+        if (mapState.switchMode || mapState.markerMode || currentTool !== 'eyedropper') {
           beginMapHistoryBatch();
         }
         applyMapCell(Number.parseInt(target.dataset.index, 10));
@@ -4925,19 +5006,20 @@
       mapGrid.addEventListener('pointermove', (event) => {
         const target = event.target.closest('.map-cell');
         if (!target) return;
+        const currentTool = getEffectiveMapTool();
         const index = Number.parseInt(target.dataset.index, 10);
-        if (!mapState.switchMode && (mapState.tool === 'eyedropper' || mapState.tool === 'fill')) {
+        if (!mapState.switchMode && (currentTool === 'eyedropper' || currentTool === 'fill')) {
           return;
         }
         if (mapState.isDrawing) {
-          if (!mapHistoryBatchActive && (mapState.switchMode || mapState.markerMode || mapState.tool !== 'eyedropper')) {
+          if (!mapHistoryBatchActive && (mapState.switchMode || mapState.markerMode || currentTool !== 'eyedropper')) {
             beginMapHistoryBatch();
           }
           applyMapCell(index);
           return;
         }
         if (mapState.shiftPaint) {
-          if (!mapHistoryBatchActive && (mapState.switchMode || mapState.markerMode || mapState.tool !== 'eyedropper')) {
+          if (!mapHistoryBatchActive && (mapState.switchMode || mapState.markerMode || currentTool !== 'eyedropper')) {
             beginMapHistoryBatch();
           }
           if (mapState.shiftPaintIndex === index) return;
@@ -5035,6 +5117,9 @@
             mapState.isDrawing = false;
             mapState.shiftPaint = false;
             mapState.shiftPaintIndex = null;
+            mapAltEraserActive = false;
+            mapSpaceEyedropperActive = false;
+            mapTemporaryTool = null;
             endMapHistoryBatch();
             mapState.switchMode = !mapState.switchMode;
             if (mapState.switchMode) {
@@ -5335,18 +5420,33 @@
     updateRandomizeControls();
     updateMapUndoRedoControls();
 
-    const handleShiftKey = (event) => {
-      if (event.key !== 'Control') return;
-      mapState.shiftPaint = event.type === 'keydown';
-      if (!mapState.shiftPaint) {
-        mapState.shiftPaintIndex = null;
-        endMapHistoryBatch();
+    const handleMapModifierKeys = (event) => {
+      if (isEditableTarget(event.target)) return;
+      if (event.key === 'Control') {
+        mapState.shiftPaint = event.type === 'keydown';
+        if (!mapState.shiftPaint) {
+          mapState.shiftPaintIndex = null;
+          endMapHistoryBatch();
+        }
+        return;
+      }
+      if (event.key === 'Alt') {
+        event.preventDefault();
+        mapAltEraserActive = event.type === 'keydown';
+        refreshMapTemporaryTool();
+        return;
+      }
+      if (event.code === 'Space') {
+        if (event.type === 'keydown') {
+          event.preventDefault();
+        }
+        mapSpaceEyedropperActive = event.type === 'keydown';
+        refreshMapTemporaryTool();
       }
     };
 
     const handleMapUndoRedo = (event) => {
-      const target = event.target;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable)) {
+      if (isEditableTarget(event.target)) {
         return;
       }
       const platform = navigator.platform || '';
@@ -5363,10 +5463,17 @@
       }
     };
 
-    window.addEventListener('keydown', handleShiftKey);
-    window.addEventListener('keyup', handleShiftKey);
+    window.addEventListener('keydown', handleMapModifierKeys);
+    window.addEventListener('keyup', handleMapModifierKeys);
     window.addEventListener('keydown', handleMapUndoRedo);
-    window.addEventListener('blur', endMapHistoryBatch);
+    window.addEventListener('blur', () => {
+      mapState.shiftPaint = false;
+      mapState.shiftPaintIndex = null;
+      mapAltEraserActive = false;
+      mapSpaceEyedropperActive = false;
+      mapTemporaryTool = null;
+      endMapHistoryBatch();
+    });
 
     addAssetButton?.addEventListener('click', () => {
       createAsset();
