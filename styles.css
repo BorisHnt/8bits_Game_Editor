@@ -1298,7 +1298,7 @@ svg {
    Map Creator
 ============================= */
 .map-layout {
-  grid-template-columns: minmax(280px, 1.2fr) minmax(160px, 0.5fr) minmax(0, 1.7fr);
+  grid-template-columns: minmax(280px, 1.2fr) minmax(140px, 0.42fr) minmax(0, 1.7fr);
   gap: 10px;
 }
 
@@ -1506,7 +1506,7 @@ svg {
   display: grid;
   grid-template-columns: repeat(var(--asset-grid-columns, 4), var(--asset-cell-size, 40px));
   grid-auto-rows: var(--asset-cell-size, 40px);
-  gap: 8px;
+  gap: 2px;
 }
 
 .asset-sprite {
