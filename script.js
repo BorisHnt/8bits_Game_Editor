@@ -5386,6 +5386,8 @@
       drag: null,
       name: ''
     };
+    const worldCacheKey = '8bits-world-cache-state';
+    let worldSaveTimer = null;
 
     const getText = (key, fallback = '') => translations[currentLanguage]?.[key] ?? fallback;
     const getMapName = (map) => map.name || map.fileName || `Map ${map.id}`;
@@ -5430,6 +5432,69 @@
       if (opacityRange) {
         opacityRange.value = String(opacity);
       }
+    };
+
+    const buildWorldCachePayload = () => ({
+      version: 1,
+      name: worldState.name || '',
+      zoom: worldState.zoom,
+      opacity: worldState.opacity,
+      maps: worldState.maps.map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        fileName: entry.fileName || '',
+        payload: entry.payload,
+        position: (
+          entry.position
+          && Number.isFinite(entry.position.x)
+          && Number.isFinite(entry.position.y)
+        )
+          ? {
+            x: entry.position.x,
+            y: entry.position.y
+          }
+          : undefined
+      })),
+      connections: worldState.connections
+        .map((connection) => ({
+          fromMapId: connection?.fromMapId != null ? String(connection.fromMapId) : '',
+          fromPortalIndex: Number.parseInt(connection?.fromPortalIndex, 10),
+          toMapId: connection?.toMapId != null ? String(connection.toMapId) : '',
+          toPortalIndex: Number.parseInt(connection?.toPortalIndex, 10)
+        }))
+        .filter((connection) => (
+          connection.fromMapId
+          && connection.toMapId
+          && Number.isFinite(connection.fromPortalIndex)
+          && Number.isFinite(connection.toPortalIndex)
+        ))
+    });
+
+    const persistWorldCache = () => {
+      if (!window.localStorage) return;
+      try {
+        localStorage.setItem(worldCacheKey, JSON.stringify(buildWorldCachePayload()));
+      } catch (error) {
+        // ignore storage errors
+      }
+    };
+
+    const scheduleWorldSave = () => {
+      if (worldSaveTimer) {
+        clearTimeout(worldSaveTimer);
+      }
+      worldSaveTimer = setTimeout(() => {
+        worldSaveTimer = null;
+        persistWorldCache();
+      }, 200);
+    };
+
+    const flushWorldSave = () => {
+      if (worldSaveTimer) {
+        clearTimeout(worldSaveTimer);
+        worldSaveTimer = null;
+      }
+      persistWorldCache();
     };
 
     const cacheDbName = '8bits-map-cache';
@@ -5646,6 +5711,7 @@
       updateMapsForAsset(assetEntry, previousFileName, previousCacheKey);
       renderAssetList();
       renderWorldPreview();
+      scheduleWorldSave();
     };
 
     const renderAssetList = () => {
@@ -6108,6 +6174,7 @@
     const handlePointerUp = () => {
       if (!worldState.drag) return;
       worldState.drag = null;
+      scheduleWorldSave();
     };
 
     const createMapEntry = (payload, fileName = '') => {
@@ -6179,9 +6246,10 @@
           refreshSelects();
           renderConnections();
           renderWorldPreview();
+          scheduleWorldSave();
         });
 
-        removeButton.addEventListener('click', () => {
+        removeButton.addEventListener('click', async () => {
           worldState.maps = worldState.maps.filter((entry) => entry.id !== mapEntry.id);
           worldState.connections = worldState.connections.filter((connection) => (
             connection.fromMapId !== mapEntry.id && connection.toMapId !== mapEntry.id
@@ -6189,7 +6257,8 @@
           renderMapList();
           refreshSelects();
           renderConnections();
-          rebuildAssets();
+          await rebuildAssets();
+          scheduleWorldSave();
         });
       });
     };
@@ -6253,6 +6322,7 @@
         removeButton.addEventListener('click', () => {
           worldState.connections.splice(index, 1);
           renderConnections();
+          scheduleWorldSave();
         });
 
         row.appendChild(label);
@@ -6275,6 +6345,7 @@
         toPortalIndex
       });
       renderConnections();
+      scheduleWorldSave();
     };
 
     const exportWorld = () => {
@@ -6299,7 +6370,8 @@
       URL.revokeObjectURL(url);
     };
 
-    const importWorldPayload = async (payload, fileName = '') => {
+    const importWorldPayload = async (payload, fileName = '', options = {}) => {
+      const { persist = true } = options;
       const rawMaps = Array.isArray(payload?.maps) ? payload.maps : [];
       if (!rawMaps.length) return false;
 
@@ -6388,7 +6460,27 @@
       refreshSelects();
       renderConnections();
       await rebuildAssets();
+      if (persist) scheduleWorldSave();
       return true;
+    };
+
+    const loadCachedWorldState = async () => {
+      if (!window.localStorage) return false;
+      try {
+        const raw = localStorage.getItem(worldCacheKey);
+        if (!raw) return false;
+        const payload = JSON.parse(raw);
+        if (!payload) return false;
+        const loaded = await importWorldPayload(payload, '', { persist: false });
+        if (!loaded) return false;
+        const zoom = Number.parseFloat(payload.zoom);
+        const opacity = Number.parseFloat(payload.opacity);
+        if (Number.isFinite(zoom)) setZoom(zoom);
+        if (Number.isFinite(opacity)) setOpacity(opacity);
+        return true;
+      } catch (error) {
+        return false;
+      }
     };
 
     const importMap = (file) => {
@@ -6405,6 +6497,7 @@
           refreshSelects();
           renderConnections();
           await rebuildAssets();
+          scheduleWorldSave();
         } catch (error) {
           // Ignore invalid JSON.
         }
@@ -6425,21 +6518,25 @@
     exportButton?.addEventListener('click', exportWorld);
     worldNameInput?.addEventListener('input', () => {
       worldState.name = worldNameInput.value.trim();
+      scheduleWorldSave();
     });
     zoomRange?.addEventListener('input', () => {
       const value = Number.parseFloat(zoomRange.value);
       if (Number.isFinite(value)) {
         setZoom(value);
+        scheduleWorldSave();
       }
     });
     opacityRange?.addEventListener('input', () => {
       const value = Number.parseFloat(opacityRange.value);
       if (Number.isFinite(value)) {
         setOpacity(value);
+        scheduleWorldSave();
       }
     });
     zoomReset?.addEventListener('click', () => {
       setZoom(0.8);
+      scheduleWorldSave();
     });
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handlePointerUp);
@@ -6451,9 +6548,17 @@
 
     setZoom(worldState.zoom);
     setOpacity(worldState.opacity);
+    loadCachedWorldState();
 
     window.addEventListener('resize', () => {
       renderWorldPreview();
+    });
+    window.addEventListener('pagehide', flushWorldSave);
+    window.addEventListener('beforeunload', flushWorldSave);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        flushWorldSave();
+      }
     });
 
     document.addEventListener('languagechange', () => {
