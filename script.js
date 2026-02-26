@@ -1920,7 +1920,9 @@
         return;
       }
 
-      if ((isCtrlDrawing || event.ctrlKey) && allowDragTool) {
+      const altEraserHover = (isAltEraserActive || event.altKey) && tool === 'eraser';
+      const hoverDrawActive = isCtrlDrawing || event.ctrlKey || altEraserHover;
+      if (hoverDrawActive && allowDragTool) {
         if (!historyBatchActive) {
           beginHistoryBatch();
         }
@@ -1988,6 +1990,9 @@
       if (event.key === 'Alt') {
         isAltEraserActive = false;
         refreshToolOverride();
+        if (!isCtrlDrawing) {
+          endHistoryBatch();
+        }
         return;
       }
       if (event.code === 'Space') {
@@ -3423,8 +3428,10 @@
       if (!cell) return;
       const tool = getEffectiveGraphicTool();
       const allowDragTool = tool === 'pencil' || tool === 'eraser';
+      const altEraserHover = (isAltEraserActive || event.altKey) && tool === 'eraser';
+      const hoverDrawActive = isCtrlDrawing || event.ctrlKey || altEraserHover;
 
-      if (!isDrawing && !(isCtrlDrawing || event.ctrlKey)) return;
+      if (!isDrawing && !hoverDrawActive) return;
       if (!allowDragTool) return;
 
       if (!isDrawing && !historyBatchActive) {
@@ -5008,6 +5015,8 @@
         if (!target) return;
         const currentTool = getEffectiveMapTool();
         const index = Number.parseInt(target.dataset.index, 10);
+        const altEraserHover = (mapAltEraserActive || event.altKey) && currentTool === 'eraser';
+        const hoverPaintActive = mapState.shiftPaint || altEraserHover;
         if (!mapState.switchMode && (currentTool === 'eyedropper' || currentTool === 'fill')) {
           return;
         }
@@ -5018,7 +5027,7 @@
           applyMapCell(index);
           return;
         }
-        if (mapState.shiftPaint) {
+        if (hoverPaintActive) {
           if (!mapHistoryBatchActive && (mapState.switchMode || mapState.markerMode || currentTool !== 'eyedropper')) {
             beginMapHistoryBatch();
           }
@@ -5434,6 +5443,10 @@
         event.preventDefault();
         mapAltEraserActive = event.type === 'keydown';
         refreshMapTemporaryTool();
+        if (!mapAltEraserActive && !mapState.shiftPaint) {
+          mapState.shiftPaintIndex = null;
+          endMapHistoryBatch();
+        }
         return;
       }
       if (event.code === 'Space') {
