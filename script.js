@@ -5555,12 +5555,18 @@
     };
 
     const rebuildAssets = async () => {
+      const getAssetEntryKey = (asset, index, mapId) => {
+        if (asset?.cacheKey) return `cache:${asset.cacheKey}`;
+        if (asset?.fileName) return `map:${mapId}:name:${asset.fileName}`;
+        return `map:${mapId}:id:${asset?.name || index}`;
+      };
+
       const previous = worldState.assets;
       const previousByKey = new Map();
       previous.forEach((entry) => {
         entry.maps = new Set();
+        if (entry.key) previousByKey.set(entry.key, entry);
         if (entry.cacheKey) previousByKey.set(`cache:${entry.cacheKey}`, entry);
-        if (entry.fileName) previousByKey.set(`name:${entry.fileName}`, entry);
       });
 
       const next = [];
@@ -5568,11 +5574,7 @@
       worldState.maps.forEach((mapEntry) => {
         const assets = Array.isArray(mapEntry?.payload?.assets) ? mapEntry.payload.assets : [];
         assets.forEach((asset, index) => {
-          const key = asset.fileName
-            ? `name:${asset.fileName}`
-            : asset.cacheKey
-              ? `cache:${asset.cacheKey}`
-              : `id:${asset.name || index}`;
+          const key = getAssetEntryKey(asset, index, mapEntry.id);
           let entry = seen.get(key) || previousByKey.get(key);
           if (!entry) {
             entry = {
@@ -5607,7 +5609,11 @@
     };
 
     const updateMapsForAsset = (assetEntry, previousFileName, previousCacheKey) => {
+      const targetMapIds = assetEntry?.maps instanceof Set && assetEntry.maps.size
+        ? assetEntry.maps
+        : null;
       worldState.maps.forEach((mapEntry) => {
+        if (targetMapIds && !targetMapIds.has(mapEntry.id)) return;
         const assets = Array.isArray(mapEntry?.payload?.assets) ? mapEntry.payload.assets : [];
         assets.forEach((asset) => {
           const matches = (
@@ -5704,15 +5710,26 @@
       });
     };
 
-    const findAssetEntryForDef = (assetDef) => {
+    const findAssetEntryForDef = (mapEntry, assetDef) => {
       if (!assetDef) return null;
+      const mapId = mapEntry?.id;
+      const belongsToMap = (entry) => (
+        !mapId
+        || !(entry?.maps instanceof Set)
+        || entry.maps.size === 0
+        || entry.maps.has(mapId)
+      );
       if (assetDef.cacheKey) {
-        const match = worldState.assets.find((entry) => entry.cacheKey === assetDef.cacheKey);
+        const match = worldState.assets.find((entry) => entry.cacheKey === assetDef.cacheKey && belongsToMap(entry));
         if (match) return match;
+        const fallback = worldState.assets.find((entry) => entry.cacheKey === assetDef.cacheKey);
+        if (fallback) return fallback;
       }
       if (assetDef.fileName) {
-        const match = worldState.assets.find((entry) => entry.fileName === assetDef.fileName);
+        const match = worldState.assets.find((entry) => entry.fileName === assetDef.fileName && belongsToMap(entry));
         if (match) return match;
+        const fallback = worldState.assets.find((entry) => entry.fileName === assetDef.fileName);
+        if (fallback) return fallback;
       }
       return null;
     };
@@ -5886,7 +5903,7 @@
           const assetNumber = Number(entry.assetNumber);
           const assetDef = assetByNumber.get(assetNumber);
           if (!assetDef) continue;
-          const assetEntry = findAssetEntryForDef(assetDef);
+          const assetEntry = findAssetEntryForDef(mapEntry, assetDef);
           const image = assetEntry ? ensureAssetImage(assetEntry) : null;
           const isAuto = entry.auto !== false;
           let spriteIndex = entry.spriteIndex || 1;
