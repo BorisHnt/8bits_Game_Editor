@@ -1693,7 +1693,7 @@ svg {
   border-radius: var(--radius-sm);
   padding: 12px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto auto minmax(0, 1fr);
   gap: 10px;
   align-items: end;
   background: var(--color-panel-elevated);
@@ -1707,6 +1707,13 @@ svg {
 
 .world-map-row > .world-map-field:first-child {
   grid-column: 1 / -1;
+}
+
+.world-map-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: end;
 }
 
 .world-input {
@@ -1724,6 +1731,7 @@ svg {
 
 .world-remove {
   align-self: end;
+  justify-self: end;
 }
 
 .world-connection-builder {

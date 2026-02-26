@@ -189,6 +189,7 @@
       'world.maps': 'Maps',
       'world.mapsSubtitle': 'Import map or world JSON files.',
       'world.import': 'Import JSON',
+      'world.refreshAssets': 'Refresh Assets',
       'world.assets': 'Assets',
       'world.assetsSubtitle': 'Images required by imported maps.',
       'world.assetUpload': 'Upload',
@@ -212,6 +213,7 @@
       'world.mapName': 'Map name',
       'world.portals': 'Portals',
       'world.file': 'File',
+      'world.mapReplace': 'Replace',
       'world.remove': 'Remove',
       'tester.title': 'Map Tester',
       'tester.subtitle': 'Import a map and test your character movement.',
@@ -450,6 +452,7 @@
       'world.maps': 'Maps',
       'world.mapsSubtitle': 'Importer des JSON de map ou de monde.',
       'world.import': 'Importer JSON',
+      'world.refreshAssets': 'Rafraichir assets',
       'world.assets': 'Assets',
       'world.assetsSubtitle': 'Images requises par les maps importees.',
       'world.assetUpload': 'Televerser',
@@ -473,6 +476,7 @@
       'world.mapName': 'Nom de map',
       'world.portals': 'Portails',
       'world.file': 'Fichier',
+      'world.mapReplace': 'Remplacer',
       'world.remove': 'Supprimer',
       'tester.title': 'Map Tester',
       'tester.subtitle': 'Importe une map et teste les deplacements.',
@@ -5533,6 +5537,7 @@
   const initWorldCreator = () => {
     const importButton = qs('#world-import');
     const importFile = qs('#world-import-file');
+    const refreshAssetsButton = qs('#world-refresh-assets');
     const mapList = qs('#world-map-list');
     const assetList = qs('#world-asset-list');
     const fromMapSelect = qs('#world-from-map');
@@ -6371,6 +6376,55 @@
       });
     };
 
+    const extractMapPayloadFromImport = (payload) => {
+      if (payload?.map) return payload;
+      const maps = Array.isArray(payload?.maps) ? payload.maps : [];
+      for (let i = 0; i < maps.length; i += 1) {
+        const entry = maps[i];
+        if (entry?.payload?.map) return entry.payload;
+        if (entry?.map) return entry;
+      }
+      return null;
+    };
+
+    const pruneConnectionsForMap = (mapEntry) => {
+      if (!mapEntry) return;
+      const validPortalIndexes = new Set(mapEntry.portals.map((portal) => portal.index));
+      worldState.connections = worldState.connections.filter((connection) => {
+        if (connection.fromMapId === mapEntry.id && !validPortalIndexes.has(connection.fromPortalIndex)) {
+          return false;
+        }
+        if (connection.toMapId === mapEntry.id && !validPortalIndexes.has(connection.toPortalIndex)) {
+          return false;
+        }
+        return true;
+      });
+    };
+
+    const replaceMapEntry = async (mapEntry, file) => {
+      if (!mapEntry || !file) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const payload = JSON.parse(String(reader.result || '{}'));
+          const mapPayload = extractMapPayloadFromImport(payload);
+          if (!mapPayload?.map) return;
+          mapEntry.fileName = file.name;
+          mapEntry.payload = mapPayload;
+          mapEntry.portals = buildPortalList(mapPayload);
+          pruneConnectionsForMap(mapEntry);
+          renderMapList();
+          refreshSelects();
+          renderConnections();
+          await rebuildAssets();
+          scheduleWorldSave();
+        } catch (error) {
+          // Ignore invalid JSON.
+        }
+      };
+      reader.readAsText(file);
+    };
+
     const renderMapList = () => {
       mapList.innerHTML = '';
       worldState.maps.forEach((mapEntry) => {
@@ -6416,10 +6470,26 @@
         removeButton.className = 'button-secondary world-remove';
         removeButton.textContent = getText('world.remove', 'Remove');
 
+        const replaceButton = document.createElement('button');
+        replaceButton.type = 'button';
+        replaceButton.className = 'button-secondary world-replace';
+        replaceButton.textContent = getText('world.mapReplace', 'Replace');
+
+        const replaceInput = document.createElement('input');
+        replaceInput.type = 'file';
+        replaceInput.accept = '.json';
+        replaceInput.className = 'world-file-input';
+
+        const actions = document.createElement('div');
+        actions.className = 'world-map-actions';
+        actions.appendChild(replaceButton);
+        actions.appendChild(removeButton);
+        actions.appendChild(replaceInput);
+
         row.appendChild(nameField);
         row.appendChild(portalField);
         row.appendChild(fileField);
-        row.appendChild(removeButton);
+        row.appendChild(actions);
         mapList.appendChild(row);
 
         nameInput.addEventListener('input', () => {
@@ -6440,6 +6510,15 @@
           renderConnections();
           await rebuildAssets();
           scheduleWorldSave();
+        });
+
+        replaceButton.addEventListener('click', () => replaceInput.click());
+        replaceInput.addEventListener('change', () => {
+          const file = replaceInput.files?.[0];
+          if (file) {
+            replaceMapEntry(mapEntry, file);
+          }
+          replaceInput.value = '';
         });
       });
     };
@@ -6691,6 +6770,15 @@
       const file = importFile.files?.[0];
       if (file) importMap(file);
       importFile.value = '';
+    });
+    refreshAssetsButton?.addEventListener('click', async () => {
+      refreshAssetsButton.disabled = true;
+      try {
+        await rebuildAssets();
+        scheduleWorldSave();
+      } finally {
+        refreshAssetsButton.disabled = false;
+      }
     });
 
     fromMapSelect.addEventListener('change', () => renderPortalOptions(fromPortalSelect, fromMapSelect.value));
