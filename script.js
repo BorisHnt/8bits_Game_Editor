@@ -187,8 +187,8 @@
       'world.title': 'World Creator',
       'world.subtitle': 'Import maps and connect portals to build a world graph.',
       'world.maps': 'Maps',
-      'world.mapsSubtitle': 'Import map JSON files with portal markers.',
-      'world.import': 'Import Map',
+      'world.mapsSubtitle': 'Import map or world JSON files.',
+      'world.import': 'Import JSON',
       'world.assets': 'Assets',
       'world.assetsSubtitle': 'Images required by imported maps.',
       'world.assetUpload': 'Upload',
@@ -208,7 +208,7 @@
       'world.zoom': 'Zoom',
       'world.zoomReset': 'Reset',
       'world.opacity': 'Transparency',
-      'world.previewEmpty': 'Import maps to see the world preview.',
+      'world.previewEmpty': 'Import maps or worlds to see the world preview.',
       'world.mapName': 'Map name',
       'world.portals': 'Portals',
       'world.file': 'File',
@@ -442,8 +442,8 @@
       'world.title': 'Créateur de monde',
       'world.subtitle': 'Importer des maps et connecter les portails.',
       'world.maps': 'Maps',
-      'world.mapsSubtitle': 'Importer des JSON de map avec portails.',
-      'world.import': 'Importer map',
+      'world.mapsSubtitle': 'Importer des JSON de map ou de monde.',
+      'world.import': 'Importer JSON',
       'world.assets': 'Assets',
       'world.assetsSubtitle': 'Images requises par les maps importees.',
       'world.assetUpload': 'Televerser',
@@ -463,7 +463,7 @@
       'world.zoom': 'Zoom',
       'world.zoomReset': 'Reinitialiser',
       'world.opacity': 'Transparence',
-      'world.previewEmpty': "Importez des maps pour voir l'apercu du monde.",
+      'world.previewEmpty': "Importez des maps ou des mondes pour voir l'apercu du monde.",
       'world.mapName': 'Nom de map',
       'world.portals': 'Portails',
       'world.file': 'Fichier',
@@ -6282,12 +6282,106 @@
       URL.revokeObjectURL(url);
     };
 
+    const importWorldPayload = async (payload, fileName = '') => {
+      const rawMaps = Array.isArray(payload?.maps) ? payload.maps : [];
+      if (!rawMaps.length) return false;
+
+      const usedIds = new Set();
+      const idRemap = new Map();
+      const nextMaps = [];
+
+      rawMaps.forEach((entry, index) => {
+        const mapPayload = entry?.payload?.map ? entry.payload : entry;
+        if (!mapPayload?.map) return;
+
+        const sourceId = entry?.id != null ? String(entry.id) : '';
+        let id = sourceId || createId();
+        if (!id) id = createId();
+        while (usedIds.has(id)) {
+          id = createId();
+        }
+        usedIds.add(id);
+        if (sourceId) {
+          idRemap.set(sourceId, id);
+        }
+
+        const fallbackName = `Map ${index + 1}`;
+        const name = entry?.name || mapPayload?.map?.name || mapPayload?.name || fallbackName;
+        const entryFileName = entry?.fileName || '';
+        const portals = buildPortalList(mapPayload);
+
+        const rawX = Number.parseFloat(entry?.position?.x);
+        const rawY = Number.parseFloat(entry?.position?.y);
+        const position = Number.isFinite(rawX) && Number.isFinite(rawY)
+          ? clampNodePosition(rawX, rawY)
+          : null;
+
+        nextMaps.push({
+          id,
+          name,
+          fileName: entryFileName,
+          payload: mapPayload,
+          portals,
+          position
+        });
+      });
+
+      if (!nextMaps.length) return false;
+
+      const mapIds = new Set(nextMaps.map((entry) => entry.id));
+      const nextConnections = Array.isArray(payload?.connections)
+        ? payload.connections
+          .map((connection) => {
+            const fromSource = connection?.fromMapId != null ? String(connection.fromMapId) : '';
+            const toSource = connection?.toMapId != null ? String(connection.toMapId) : '';
+            const fromMapId = idRemap.get(fromSource) || fromSource;
+            const toMapId = idRemap.get(toSource) || toSource;
+            const fromPortalIndex = Number.parseInt(connection?.fromPortalIndex, 10);
+            const toPortalIndex = Number.parseInt(connection?.toPortalIndex, 10);
+            return {
+              fromMapId,
+              fromPortalIndex,
+              toMapId,
+              toPortalIndex
+            };
+          })
+          .filter((connection) => (
+            connection.fromMapId
+            && connection.toMapId
+            && mapIds.has(connection.fromMapId)
+            && mapIds.has(connection.toMapId)
+            && Number.isFinite(connection.fromPortalIndex)
+            && Number.isFinite(connection.toPortalIndex)
+          ))
+        : [];
+
+      worldState.maps = nextMaps;
+      worldState.connections = nextConnections;
+      worldState.name = String(payload?.name || '').trim();
+      if (!worldState.name && fileName) {
+        worldState.name = fileName.replace(/\.[^/.]+$/, '');
+      }
+      worldState.drag = null;
+
+      if (worldNameInput) {
+        worldNameInput.value = worldState.name;
+      }
+
+      renderMapList();
+      refreshSelects();
+      renderConnections();
+      await rebuildAssets();
+      return true;
+    };
+
     const importMap = (file) => {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = async () => {
         try {
           const payload = JSON.parse(String(reader.result || '{}'));
+          const importedWorld = await importWorldPayload(payload, file.name);
+          if (importedWorld) return;
           if (!payload?.map) return;
           createMapEntry(payload, file.name);
           renderMapList();
