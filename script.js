@@ -5287,7 +5287,7 @@
     updateMapUndoRedoControls();
 
     const handleShiftKey = (event) => {
-      if (event.key !== 'Shift') return;
+      if (event.key !== 'Control') return;
       mapState.shiftPaint = event.type === 'keydown';
       if (!mapState.shiftPaint) {
         mapState.shiftPaintIndex = null;
