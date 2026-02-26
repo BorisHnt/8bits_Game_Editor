@@ -4335,7 +4335,7 @@
         assetGridLabel.textContent = name;
       }
 
-      const cellSize = 40;
+      const cellSize = 20;
       assetGrid.style.setProperty('--asset-grid-columns', asset.cols);
       assetGrid.style.setProperty('--asset-cell-size', `${cellSize}px`);
 

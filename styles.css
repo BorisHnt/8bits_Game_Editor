@@ -1299,6 +1299,7 @@ svg {
 ============================= */
 .map-layout {
   grid-template-columns: minmax(280px, 1.2fr) minmax(160px, 0.5fr) minmax(0, 1.7fr);
+  gap: 10px;
 }
 
 .panel-header {
@@ -1345,6 +1346,11 @@ svg {
   background: var(--color-panel-elevated);
 }
 
+.page-map .asset-row {
+  padding: 10px;
+  gap: 10px;
+}
+
 .asset-row.is-active {
   border-color: var(--color-accent-2);
   box-shadow: 0 0 14px rgba(0, 148, 174, 0.2);
@@ -1361,9 +1367,19 @@ svg {
   min-width: 120px;
 }
 
+.page-map .asset-field {
+  gap: 5px;
+  min-width: 96px;
+}
+
 .asset-name {
   min-width: 200px;
   flex: 1 1 200px;
+}
+
+.page-map .asset-name {
+  min-width: 160px;
+  flex: 1 1 160px;
 }
 
 .asset-input {
@@ -1372,6 +1388,16 @@ svg {
   border-radius: var(--radius-sm);
   color: var(--color-text-primary);
   padding: 4px 6px;
+}
+
+.page-map .asset-row .panel-label {
+  font-size: 0.56rem;
+  letter-spacing: 0.144em;
+}
+
+.page-map .asset-input {
+  padding: 3px 5px;
+  font-size: 0.8rem;
 }
 
 .asset-input:focus-visible {
@@ -1389,15 +1415,28 @@ svg {
   cursor: pointer;
 }
 
+.page-map .asset-color-input {
+  width: 35px;
+  height: 26px;
+}
+
 .asset-file-name {
   font-size: 0.65rem;
   color: var(--color-text-secondary);
+}
+
+.page-map .asset-file-name {
+  font-size: 0.52rem;
 }
 
 .asset-inline-inputs {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.page-map .asset-inline-inputs {
+  gap: 5px;
 }
 
 .asset-select {
@@ -1408,6 +1447,11 @@ svg {
   padding: 6px 8px;
 }
 
+.page-map .asset-select {
+  padding: 5px 6px;
+  font-size: 0.8rem;
+}
+
 .asset-select-button {
   align-self: flex-end;
 }
@@ -1416,6 +1460,10 @@ svg {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.page-map .asset-order-controls {
+  gap: 5px;
 }
 
 .asset-order-button {
@@ -1429,6 +1477,18 @@ svg {
   text-transform: uppercase;
   cursor: pointer;
   transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.page-map .asset-order-button {
+  padding: 3px 6px;
+  font-size: 0.52rem;
+  letter-spacing: 0.112em;
+}
+
+.page-map .asset-row .button-secondary {
+  padding: 5px 10px;
+  font-size: 0.56rem;
+  letter-spacing: 0.128em;
 }
 
 .asset-order-button:hover,
