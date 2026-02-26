@@ -173,6 +173,7 @@
                 <button class="button-secondary" type="button" id="map-redo" data-i18n="map.redo">Redo</button>
                 <button class="button-secondary" type="button" id="map-export" data-i18n="map.exportJson">Export JSON</button>
                 <button class="button-secondary" type="button" id="map-import" data-i18n="map.importJson">Import JSON</button>
+                <button class="button-secondary" type="button" id="map-new" data-i18n="map.newMap">New Map</button>
                 <input class="map-file-input" type="file" id="map-import-file" accept=".json" />
               </div>
             </div>
@@ -275,6 +276,22 @@
       </div>
       <div class="modal-footer">
         <button class="button-secondary" type="button" id="map-cache-purge" data-i18n="map.cachePurge">Purger le cache</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay is-hidden" id="map-new-modal" aria-hidden="true">
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="map-new-title">
+      <div class="modal-header">
+        <h2 class="panel-title" id="map-new-title" data-i18n="map.newMapTitle">New Map</h2>
+      </div>
+      <div class="modal-body">
+        <p class="panel-subtitle" data-i18n="map.newMapWarning">Voulez vous un nouvel espace de travail vide ? Attention, cette action va effacer la map en cours.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="button-secondary" type="button" id="map-new-no" data-i18n="map.newMapNo">No</button>
+        <button class="button-secondary" type="button" id="map-new-export" data-i18n="map.newMapExport">Export JSON</button>
+        <button class="button-primary" type="button" id="map-new-yes" data-i18n="map.newMapYes">Yes</button>
       </div>
     </div>
   </div>

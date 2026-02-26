@@ -236,6 +236,12 @@
       'map.data': 'Data',
       'map.exportJson': 'Export JSON',
       'map.importJson': 'Import JSON',
+      'map.newMap': 'New Map',
+      'map.newMapTitle': 'New Map',
+      'map.newMapWarning': 'Do you want a new empty workspace? Warning: this action will erase the current map.',
+      'map.newMapYes': 'Yes',
+      'map.newMapNo': 'No',
+      'map.newMapExport': 'Export JSON',
       'map.undo': 'Undo',
       'map.redo': 'Redo',
       'map.randomize': 'Randomize',
@@ -491,6 +497,12 @@
       'map.data': 'Data',
       'map.exportJson': 'Exporter JSON',
       'map.importJson': 'Importer JSON',
+      'map.newMap': 'Nouvelle map',
+      'map.newMapTitle': 'Nouvelle map',
+      'map.newMapWarning': 'voulez vous un nouvel espace de travail vide ? Attention, cette action va effacer la map en cours.',
+      'map.newMapYes': 'OUI',
+      'map.newMapNo': 'NON',
+      'map.newMapExport': 'Exporter JSON',
       'map.undo': 'Annuler',
       'map.redo': 'Retablir',
       'map.randomize': 'Randomiser',
@@ -3555,6 +3567,7 @@
     const mapExportButton = qs('#map-export');
     const mapImportButton = qs('#map-import');
     const mapImportFile = qs('#map-import-file');
+    const mapNewButton = qs('#map-new');
     const mapRandomizeButton = qs('#map-randomize');
     const mapRandomizeRangeInput = qs('#map-randomize-range');
     const mapOptionsButton = qs('#map-options');
@@ -3565,6 +3578,10 @@
     const cacheCount = qs('#map-cache-count');
     const cacheSize = qs('#map-cache-size');
     const cacheEmpty = qs('#map-cache-empty');
+    const mapNewModal = qs('#map-new-modal');
+    const mapNewYesButton = qs('#map-new-yes');
+    const mapNewNoButton = qs('#map-new-no');
+    const mapNewExportButton = qs('#map-new-export');
 
     if (!assetList || !assetGrid || !mapGrid) return;
 
@@ -3724,6 +3741,18 @@
       if (!cacheModal) return;
       cacheModal.classList.add('is-hidden');
       cacheModal.setAttribute('aria-hidden', 'true');
+    };
+
+    const openNewMapModal = () => {
+      if (!mapNewModal) return;
+      mapNewModal.classList.remove('is-hidden');
+      mapNewModal.setAttribute('aria-hidden', 'false');
+    };
+
+    const closeNewMapModal = () => {
+      if (!mapNewModal) return;
+      mapNewModal.classList.add('is-hidden');
+      mapNewModal.setAttribute('aria-hidden', 'true');
     };
 
     const cacheAssetImage = async (file) => {
@@ -5259,6 +5288,26 @@
       reader.readAsText(file);
     };
 
+    const createNewMapWorkspace = () => {
+      const total = mapState.map.width * mapState.map.height;
+      mapState.isDrawing = false;
+      mapState.shiftPaint = false;
+      mapState.shiftPaintIndex = null;
+      mapState.markerMode = null;
+      mapState.map.name = '';
+      mapState.map.cells = Array.from({ length: total }, () => null);
+      mapState.map.markers = Array.from({ length: total }, () => null);
+      if (mapNameInput) mapNameInput.value = '';
+      endMapHistoryBatch();
+      mapUndoStack = [];
+      mapRedoStack = [];
+      updateMapUndoRedoControls();
+      updateMapInteractionControls();
+      renderMapGrid();
+      scheduleMapSave();
+      closeNewMapModal();
+    };
+
     document.addEventListener('languagechange', () => {
       renderAssetList();
       renderAssetGrid();
@@ -5329,6 +5378,7 @@
 
     mapExportButton?.addEventListener('click', exportMapJson);
     mapImportButton?.addEventListener('click', () => mapImportFile?.click());
+    mapNewButton?.addEventListener('click', openNewMapModal);
     mapImportFile?.addEventListener('change', () => {
       const file = mapImportFile.files?.[0];
       if (file) {
@@ -5336,13 +5386,24 @@
       }
       mapImportFile.value = '';
     });
+    mapNewYesButton?.addEventListener('click', createNewMapWorkspace);
+    mapNewNoButton?.addEventListener('click', closeNewMapModal);
+    mapNewExportButton?.addEventListener('click', () => {
+      exportMapJson();
+    });
     mapOptionsButton?.addEventListener('click', openCacheModal);
     cacheCloseButton?.addEventListener('click', closeCacheModal);
     cacheModal?.addEventListener('click', (event) => {
       if (event.target === cacheModal) closeCacheModal();
     });
+    mapNewModal?.addEventListener('click', (event) => {
+      if (event.target === mapNewModal) closeNewMapModal();
+    });
     window.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') closeCacheModal();
+      if (event.key === 'Escape') {
+        closeCacheModal();
+        closeNewMapModal();
+      }
     });
     cachePurgeButton?.addEventListener('click', () => {
       cacheClear().then(updateCacheModal);
