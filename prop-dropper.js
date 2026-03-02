@@ -406,6 +406,10 @@
       const key = String(safeIndex);
       const current = asset.collisionMasks?.[key];
       if (Array.isArray(current)) {
+        if (create) {
+          asset.collisionMasks[key] = normalizeCollisionMask(current, asset.type);
+          return asset.collisionMasks[key];
+        }
         return normalizeCollisionMask(current, asset.type);
       }
       const fallback = createDefaultCollisionMask(asset.type);
@@ -1768,7 +1772,7 @@
         card.className = 'item-mask-sprite-card';
         const preview = document.createElement('div');
         preview.className = 'item-mask-sprite-preview';
-        const layer = buildSpriteLayer(asset, spriteIndex, 32);
+        const layer = buildSpriteLayer(asset, spriteIndex, 64);
         if (layer?.imageUrl) {
           preview.style.backgroundImage = `url(${layer.imageUrl})`;
           preview.style.backgroundSize = layer.size;
