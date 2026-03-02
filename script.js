@@ -5905,7 +5905,10 @@
       const next = [];
       const seen = new Map();
       worldState.maps.forEach((mapEntry) => {
-        const assets = Array.isArray(mapEntry?.payload?.assets) ? mapEntry.payload.assets : [];
+        const assets = [
+          ...(Array.isArray(mapEntry?.payload?.assets) ? mapEntry.payload.assets : []),
+          ...(Array.isArray(mapEntry?.payload?.itemAssets) ? mapEntry.payload.itemAssets : [])
+        ];
         assets.forEach((asset, index) => {
           const key = getAssetEntryKey(asset, index, mapEntry.id);
           let entry = seen.get(key) || previousByKey.get(key);
@@ -5947,7 +5950,10 @@
         : null;
       worldState.maps.forEach((mapEntry) => {
         if (targetMapIds && !targetMapIds.has(mapEntry.id)) return;
-        const assets = Array.isArray(mapEntry?.payload?.assets) ? mapEntry.payload.assets : [];
+        const assets = [
+          ...(Array.isArray(mapEntry?.payload?.assets) ? mapEntry.payload.assets : []),
+          ...(Array.isArray(mapEntry?.payload?.itemAssets) ? mapEntry.payload.itemAssets : [])
+        ];
         assets.forEach((asset) => {
           const matches = (
             (previousCacheKey && asset.cacheKey === previousCacheKey) ||
@@ -6220,7 +6226,10 @@
       const cells = Array.isArray(map.cells) ? map.cells : [];
       const markers = Array.isArray(map.markers) ? map.markers : [];
       const assets = Array.isArray(mapEntry.payload.assets) ? mapEntry.payload.assets : [];
+      const itemAssets = Array.isArray(mapEntry.payload.itemAssets) ? mapEntry.payload.itemAssets : [];
+      const itemLayer = Array.isArray(mapEntry.payload?.itemLayer?.cells) ? mapEntry.payload.itemLayer.cells : [];
       const assetByNumber = new Map(assets.map((asset) => [Number(asset.number), asset]));
+      const itemAssetByNumber = new Map(itemAssets.map((asset) => [Number(asset.number), asset]));
       const safeCellSize = clamp(Number.parseInt(cellSize, 10) || 6, 2, 16);
 
       canvas.width = width * safeCellSize;
@@ -6244,6 +6253,46 @@
           if (isAuto) {
             spriteIndex = computeAutoSpriteIndex(cells, width, height, assetDef, x, y, assetNumber);
           }
+
+          if (image && image.complete && image.naturalWidth > 0) {
+            const cols = Math.max(1, Number.parseInt(assetDef.cols, 10) || 1);
+            const rows = Math.max(1, Number.parseInt(assetDef.rows, 10) || 1);
+            const spriteWidth = Math.max(1, Number.parseInt(assetDef.spriteWidth, 10) || Math.floor(image.naturalWidth / cols));
+            const spriteHeight = Math.max(1, Number.parseInt(assetDef.spriteHeight, 10) || Math.floor(image.naturalHeight / rows));
+            const spriteCol = (spriteIndex - 1) % cols;
+            const spriteRow = Math.floor((spriteIndex - 1) / cols);
+            const sx = spriteCol * spriteWidth;
+            const sy = spriteRow * spriteHeight;
+            ctx.drawImage(
+              image,
+              sx,
+              sy,
+              spriteWidth,
+              spriteHeight,
+              x * safeCellSize,
+              y * safeCellSize,
+              safeCellSize,
+              safeCellSize
+            );
+          } else {
+            ctx.fillStyle = assetDef.color || '#2a2a2a';
+            ctx.fillRect(x * safeCellSize, y * safeCellSize, safeCellSize, safeCellSize);
+          }
+        }
+      }
+
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const index = y * width + x;
+          const entry = itemLayer[index];
+          if (!entry || entry.assetNumber == null) continue;
+          const assetNumber = Number(entry.assetNumber);
+          const assetDef = itemAssetByNumber.get(assetNumber);
+          if (!assetDef) continue;
+          const assetEntry = findAssetEntryForDef(mapEntry, assetDef);
+          const image = assetEntry ? ensureAssetImage(assetEntry) : null;
+          const maxSpriteCount = Math.max(1, Number.parseInt(assetDef.spriteCount, 10) || 1);
+          const spriteIndex = clamp(Number.parseInt(entry.spriteIndex, 10) || 1, 1, maxSpriteCount);
 
           if (image && image.complete && image.naturalWidth > 0) {
             const cols = Math.max(1, Number.parseInt(assetDef.cols, 10) || 1);
@@ -6447,7 +6496,7 @@
 
     const createMapEntry = (payload, fileName = '') => {
       const id = createId();
-      const name = payload?.map?.name || payload?.name || (fileName ? fileName.replace(/\.[^/.]+$/, '') : `Map ${worldState.maps.length + 1}`);
+      const name = payload?.itemLayer?.name || payload?.name || payload?.map?.name || (fileName ? fileName.replace(/\.[^/.]+$/, '') : `Map ${worldState.maps.length + 1}`);
       const portals = buildPortalList(payload);
       worldState.maps.push({
         id,
@@ -6737,7 +6786,7 @@
         }
 
         const fallbackName = `Map ${index + 1}`;
-        const name = entry?.name || mapPayload?.map?.name || mapPayload?.name || fallbackName;
+        const name = entry?.name || mapPayload?.itemLayer?.name || mapPayload?.name || mapPayload?.map?.name || fallbackName;
         const entryFileName = entry?.fileName || '';
         const portals = buildPortalList(mapPayload);
 
@@ -6972,6 +7021,8 @@
       frameTimer: 0,
       mapPayload: null,
       mapCanvas: null,
+      mapFrontCanvas: null,
+      mapCoverCanvas: null,
       collision: [],
       mapWidth: 0,
       mapHeight: 0,
@@ -7110,7 +7161,7 @@
 
     const normalizeMapPayloads = (payload, fallbackName = '') => {
       if (payload?.map && Array.isArray(payload.assets)) {
-        const name = payload.map.name || payload.name || fallbackName || 'Map';
+        const name = payload.itemLayer?.name || payload.name || payload.map.name || fallbackName || 'Map';
         return {
           maps: [{
             id: null,
@@ -7246,13 +7297,30 @@
           collision[i] = true;
         }
       }
+      const itemAssets = Array.isArray(payload?.itemAssets) ? payload.itemAssets : [];
+      const itemAssetByNumber = new Map(itemAssets.map((asset) => [Number(asset.number), asset]));
+      const itemLayer = Array.isArray(payload?.itemLayer?.cells) ? payload.itemLayer.cells : [];
+      const effectiveCollision = Array.isArray(payload?.itemLayer?.effectiveCollision) ? payload.itemLayer.effectiveCollision : [];
+      if (effectiveCollision.length >= total) {
+        for (let i = 0; i < total; i += 1) {
+          const entry = effectiveCollision[i];
+          collision[i] = entry === 'blocking' || entry === true || entry === 1;
+        }
+        return { collision, width, height };
+      }
+      for (let i = 0; i < Math.min(itemLayer.length, total); i += 1) {
+        const entry = itemLayer[i];
+        if (!entry || entry.assetNumber == null) continue;
+        const asset = itemAssetByNumber.get(Number(entry.assetNumber));
+        if (!asset) continue;
+        collision[i] = asset.type === 'blocking';
+      }
       return { collision, width, height };
     };
 
     const loadAssetImages = async (payload) => {
       state.assetImages = new Map();
-      const assets = Array.isArray(payload?.assets) ? payload.assets : [];
-      await Promise.all(assets.map(async (asset) => {
+      const loadGroup = async (assets, prefix) => Promise.all(assets.map(async (asset) => {
         let entry = null;
         if (asset.cacheKey) {
           entry = await cacheGet(asset.cacheKey).catch(() => null);
@@ -7269,11 +7337,13 @@
           img.onload = () => resolve(true);
           img.onerror = () => resolve(true);
         });
-        state.assetImages.set(Number(asset.number), { image: img, asset });
+        state.assetImages.set(`${prefix}:${Number(asset.number)}`, { image: img, asset });
       }));
+      await loadGroup(Array.isArray(payload?.assets) ? payload.assets : [], 'base');
+      await loadGroup(Array.isArray(payload?.itemAssets) ? payload.itemAssets : [], 'item');
     };
 
-    const buildMapCanvas = (payload) => {
+    const buildMapCanvas = (payload, layerMode = 'base') => {
       const map = payload?.map || {};
       const width = clamp(Number.parseInt(map.width, 10) || 0, 0, 2000);
       const height = clamp(Number.parseInt(map.height, 10) || 0, 0, 2000);
@@ -7286,6 +7356,7 @@
       mapCtx.fillStyle = '#0b0b0b';
       mapCtx.fillRect(0, 0, canvasMap.width, canvasMap.height);
 
+      if (layerMode === 'base') {
       const assets = Array.isArray(payload?.assets) ? payload.assets : [];
       const assetByNumber = new Map(assets.map((asset) => [Number(asset.number), asset]));
       const cells = Array.isArray(map.cells) ? map.cells : [];
@@ -7308,7 +7379,7 @@
           }
           spriteIndex = clamp(Number.parseInt(spriteIndex, 10) || 1, 1, maxSpriteCount);
 
-          const cached = state.assetImages.get(assetNumber);
+          const cached = state.assetImages.get(`base:${assetNumber}`);
           if (cached?.image && cached.image.naturalWidth > 0) {
             const cols = Math.max(1, Number.parseInt(asset.cols, 10) || 1);
             const rows = Math.max(1, Number.parseInt(asset.rows, 10) || 1);
@@ -7331,6 +7402,53 @@
             );
           } else {
             mapCtx.fillStyle = asset.color || (asset.type === 'blocking' ? '#4a1c1c' : '#1f5a38');
+            mapCtx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+          }
+        }
+      }
+        return canvasMap;
+      }
+
+      mapCtx.clearRect(0, 0, canvasMap.width, canvasMap.height);
+      const itemAssets = Array.isArray(payload?.itemAssets) ? payload.itemAssets : [];
+      const itemAssetByNumber = new Map(itemAssets.map((asset) => [Number(asset.number), asset]));
+      const itemCells = Array.isArray(payload?.itemLayer?.cells) ? payload.itemLayer.cells : [];
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const index = y * width + x;
+          const entry = itemCells[index];
+          if (!entry || entry.assetNumber == null) continue;
+          const assetNumber = Number(entry.assetNumber);
+          const asset = itemAssetByNumber.get(assetNumber);
+          if (!asset) continue;
+          const depth = asset.playerDepth === 'cover' ? 'cover' : 'front';
+          if (layerMode === 'front' && depth !== 'front') continue;
+          if (layerMode === 'cover' && depth !== 'cover') continue;
+          const maxSpriteCount = Math.max(1, Number.parseInt(asset.spriteCount, 10) || 1);
+          const spriteIndex = clamp(Number.parseInt(entry.spriteIndex, 10) || 1, 1, maxSpriteCount);
+          const cached = state.assetImages.get(`item:${assetNumber}`);
+          if (cached?.image && cached.image.naturalWidth > 0) {
+            const cols = Math.max(1, Number.parseInt(asset.cols, 10) || 1);
+            const rows = Math.max(1, Number.parseInt(asset.rows, 10) || 1);
+            const spriteWidth = Math.max(1, Number.parseInt(asset.spriteWidth, 10) || Math.floor(cached.image.naturalWidth / cols));
+            const spriteHeight = Math.max(1, Number.parseInt(asset.spriteHeight, 10) || Math.floor(cached.image.naturalHeight / rows));
+            const spriteCol = (spriteIndex - 1) % cols;
+            const spriteRow = Math.floor((spriteIndex - 1) / cols);
+            const sx = spriteCol * spriteWidth;
+            const sy = spriteRow * spriteHeight;
+            mapCtx.drawImage(
+              cached.image,
+              sx,
+              sy,
+              spriteWidth,
+              spriteHeight,
+              x * tileSize,
+              y * tileSize,
+              tileSize,
+              tileSize
+            );
+          } else {
+            mapCtx.fillStyle = asset.color || '#2a2a2a';
             mapCtx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
           }
         }
@@ -7375,7 +7493,9 @@
       try {
         await loadAssetImages(payload);
         if (token !== mapLoadToken) return;
-        state.mapCanvas = buildMapCanvas(payload);
+        state.mapCanvas = buildMapCanvas(payload, 'base');
+        state.mapFrontCanvas = buildMapCanvas(payload, 'front');
+        state.mapCoverCanvas = buildMapCanvas(payload, 'cover');
         setLoadedLabel(name || payload?.map?.name || payload?.name || 'Map');
         resetPosition(options.spawnPortalIndex);
       } finally {
@@ -7413,6 +7533,8 @@
       } else {
         state.mapPayload = null;
         state.mapCanvas = null;
+        state.mapFrontCanvas = null;
+        state.mapCoverCanvas = null;
         state.collision = [];
         state.mapWidth = 0;
         state.mapHeight = 0;
@@ -7675,6 +7797,19 @@
           Math.round(sourceWidth * viewScale),
           Math.round(sourceHeight * viewScale)
         );
+        if (state.mapFrontCanvas) {
+          ctx.drawImage(
+            state.mapFrontCanvas,
+            cameraX,
+            cameraY,
+            sourceWidth,
+            sourceHeight,
+            worldOffsetX,
+            worldOffsetY,
+            Math.round(sourceWidth * viewScale),
+            Math.round(sourceHeight * viewScale)
+          );
+        }
       }
 
       const sheet = state.dir === 'up' ? sheets.up : state.dir === 'down' ? sheets.down : sheets.side;
@@ -7693,6 +7828,24 @@
         ctx.restore();
       } else {
         ctx.drawImage(sheet, sx, 0, spriteSize, spriteSize, drawX, drawY, drawSize, drawSize);
+      }
+
+      if (state.mapCanvas && state.mapCoverCanvas) {
+        const mapWidthPx = state.mapWidth * tileSize;
+        const mapHeightPx = state.mapHeight * tileSize;
+        const sourceWidth = Math.max(1, Math.min(viewWidth, mapWidthPx - cameraX));
+        const sourceHeight = Math.max(1, Math.min(viewHeight, mapHeightPx - cameraY));
+        ctx.drawImage(
+          state.mapCoverCanvas,
+          cameraX,
+          cameraY,
+          sourceWidth,
+          sourceHeight,
+          worldOffsetX,
+          worldOffsetY,
+          Math.round(sourceWidth * viewScale),
+          Math.round(sourceHeight * viewScale)
+        );
       }
     };
 
