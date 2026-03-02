@@ -1703,8 +1703,8 @@ svg {
 
 .item-mask-sprite-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 14px;
   max-height: 56vh;
   overflow: auto;
   padding-right: 4px;
@@ -1719,8 +1719,8 @@ svg {
 
 .item-mask-sprite-preview {
   position: relative;
-  width: 32px;
-  height: 32px;
+  width: 64px;
+  height: 64px;
   border-radius: var(--radius-sm);
   border: 1px solid rgba(255, 255, 255, 0.14);
   overflow: hidden;
@@ -1757,12 +1757,12 @@ svg {
 
 .item-mask-edit-cell.is-blocking,
 .map-mask-cell.is-blocking {
-  background: rgba(122, 31, 31, 0.6);
+  background: rgba(215, 38, 61, 0.82);
 }
 
 .item-mask-edit-cell.is-passable,
 .map-mask-cell.is-passable {
-  background: rgba(31, 111, 58, 0.34);
+  background: rgba(46, 160, 67, 0.52);
 }
 
 .item-mask-sprite-meta {
