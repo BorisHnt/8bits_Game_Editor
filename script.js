@@ -6257,8 +6257,8 @@
           if (image && image.complete && image.naturalWidth > 0) {
             const cols = Math.max(1, Number.parseInt(assetDef.cols, 10) || 1);
             const rows = Math.max(1, Number.parseInt(assetDef.rows, 10) || 1);
-            const spriteWidth = Math.max(1, Number.parseInt(assetDef.spriteWidth, 10) || Math.floor(image.naturalWidth / cols));
-            const spriteHeight = Math.max(1, Number.parseInt(assetDef.spriteHeight, 10) || Math.floor(image.naturalHeight / rows));
+            const spriteWidth = Math.max(1, Math.floor(image.naturalWidth / cols));
+            const spriteHeight = Math.max(1, Math.floor(image.naturalHeight / rows));
             const spriteCol = (spriteIndex - 1) % cols;
             const spriteRow = Math.floor((spriteIndex - 1) / cols);
             const sx = spriteCol * spriteWidth;
@@ -6297,8 +6297,8 @@
           if (image && image.complete && image.naturalWidth > 0) {
             const cols = Math.max(1, Number.parseInt(assetDef.cols, 10) || 1);
             const rows = Math.max(1, Number.parseInt(assetDef.rows, 10) || 1);
-            const spriteWidth = Math.max(1, Number.parseInt(assetDef.spriteWidth, 10) || Math.floor(image.naturalWidth / cols));
-            const spriteHeight = Math.max(1, Number.parseInt(assetDef.spriteHeight, 10) || Math.floor(image.naturalHeight / rows));
+            const spriteWidth = Math.max(1, Math.floor(image.naturalWidth / cols));
+            const spriteHeight = Math.max(1, Math.floor(image.naturalHeight / rows));
             const spriteCol = (spriteIndex - 1) % cols;
             const spriteRow = Math.floor((spriteIndex - 1) / cols);
             const sx = spriteCol * spriteWidth;
@@ -7383,8 +7383,8 @@
           if (cached?.image && cached.image.naturalWidth > 0) {
             const cols = Math.max(1, Number.parseInt(asset.cols, 10) || 1);
             const rows = Math.max(1, Number.parseInt(asset.rows, 10) || 1);
-            const spriteWidth = Math.max(1, Number.parseInt(asset.spriteWidth, 10) || Math.floor(cached.image.naturalWidth / cols));
-            const spriteHeight = Math.max(1, Number.parseInt(asset.spriteHeight, 10) || Math.floor(cached.image.naturalHeight / rows));
+            const spriteWidth = Math.max(1, Math.floor(cached.image.naturalWidth / cols));
+            const spriteHeight = Math.max(1, Math.floor(cached.image.naturalHeight / rows));
             const spriteCol = (spriteIndex - 1) % cols;
             const spriteRow = Math.floor((spriteIndex - 1) / cols);
             const sx = spriteCol * spriteWidth;
@@ -7430,8 +7430,8 @@
           if (cached?.image && cached.image.naturalWidth > 0) {
             const cols = Math.max(1, Number.parseInt(asset.cols, 10) || 1);
             const rows = Math.max(1, Number.parseInt(asset.rows, 10) || 1);
-            const spriteWidth = Math.max(1, Number.parseInt(asset.spriteWidth, 10) || Math.floor(cached.image.naturalWidth / cols));
-            const spriteHeight = Math.max(1, Number.parseInt(asset.spriteHeight, 10) || Math.floor(cached.image.naturalHeight / rows));
+            const spriteWidth = Math.max(1, Math.floor(cached.image.naturalWidth / cols));
+            const spriteHeight = Math.max(1, Math.floor(cached.image.naturalHeight / rows));
             const spriteCol = (spriteIndex - 1) % cols;
             const spriteRow = Math.floor((spriteIndex - 1) / cols);
             const sx = spriteCol * spriteWidth;
