@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>8bits Game Editor — World Creator</title>
+  <title>8bits Game Editor — Item Creator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="page-world">
+<body class="page-item">
   <header class="navigation-bar-sticky">
     <div class="navigation-bar-inner">
       <a class="brand-lockup" href="index.html" aria-label="8bits Game Editor home">
@@ -133,99 +133,142 @@
     </div>
   </header>
 
-  <main class="workspace-page world-creator">
+  <main class="workspace-page item-creator">
     <section class="workspace-header">
       <div>
-        <h1 class="workspace-title" data-i18n="world.title">World Creator</h1>
-        <p class="workspace-subtitle" data-i18n="world.subtitle">Import maps and connect portals to build a world graph.</p>
+        <h1 class="workspace-title" data-i18n="items.title">Item Creator</h1>
+        <p class="workspace-subtitle" data-i18n="items.subtitle">Import a base map, place gameplay items on top, and export the combined layout.</p>
       </div>
     </section>
 
-    <section class="workspace-layout world-layout">
-      <aside class="workspace-panel-left world-panel-left">
+    <section class="workspace-layout map-layout">
+      <aside class="workspace-panel-left map-panel-left">
         <div class="panel-header">
           <div>
-            <h2 class="panel-title" data-i18n="world.maps">Maps</h2>
-            <p class="panel-subtitle" data-i18n="world.mapsSubtitle">Import map or world JSON files.</p>
+            <h2 class="panel-title" data-i18n="items.assets">Items</h2>
+            <p class="panel-subtitle" data-i18n="items.assetsSubtitle">Add object sheets and configure collision and player depth.</p>
           </div>
-          <button class="button-secondary" type="button" id="world-import" data-i18n="world.import">Import JSON</button>
-          <input class="world-file-input" type="file" id="world-import-file" accept=".json" />
+          <button class="button-secondary" type="button" id="item-add-asset" data-i18n="items.addAsset">Add Item</button>
         </div>
-        <div class="world-map-list" id="world-map-list"></div>
-        <div class="panel-divider"></div>
-        <div class="panel-header">
-          <div>
-            <h2 class="panel-title" data-i18n="world.assets">Assets</h2>
-            <p class="panel-subtitle" data-i18n="world.assetsSubtitle">Images required by imported maps.</p>
-          </div>
-          <button class="button-secondary" type="button" id="world-refresh-assets" data-i18n="world.refreshAssets">Refresh Assets</button>
-        </div>
-        <div class="world-asset-list" id="world-asset-list"></div>
+        <div class="asset-type-filters" id="item-asset-type-filters"></div>
+        <div class="asset-list" id="item-asset-list"></div>
       </aside>
 
-      <section class="workspace-panel-center world-panel-center">
+      <section class="workspace-panel-center map-panel-center">
         <div class="panel-header">
           <div>
-            <h2 class="panel-title" data-i18n="world.connections">Connections</h2>
-            <p class="panel-subtitle" data-i18n="world.connectionsSubtitle">Link portals between maps.</p>
-          </div>
-          <div class="world-export-group">
-            <input class="world-input" type="text" id="world-name" placeholder="World name" data-i18n-placeholder="world.namePlaceholder" />
-            <button class="button-secondary" type="button" id="world-export" data-i18n="world.export">Export World</button>
+            <h2 class="panel-title" data-i18n="items.assetGrid">Item Grid</h2>
+            <p class="panel-subtitle" id="item-asset-grid-label" data-i18n="items.assetGridHint">Select an item sheet to preview its sprites.</p>
           </div>
         </div>
-        <div class="world-connection-builder">
-          <div class="world-connection-field">
-            <label class="panel-label" data-i18n="world.from">From</label>
-            <select class="world-select" id="world-from-map"></select>
-            <select class="world-select" id="world-from-portal"></select>
-          </div>
-          <div class="world-connection-field">
-            <label class="panel-label" data-i18n="world.to">To</label>
-            <select class="world-select" id="world-to-map"></select>
-            <select class="world-select" id="world-to-portal"></select>
-          </div>
-          <button class="button-primary" type="button" id="world-add-connection" data-i18n="world.addConnection">Add Connection</button>
-        </div>
-        <div class="world-connection-list" id="world-connection-list"></div>
-        <p class="panel-subtitle is-hidden" id="world-empty" data-i18n="world.noConnections">No connections yet.</p>
+        <div class="asset-grid" id="item-asset-grid"></div>
       </section>
-    </section>
 
-    <section class="world-preview-section">
-      <div class="world-preview-panel">
+      <aside class="workspace-panel-right map-panel-right">
         <div class="panel-header">
           <div>
-            <h2 class="panel-title" data-i18n="world.previewTitle">World Preview</h2>
-            <p class="panel-subtitle" data-i18n="world.previewSubtitle">Overview of maps and links.</p>
+            <h2 class="panel-title" data-i18n="items.builder">Item Builder</h2>
+            <p class="panel-subtitle" data-i18n="items.builderHint">Overlay props and gameplay items directly onto a base map.</p>
           </div>
+          <button class="button-secondary" type="button" id="item-options" data-i18n="items.options">Options</button>
         </div>
-        <div class="world-preview-controls">
-          <div class="world-preview-control">
-            <span class="panel-label" data-i18n="world.zoom">Zoom</span>
-            <input class="world-zoom-range" type="range" id="world-zoom" min="0.1" max="1.5" step="0.05" value="0.8" />
-            <span class="world-zoom-value" id="world-zoom-value">80%</span>
+        <div class="map-controls">
+          <div class="map-control-row map-control-row-2">
+            <div class="map-control-group">
+              <label class="panel-label" data-i18n="items.name">Layout name</label>
+              <input class="asset-input" type="text" id="item-map-name" placeholder="Item layout name" data-i18n-placeholder="items.namePlaceholder" />
+            </div>
+            <div class="map-control-group">
+              <label class="panel-label" data-i18n="items.data">Data</label>
+              <div class="map-toggle">
+                <button class="button-secondary" type="button" id="item-undo" data-i18n="items.undo">Undo</button>
+                <button class="button-secondary" type="button" id="item-redo" data-i18n="items.redo">Redo</button>
+                <button class="button-secondary" type="button" id="item-export" data-i18n="items.exportJson">Export JSON</button>
+                <button class="button-secondary" type="button" id="item-import" data-i18n="items.importJson">Import JSON</button>
+                <input class="map-file-input" type="file" id="item-import-file" accept=".json" />
+              </div>
+            </div>
           </div>
-          <div class="world-preview-control">
-            <span class="panel-label" data-i18n="world.opacity">Transparency</span>
-            <input class="world-zoom-range" type="range" id="world-opacity" min="0.2" max="1" step="0.05" value="0.55" />
-            <span class="world-zoom-value" id="world-opacity-value">55%</span>
+          <div class="map-control-row map-control-row-2">
+            <div class="map-control-group">
+              <label class="panel-label" data-i18n="items.baseMap">Base map</label>
+              <span class="panel-value item-base-map-note" id="item-base-map-label" data-i18n="items.baseMapEmpty">No base map loaded.</span>
+            </div>
+            <div class="map-control-group">
+              <label class="panel-label" for="item-cell-size" data-i18n="items.cellSize">Cell Size</label>
+              <input type="range" id="item-cell-size" min="10" max="32" value="16" />
+            </div>
           </div>
-          <button class="button-secondary" type="button" id="world-zoom-reset" data-i18n="world.zoomReset">Reset</button>
-        </div>
-        <div class="world-sandbox" id="world-sandbox">
-          <div class="world-sandbox-viewport" id="world-sandbox-viewport">
-            <div class="world-sandbox-content" id="world-sandbox-content">
-              <svg class="world-sandbox-links" id="world-sandbox-links" viewBox="0 0 1600 900" preserveAspectRatio="xMinYMin meet"></svg>
-              <div class="world-sandbox-nodes" id="world-sandbox-nodes"></div>
+          <div class="map-control-row map-control-row-2">
+            <div class="map-control-group">
+              <label class="panel-label" data-i18n="items.mapSize">Map Size</label>
+              <div class="grid-inputs">
+                <input class="grid-size-input" type="number" id="item-map-width" min="4" max="200" value="50" aria-label="Item map width" />
+                <span class="grid-separator">x</span>
+                <input class="grid-size-input" type="number" id="item-map-height" min="4" max="200" value="50" aria-label="Item map height" />
+                <button class="button-secondary" type="button" id="item-apply-map-size" data-i18n="panel.gridApply">Apply</button>
+              </div>
+            </div>
+            <div class="map-control-group">
+              <label class="panel-label" data-i18n="items.importHint">Import</label>
+              <p class="panel-subtitle" data-i18n="items.importHelp">Import a Map Creator JSON or an Item Creator JSON.</p>
+            </div>
+          </div>
+          <div class="map-control-row map-control-row-2">
+            <div class="map-control-group">
+              <label class="panel-label" data-i18n="items.tool">Tool</label>
+              <div class="map-toggle">
+                <button class="button-secondary is-active" type="button" data-item-tool="pencil" data-i18n="map.toolPencil">Pencil</button>
+                <button class="button-secondary" type="button" data-item-tool="eraser" data-i18n="map.toolEraser">Eraser</button>
+                <button class="button-secondary" type="button" data-item-tool="eyedropper" data-i18n="map.toolEyedropper">Eyedropper</button>
+                <button class="button-secondary" type="button" data-item-tool="fill" data-i18n="map.toolFill">Fill Bucket</button>
+              </div>
+            </div>
+            <div class="map-control-group">
+              <label class="panel-label" data-i18n="items.view">View</label>
+              <div class="map-toggle">
+                <button class="button-secondary is-active" type="button" data-item-view="normal" data-i18n="items.viewNormal">Normal</button>
+                <button class="button-secondary" type="button" data-item-view="items" data-i18n="items.viewItems">Items</button>
+                <button class="button-secondary" type="button" data-item-view="collision" data-i18n="items.viewCollision">Collision</button>
+                <button class="button-secondary" type="button" data-item-view="depth" data-i18n="items.viewDepth">Player Depth</button>
+              </div>
             </div>
           </div>
         </div>
-        <p class="world-preview-empty is-hidden" id="world-preview-empty" data-i18n="world.previewEmpty">Import maps or worlds to see the world preview.</p>
-      </div>
+        <div class="map-grid-wrapper">
+          <div class="map-grid" id="item-map-grid"></div>
+        </div>
+      </aside>
     </section>
   </main>
 
+  <div class="modal-overlay is-hidden" id="item-cache-modal" aria-hidden="true">
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="item-cache-title">
+      <div class="modal-header">
+        <h2 class="panel-title" id="item-cache-title" data-i18n="items.cacheTitle">Cache</h2>
+        <button class="button-secondary" type="button" id="item-cache-close" data-i18n="items.cacheClose">Close</button>
+      </div>
+      <div class="modal-body">
+        <div class="cache-stats">
+          <div class="cache-stat">
+            <span class="panel-label" data-i18n="items.cacheCount">Items</span>
+            <span class="panel-value" id="item-cache-count">0</span>
+          </div>
+          <div class="cache-stat">
+            <span class="panel-label" data-i18n="items.cacheSize">Estimated size</span>
+            <span class="panel-value" id="item-cache-size">0 KB</span>
+          </div>
+        </div>
+        <div class="cache-list" id="item-cache-list"></div>
+        <p class="panel-subtitle is-hidden" id="item-cache-empty" data-i18n="items.cacheEmpty">Cache is empty.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="button-secondary" type="button" id="item-cache-purge" data-i18n="items.cachePurge">Purge cache</button>
+      </div>
+    </div>
+  </div>
+
   <script src="script.js"></script>
+  <script src="item-creator.js"></script>
 </body>
 </html>
