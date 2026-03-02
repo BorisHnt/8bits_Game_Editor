@@ -22,6 +22,13 @@
       sprites: 'Sprites',
       type: 'Type',
       collision: 'Collision',
+      collisionMode: 'Collision mode',
+      collisionModeSimple: 'Simple',
+      collisionModeMask: 'Painted mask',
+      collisionMask: 'Mask 4x4',
+      collisionMaskSprite: 'Sprite',
+      blockingZone: 'Blocking',
+      passableZone: 'Passable',
       blocking: 'Blocking',
       passable: 'Passable',
       playerDepth: 'Player depth',
@@ -45,6 +52,13 @@
       sprites: 'Sprites',
       type: 'Type',
       collision: 'Collision',
+      collisionMode: 'Mode collision',
+      collisionModeSimple: 'Simple',
+      collisionModeMask: 'Mask peint',
+      collisionMask: 'Mask 4x4',
+      collisionMaskSprite: 'Sprite',
+      blockingZone: 'Bloquant',
+      passableZone: 'Passant',
       blocking: 'Bloquant',
       passable: 'Passant',
       playerDepth: 'Profondeur joueur',
@@ -63,6 +77,8 @@
   const msg = (key, fallback = '') => messages[getLanguage()]?.[key] ?? fallback;
 
   const patternFromRows = (rows) => rows.join('');
+  const maskSize = 4;
+  const maskCellCount = maskSize * maskSize;
   const matchesPattern = (pattern, sample) => {
     for (let i = 0; i < pattern.length; i += 1) {
       const expected = pattern[i];
@@ -279,6 +295,25 @@
       const cols = clamp(Number.parseInt(asset?.cols, 10) || 1, 1, 64);
       const rows = clamp(Number.parseInt(asset?.rows, 10) || 1, 1, 64);
       const maxSprites = cols * rows;
+      const normalizeCollisionMask = (mask, fallbackType = 'blocking') => Array.from({ length: maskCellCount }, (_, index) => {
+        const value = Array.isArray(mask) ? mask[index] : null;
+        if (value === true || value === 1 || value === 'blocking') return true;
+        if (value === false || value === 0 || value === 'passable') return false;
+        return fallbackType !== 'passable';
+      });
+      const normalizeCollisionMasks = (rawMasks, fallbackType = 'blocking') => {
+        const normalized = {};
+        if (Array.isArray(rawMasks)) {
+          normalized[1] = normalizeCollisionMask(rawMasks, fallbackType);
+          return normalized;
+        }
+        if (!rawMasks || typeof rawMasks !== 'object') return normalized;
+        Object.entries(rawMasks).forEach(([key, value]) => {
+          const spriteIndex = clamp(Number.parseInt(key, 10) || 1, 1, maxSprites);
+          normalized[spriteIndex] = normalizeCollisionMask(value, fallbackType);
+        });
+        return normalized;
+      };
       return {
         id: asset?.id || createId(),
         name: asset?.name || '',
@@ -292,6 +327,8 @@
         spriteCount: clamp(Number.parseInt(asset?.spriteCount, 10) || 1, 1, maxSprites),
         assetType: String(asset?.assetType || asset?.category || '').trim(),
         type: asset?.type === 'passable' ? 'passable' : 'blocking',
+        collisionMode: asset?.collisionMode === 'mask' ? 'mask' : 'simple',
+        collisionMasks: normalizeCollisionMasks(asset?.collisionMasks || asset?.collisionMask, asset?.type === 'passable' ? 'passable' : 'blocking'),
         playerDepth: asset?.playerDepth === 'cover' ? 'cover' : 'front',
         color: asset?.color || '#2a2a2a',
         cacheKey: asset?.cacheKey || null
@@ -341,6 +378,38 @@
 
     const getItemAssetById = (id) => state.assets.find((asset) => asset.id === id);
     const getBaseAssetByNumber = (number) => state.baseMap.assets.find((asset) => asset.number === number);
+    const createDefaultCollisionMask = (type = 'blocking') => Array.from({ length: maskCellCount }, () => type !== 'passable');
+    const normalizeCollisionMask = (mask, fallbackType = 'blocking') => Array.from({ length: maskCellCount }, (_, index) => {
+      const value = Array.isArray(mask) ? mask[index] : null;
+      if (value === true || value === 1 || value === 'blocking') return true;
+      if (value === false || value === 0 || value === 'passable') return false;
+      return fallbackType !== 'passable';
+    });
+    const cloneCollisionMasks = (collisionMasks) => Object.fromEntries(
+      Object.entries(collisionMasks || {}).map(([key, mask]) => [key, normalizeCollisionMask(mask)])
+    );
+    const getCollisionMaskForSprite = (asset, spriteIndex, options = {}) => {
+      if (!asset) return createDefaultCollisionMask('blocking');
+      const { create = false } = options;
+      const safeIndex = clamp(Number.parseInt(spriteIndex, 10) || 1, 1, Math.max(1, asset.spriteCount || asset.cols * asset.rows || 1));
+      const key = String(safeIndex);
+      const current = asset.collisionMasks?.[key];
+      if (Array.isArray(current)) {
+        return normalizeCollisionMask(current, asset.type);
+      }
+      const fallback = createDefaultCollisionMask(asset.type);
+      if (create) {
+        asset.collisionMasks = asset.collisionMasks || {};
+        asset.collisionMasks[key] = fallback.slice();
+        return asset.collisionMasks[key];
+      }
+      return fallback;
+    };
+    const getAssetMaskEditorSpriteIndex = (asset) => (
+      state.selectedAssetId === asset?.id
+        ? clamp(state.selectedSpriteIndex, 1, Math.max(1, asset?.spriteCount || 1))
+        : 1
+    );
 
     const ensureCells = () => {
       const total = state.layout.width * state.layout.height;
@@ -374,6 +443,8 @@
       spriteCount: asset.spriteCount,
       assetType: asset.assetType,
       type: asset.type,
+      collisionMode: asset.collisionMode,
+      collisionMasks: cloneCollisionMasks(asset.collisionMasks),
       playerDepth: asset.playerDepth,
       color: asset.color,
       cacheKey: asset.cacheKey
@@ -569,6 +640,7 @@
         spriteHeight: 16,
         spriteCount: 16,
         type: 'blocking',
+        collisionMode: 'simple',
         playerDepth: 'front',
         color: '#2a2a2a'
       }, number);
@@ -814,6 +886,72 @@
         collisionField.appendChild(collisionLabel);
         collisionField.appendChild(collisionSelect);
 
+        const collisionModeField = document.createElement('div');
+        collisionModeField.className = 'asset-field asset-mask-mode-field';
+        const collisionModeLabel = document.createElement('label');
+        collisionModeLabel.className = 'panel-label';
+        collisionModeLabel.textContent = msg('collisionMode', 'Collision mode');
+        const collisionModeSelect = document.createElement('select');
+        collisionModeSelect.className = 'asset-select';
+        const simpleOption = document.createElement('option');
+        simpleOption.value = 'simple';
+        simpleOption.textContent = msg('collisionModeSimple', 'Simple');
+        const maskOption = document.createElement('option');
+        maskOption.value = 'mask';
+        maskOption.textContent = msg('collisionModeMask', 'Painted mask');
+        collisionModeSelect.appendChild(simpleOption);
+        collisionModeSelect.appendChild(maskOption);
+        collisionModeSelect.value = asset.collisionMode === 'mask' ? 'mask' : 'simple';
+        collisionModeField.appendChild(collisionModeLabel);
+        collisionModeField.appendChild(collisionModeSelect);
+
+        const maskField = document.createElement('div');
+        maskField.className = 'asset-field asset-mask-field';
+        const maskLabel = document.createElement('label');
+        maskLabel.className = 'panel-label';
+        maskLabel.textContent = msg('collisionMask', 'Mask 4x4');
+        const maskEditor = document.createElement('div');
+        maskEditor.className = 'asset-mask-editor';
+        if (asset.collisionMode !== 'mask') maskEditor.classList.add('is-disabled');
+        const maskPreview = document.createElement('div');
+        maskPreview.className = 'asset-mask-preview';
+        const maskSpriteIndex = getAssetMaskEditorSpriteIndex(asset);
+        const previewLayer = buildSpriteLayer(asset, maskSpriteIndex, 64);
+        if (previewLayer?.imageUrl) {
+          maskPreview.style.backgroundImage = `url(${previewLayer.imageUrl})`;
+          maskPreview.style.backgroundSize = previewLayer.size;
+          maskPreview.style.backgroundPosition = previewLayer.position;
+          maskPreview.style.backgroundRepeat = 'no-repeat';
+        } else {
+          maskPreview.style.backgroundColor = asset.color || '#2a2a2a';
+        }
+        const maskGrid = document.createElement('div');
+        maskGrid.className = 'asset-mask-grid';
+        const maskValues = getCollisionMaskForSprite(asset, maskSpriteIndex, { create: asset.collisionMode === 'mask' });
+        maskValues.forEach((isBlocking, maskIndex) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = `asset-mask-cell ${isBlocking ? 'is-blocking' : 'is-passable'}`;
+          button.title = isBlocking ? msg('blockingZone', 'Blocking') : msg('passableZone', 'Passable');
+          button.addEventListener('click', () => {
+            if (asset.collisionMode !== 'mask') return;
+            const liveMask = getCollisionMaskForSprite(asset, maskSpriteIndex, { create: true });
+            liveMask[maskIndex] = !liveMask[maskIndex];
+            renderAssetList();
+            renderMapGrid();
+            scheduleSave();
+          });
+          maskGrid.appendChild(button);
+        });
+        maskPreview.appendChild(maskGrid);
+        const maskMeta = document.createElement('div');
+        maskMeta.className = 'asset-mask-meta';
+        maskMeta.textContent = `${msg('collisionMaskSprite', 'Sprite')} ${maskSpriteIndex}`;
+        maskEditor.appendChild(maskPreview);
+        maskEditor.appendChild(maskMeta);
+        maskField.appendChild(maskLabel);
+        maskField.appendChild(maskEditor);
+
         const depthField = document.createElement('div');
         depthField.className = 'asset-field';
         const depthLabel = document.createElement('label');
@@ -862,6 +1000,8 @@
         row.appendChild(countField);
         row.appendChild(assetTypeField);
         row.appendChild(collisionField);
+        row.appendChild(collisionModeField);
+        row.appendChild(maskField);
         row.appendChild(depthField);
         row.appendChild(orderControls);
         row.appendChild(selectButton);
@@ -950,6 +1090,16 @@
         });
         collisionSelect.addEventListener('change', () => {
           asset.type = collisionSelect.value === 'passable' ? 'passable' : 'blocking';
+          renderAssetList();
+          renderMapGrid();
+          scheduleSave();
+        });
+        collisionModeSelect.addEventListener('change', () => {
+          asset.collisionMode = collisionModeSelect.value === 'mask' ? 'mask' : 'simple';
+          if (asset.collisionMode === 'mask') {
+            getCollisionMaskForSprite(asset, getAssetMaskEditorSpriteIndex(asset), { create: true });
+          }
+          renderAssetList();
           renderMapGrid();
           scheduleSave();
         });
@@ -1080,13 +1230,27 @@
       return asset?.type === 'blocking' ? 'blocking' : 'passable';
     };
 
-    const getEffectiveCollision = (index) => {
+    const getUniformCollisionMask = (collision) => createDefaultCollisionMask(collision === 'blocking' ? 'blocking' : 'passable');
+
+    const getEffectiveCollisionMask = (index) => {
       const itemCell = state.layout.cells[index];
       if (itemCell) {
         const itemAsset = getItemAssetById(itemCell.assetId);
-        if (itemAsset) return itemAsset.type === 'blocking' ? 'blocking' : 'passable';
+        if (itemAsset?.collisionMode === 'mask') {
+          return getCollisionMaskForSprite(itemAsset, itemCell.spriteIndex || 1);
+        }
+        if (itemAsset) {
+          return getUniformCollisionMask(itemAsset.type === 'blocking' ? 'blocking' : 'passable');
+        }
       }
-      return getBaseCollision(index);
+      return getUniformCollisionMask(getBaseCollision(index));
+    };
+
+    const getEffectiveCollision = (index) => {
+      const mask = getEffectiveCollisionMask(index);
+      if (mask.every(Boolean)) return 'blocking';
+      if (mask.every((entry) => !entry)) return 'passable';
+      return 'mixed';
     };
 
     const getPlayerDepth = (index) => {
@@ -1120,11 +1284,41 @@
       cell.style.backgroundPosition = '';
       cell.style.backgroundRepeat = '';
       cell.style.backgroundColor = '';
+      cell.replaceChildren();
+
+      const applyLayers = () => {
+        const layers = [itemLayer, baseLayer].filter(Boolean);
+        if (layers.length) {
+          cell.style.backgroundImage = layers.map((layer) => `url(${layer.imageUrl})`).join(', ');
+          cell.style.backgroundSize = layers.map((layer) => layer.size).join(', ');
+          cell.style.backgroundPosition = layers.map((layer) => layer.position).join(', ');
+          cell.style.backgroundRepeat = layers.map(() => 'no-repeat').join(', ');
+        } else if (itemAsset) {
+          cell.style.backgroundColor = itemAsset.color || '#2a2a2a';
+        } else if (baseAsset) {
+          cell.style.backgroundColor = baseAsset.color || '#20242a';
+        }
+      };
+
+      const appendMaskOverlay = (mask) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'map-mask-overlay';
+        mask.forEach((isBlocking) => {
+          const part = document.createElement('span');
+          part.className = `map-mask-cell ${isBlocking ? 'is-blocking' : 'is-passable'}`;
+          overlay.appendChild(part);
+        });
+        cell.appendChild(overlay);
+      };
 
       if (view === 'collision') {
         const collision = getEffectiveCollision(index);
-        cell.style.backgroundColor = collision === 'blocking' ? '#7a1f1f' : '#1f6f3a';
-        cell.textContent = collision === 'blocking' ? '1' : '0';
+        applyLayers();
+        if (collision === 'mixed') {
+          appendMaskOverlay(getEffectiveCollisionMask(index));
+        } else {
+          cell.style.backgroundColor = collision === 'blocking' ? '#7a1f1f' : '#1f6f3a';
+        }
         return;
       }
 
@@ -1132,13 +1326,10 @@
         const depth = getPlayerDepth(index);
         if (!itemCell) {
           cell.style.backgroundColor = baseCell ? '#1f2933' : '#0d0d0d';
-          cell.textContent = '0';
         } else if (depth === 'cover') {
           cell.style.backgroundColor = '#6e2d1d';
-          cell.textContent = 'C';
         } else {
           cell.style.backgroundColor = '#1d4c6e';
-          cell.textContent = 'F';
         }
         return;
       }
@@ -1154,22 +1345,10 @@
         } else if (baseAsset) {
           cell.style.backgroundColor = 'rgba(255,255,255,0.05)';
         }
-        cell.textContent = '';
         return;
       }
 
-      const layers = [itemLayer, baseLayer].filter(Boolean);
-      if (layers.length) {
-        cell.style.backgroundImage = layers.map((layer) => `url(${layer.imageUrl})`).join(', ');
-        cell.style.backgroundSize = layers.map((layer) => layer.size).join(', ');
-        cell.style.backgroundPosition = layers.map((layer) => layer.position).join(', ');
-        cell.style.backgroundRepeat = layers.map(() => 'no-repeat').join(', ');
-      } else if (itemAsset) {
-        cell.style.backgroundColor = itemAsset.color || '#2a2a2a';
-      } else if (baseAsset) {
-        cell.style.backgroundColor = baseAsset.color || '#20242a';
-      }
-      cell.textContent = '';
+      applyLayers();
     };
 
     const renderMapGrid = () => {
@@ -1364,6 +1543,8 @@
           spriteHeight: asset.spriteHeight,
           spriteCount: asset.spriteCount,
           type: asset.type,
+          collisionMode: asset.collisionMode,
+          collisionMasks: cloneCollisionMasks(asset.collisionMasks),
           playerDepth: asset.playerDepth
         })),
         itemLayer: {
@@ -1378,10 +1559,12 @@
               assetNumber: asset?.number ?? null,
               spriteIndex: cell.spriteIndex ?? 1,
               collision: asset?.type === 'passable' ? 'passable' : 'blocking',
+              collisionMode: asset?.collisionMode === 'mask' ? 'mask' : 'simple',
               playerDepth: asset?.playerDepth === 'cover' ? 'cover' : 'front'
             };
           }),
-          effectiveCollision: state.layout.cells.map((_, index) => getEffectiveCollision(index)),
+          effectiveCollision: state.layout.cells.map((_, index) => getEffectiveCollision(index) === 'blocking' ? 'blocking' : 'passable'),
+          effectiveCollisionMasks: state.layout.cells.map((_, index) => getEffectiveCollisionMask(index)),
           effectiveDepth: state.layout.cells.map((_, index) => getPlayerDepth(index))
         }
       };

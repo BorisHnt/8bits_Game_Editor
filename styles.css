@@ -1682,6 +1682,83 @@ svg {
   box-shadow: 0 0 6px rgba(255, 59, 59, 0.5);
 }
 
+.asset-mask-mode-field {
+  min-width: 110px;
+}
+
+.asset-mask-field {
+  min-width: 92px;
+}
+
+.asset-mask-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.asset-mask-editor.is-disabled {
+  opacity: 0.42;
+}
+
+.asset-mask-preview {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+  background-color: #111;
+  image-rendering: pixelated;
+}
+
+.asset-mask-grid,
+.map-mask-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: 1px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.asset-mask-cell,
+.map-mask-cell {
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: rgba(30, 111, 58, 0.18);
+}
+
+.asset-mask-cell {
+  cursor: pointer;
+  border-radius: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.asset-mask-cell.is-blocking,
+.map-mask-cell.is-blocking {
+  background: rgba(122, 31, 31, 0.6);
+}
+
+.asset-mask-cell.is-passable,
+.map-mask-cell.is-passable {
+  background: rgba(31, 111, 58, 0.34);
+}
+
+.asset-mask-meta {
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+}
+
+.map-mask-overlay {
+  pointer-events: none;
+}
+
 .item-base-map-note {
   min-height: 1.2rem;
   line-height: 1.4;

@@ -221,7 +221,7 @@
       'tester.subtitle': 'Import a map and test your character movement.',
       'tester.controlsTitle': 'Controls',
       'tester.controlsSubtitle': 'Use keyboard to move.',
-      'tester.instructions': 'Arrow keys or WASD to move the character.',
+      'tester.instructions': 'Arrow keys or WASD to move. Hold Space to run.',
       'tester.reset': 'Reset',
       'tester.position': 'Position',
       'tester.direction': 'Direction',
@@ -236,7 +236,7 @@
       'tester.dirLeft': 'Left',
       'tester.dirRight': 'Right',
       'tester.previewTitle': 'Preview',
-      'tester.previewSubtitle': 'Sprites are 16x16 px.',
+      'tester.previewSubtitle': 'Sprites are 16x16 px. Collision uses a feet hitbox.',
       'map.data': 'Data',
       'map.exportJson': 'Export JSON',
       'map.importJson': 'Import JSON',
@@ -524,7 +524,7 @@
       'tester.subtitle': 'Importe une map et teste les deplacements.',
       'tester.controlsTitle': 'Controles',
       'tester.controlsSubtitle': 'Utilisez le clavier pour bouger.',
-      'tester.instructions': 'Fleches ou ZQSD pour deplacer le personnage.',
+      'tester.instructions': 'Fleches ou ZQSD pour deplacer le personnage. Maintenez Espace pour courir.',
       'tester.reset': 'Reinitialiser',
       'tester.position': 'Position',
       'tester.direction': 'Direction',
@@ -539,7 +539,7 @@
       'tester.dirLeft': 'Gauche',
       'tester.dirRight': 'Droite',
       'tester.previewTitle': 'Apercu',
-      'tester.previewSubtitle': 'Sprites en 16x16 px.',
+      'tester.previewSubtitle': 'Sprites en 16x16 px. La collision utilise une feet hitbox.',
       'map.data': 'Data',
       'map.exportJson': 'Exporter JSON',
       'map.importJson': 'Importer JSON',
@@ -6998,7 +6998,16 @@
     const spriteSize = 16;
     const tileSize = 16;
     const speed = 70;
+    const runMultiplier = 1.75;
     const frameDuration = 0.18;
+    const maskSize = 4;
+    const maskCellCount = maskSize * maskSize;
+    const feetHitbox = {
+      width: 8,
+      height: 4,
+      offsetX: 4,
+      offsetY: 12
+    };
     const pressedKeys = new Set();
 
     const sheets = {
@@ -7024,13 +7033,15 @@
       mapFrontCanvas: null,
       mapCoverCanvas: null,
       collision: [],
+      collisionMasks: [],
       mapWidth: 0,
       mapHeight: 0,
       zoom: 1,
       assetImages: new Map(),
       isLoadingMap: false,
       isTransitioningMap: false,
-      portalLockKey: null
+      portalLockKey: null,
+      isMoving: false
     };
 
     const mapState = {
@@ -7134,17 +7145,19 @@
 
     const handleKey = (event) => {
       const key = event.key;
+      const code = event.code;
       const tracked = [
         'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
         'w', 'a', 's', 'd', 'W', 'A', 'S', 'D',
         'z', 'q', 'Z', 'Q'
       ];
-      if (!tracked.includes(key)) return;
+      if (!tracked.includes(key) && code !== 'Space') return;
       event.preventDefault();
+      const trackedKey = code === 'Space' ? 'Space' : key;
       if (event.type === 'keydown') {
-        pressedKeys.add(key);
+        pressedKeys.add(trackedKey);
       } else {
-        pressedKeys.delete(key);
+        pressedKeys.delete(trackedKey);
       }
     };
 
@@ -7286,6 +7299,13 @@
       const height = clamp(Number.parseInt(map.height, 10) || 0, 0, 2000);
       const total = width * height;
       const collision = Array.from({ length: total }, () => false);
+      const collisionMasks = Array.from({ length: total }, () => null);
+      const normalizeCollisionMask = (mask, fallbackBlocking = false) => Array.from({ length: maskCellCount }, (_, index) => {
+        const value = Array.isArray(mask) ? mask[index] : null;
+        if (value === true || value === 1 || value === 'blocking') return true;
+        if (value === false || value === 0 || value === 'passable') return false;
+        return fallbackBlocking;
+      });
       const assets = Array.isArray(payload?.assets) ? payload.assets : [];
       const assetByNumber = new Map(assets.map((asset) => [Number(asset.number), asset]));
       const cells = Array.isArray(map.cells) ? map.cells : [];
@@ -7301,21 +7321,38 @@
       const itemAssetByNumber = new Map(itemAssets.map((asset) => [Number(asset.number), asset]));
       const itemLayer = Array.isArray(payload?.itemLayer?.cells) ? payload.itemLayer.cells : [];
       const effectiveCollision = Array.isArray(payload?.itemLayer?.effectiveCollision) ? payload.itemLayer.effectiveCollision : [];
+      const effectiveCollisionMasks = Array.isArray(payload?.itemLayer?.effectiveCollisionMasks) ? payload.itemLayer.effectiveCollisionMasks : [];
+      if (effectiveCollisionMasks.length >= total) {
+        for (let i = 0; i < total; i += 1) {
+          const mask = normalizeCollisionMask(effectiveCollisionMasks[i], collision[i]);
+          collisionMasks[i] = mask;
+          collision[i] = mask.every(Boolean);
+        }
+        return { collision, collisionMasks, width, height };
+      }
       if (effectiveCollision.length >= total) {
         for (let i = 0; i < total; i += 1) {
           const entry = effectiveCollision[i];
           collision[i] = entry === 'blocking' || entry === true || entry === 1;
         }
-        return { collision, width, height };
+        return { collision, collisionMasks, width, height };
       }
       for (let i = 0; i < Math.min(itemLayer.length, total); i += 1) {
         const entry = itemLayer[i];
         if (!entry || entry.assetNumber == null) continue;
         const asset = itemAssetByNumber.get(Number(entry.assetNumber));
         if (!asset) continue;
+        const spriteIndex = Number.parseInt(entry.spriteIndex, 10) || 1;
+        if (asset.collisionMode === 'mask' && asset.collisionMasks && typeof asset.collisionMasks === 'object') {
+          const rawMask = asset.collisionMasks[String(spriteIndex)];
+          const mask = normalizeCollisionMask(rawMask, asset.type === 'blocking');
+          collisionMasks[i] = mask;
+          collision[i] = mask.every(Boolean);
+          continue;
+        }
         collision[i] = asset.type === 'blocking';
       }
-      return { collision, width, height };
+      return { collision, collisionMasks, width, height };
     };
 
     const loadAssetImages = async (payload) => {
@@ -7486,8 +7523,9 @@
       mapLoadToken = token;
       state.isLoadingMap = true;
       state.mapPayload = payload;
-      const { collision, width, height } = buildCollision(payload);
+      const { collision, collisionMasks, width, height } = buildCollision(payload);
       state.collision = collision;
+      state.collisionMasks = collisionMasks;
       state.mapWidth = width;
       state.mapHeight = height;
       try {
@@ -7536,6 +7574,7 @@
         state.mapFrontCanvas = null;
         state.mapCoverCanvas = null;
         state.collision = [];
+        state.collisionMasks = [];
         state.mapWidth = 0;
         state.mapHeight = 0;
         setLoadedLabel('');
@@ -7595,22 +7634,48 @@
 
     let lastTime = performance.now();
 
+    const getFeetRect = (x, y) => ({
+      left: x + feetHitbox.offsetX,
+      top: y + feetHitbox.offsetY,
+      right: x + feetHitbox.offsetX + feetHitbox.width - 1,
+      bottom: y + feetHitbox.offsetY + feetHitbox.height - 1
+    });
+
+    const getFeetSamplePoints = (x, y) => {
+      const rect = getFeetRect(x, y);
+      const centerX = Math.floor((rect.left + rect.right) / 2);
+      const centerY = Math.floor((rect.top + rect.bottom) / 2);
+      return [
+        [rect.left, rect.top],
+        [rect.right, rect.top],
+        [rect.left, rect.bottom],
+        [rect.right, rect.bottom],
+        [centerX, rect.top],
+        [centerX, rect.bottom],
+        [rect.left, centerY],
+        [rect.right, centerY]
+      ];
+    };
+
     const isBlocked = (px, py) => {
       if (!state.mapPayload) return false;
       const col = Math.floor(px / tileSize);
       const row = Math.floor(py / tileSize);
       if (col < 0 || row < 0 || col >= state.mapWidth || row >= state.mapHeight) return true;
-      return Boolean(state.collision[row * state.mapWidth + col]);
+      const index = row * state.mapWidth + col;
+      const mask = state.collisionMasks[index];
+      if (Array.isArray(mask) && mask.length >= maskCellCount) {
+        const localX = clamp(px - col * tileSize, 0, tileSize - 1);
+        const localY = clamp(py - row * tileSize, 0, tileSize - 1);
+        const subX = clamp(Math.floor((localX / tileSize) * maskSize), 0, maskSize - 1);
+        const subY = clamp(Math.floor((localY / tileSize) * maskSize), 0, maskSize - 1);
+        return Boolean(mask[subY * maskSize + subX]);
+      }
+      return Boolean(state.collision[index]);
     };
 
     const canMove = (nx, ny) => {
-      const corners = [
-        [nx, ny],
-        [nx + spriteSize - 1, ny],
-        [nx, ny + spriteSize - 1],
-        [nx + spriteSize - 1, ny + spriteSize - 1]
-      ];
-      return !corners.some(([cx, cy]) => isBlocked(cx, cy));
+      return !getFeetSamplePoints(nx, ny).some(([cx, cy]) => isBlocked(cx, cy));
     };
 
     const getCurrentMapEntry = () => (
@@ -7660,8 +7725,9 @@
     const resolveCurrentPortalIndex = () => {
       const currentMap = getCurrentMapEntry();
       if (!currentMap || !currentMap.portalIndexes?.size || !state.mapPayload) return null;
-      const centerX = state.x + spriteSize / 2;
-      const centerY = state.y + spriteSize / 2;
+      const feet = getFeetRect(state.x, state.y);
+      const centerX = Math.floor((feet.left + feet.right) / 2);
+      const centerY = Math.floor((feet.top + feet.bottom) / 2);
       const col = Math.floor(centerX / tileSize);
       const row = Math.floor(centerY / tileSize);
       if (col < 0 || row < 0 || col >= state.mapWidth || row >= state.mapHeight) return null;
@@ -7683,12 +7749,15 @@
       if (right) vx += 1;
 
       const moving = vx !== 0 || vy !== 0;
+      const running = moving && pressedKeys.has('Space');
+      state.isMoving = moving;
       if (moving) {
         const length = Math.hypot(vx, vy) || 1;
         vx /= length;
         vy /= length;
-        const dx = vx * speed * delta;
-        const dy = vy * speed * delta;
+        const activeSpeed = speed * (running ? runMultiplier : 1);
+        const dx = vx * activeSpeed * delta;
+        const dy = vy * activeSpeed * delta;
 
         let nextX = state.x + dx;
         let nextY = state.y + dy;
@@ -7718,6 +7787,7 @@
         }
       } else {
         state.frameTimer = 0;
+        state.isMoving = false;
       }
 
       if (positionValue) {
@@ -7814,8 +7884,7 @@
 
       const sheet = state.dir === 'up' ? sheets.up : state.dir === 'down' ? sheets.down : sheets.side;
       const info = state.dir === 'up' ? sheetInfo.up : state.dir === 'down' ? sheetInfo.down : sheetInfo.side;
-      const isMoving = pressedKeys.size > 0;
-      const frameIndex = isMoving ? state.frame : info.idle;
+      const frameIndex = state.isMoving ? state.frame : info.idle;
       const sx = frameIndex * spriteSize;
       const drawX = Math.round((state.x - cameraX) * viewScale + worldOffsetX);
       const drawY = Math.round((state.y - cameraY) * viewScale + worldOffsetY);
