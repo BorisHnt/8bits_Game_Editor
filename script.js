@@ -6303,6 +6303,9 @@
             const spriteRow = Math.floor((spriteIndex - 1) / cols);
             const sx = spriteCol * spriteWidth;
             const sy = spriteRow * spriteHeight;
+            const scale = safeCellSize / 16;
+            const drawWidth = Math.max(1, Math.round(spriteWidth * scale));
+            const drawHeight = Math.max(1, Math.round(spriteHeight * scale));
             ctx.drawImage(
               image,
               sx,
@@ -6310,9 +6313,9 @@
               spriteWidth,
               spriteHeight,
               x * safeCellSize,
-              y * safeCellSize,
-              safeCellSize,
-              safeCellSize
+              (y + 1) * safeCellSize - drawHeight,
+              drawWidth,
+              drawHeight
             );
           } else {
             ctx.fillStyle = assetDef.color || '#2a2a2a';
@@ -7443,9 +7446,9 @@
               spriteWidth,
               spriteHeight,
               x * tileSize,
-              y * tileSize,
-              tileSize,
-              tileSize
+              (y + 1) * tileSize - spriteHeight,
+              spriteWidth,
+              spriteHeight
             );
           } else {
             mapCtx.fillStyle = asset.color || '#2a2a2a';

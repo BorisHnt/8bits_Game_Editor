@@ -83,6 +83,7 @@
     const assetGridLabel = qs('#item-asset-grid-label');
     const addAssetButton = qs('#item-add-asset');
     const mapGrid = qs('#item-map-grid');
+    const mapOverlay = qs('#item-map-overlay');
     const mapWidthInput = qs('#item-map-width');
     const mapHeightInput = qs('#item-map-height');
     const mapApplyButton = qs('#item-apply-map-size');
@@ -977,15 +978,71 @@
       });
     };
 
-    const buildSpriteLayer = (asset, spriteIndex) => {
-      if (!asset?.imageUrl) return null;
+    const getSpriteMetrics = (asset, spriteIndex, cellSize) => {
+      if (!asset) return null;
+      const scale = cellSize / 16;
       const row = Math.floor((spriteIndex - 1) / asset.cols);
       const col = (spriteIndex - 1) % asset.cols;
+      const spriteWidth = Math.max(1, Number.parseInt(asset.spriteWidth, 10) || 16);
+      const spriteHeight = Math.max(1, Number.parseInt(asset.spriteHeight, 10) || 16);
       return {
-        imageUrl: asset.imageUrl,
-        size: `${asset.cols * state.layout.cellSize}px ${asset.rows * state.layout.cellSize}px`,
-        position: `${-col * state.layout.cellSize}px ${-row * state.layout.cellSize}px`
+        imageUrl: asset.imageUrl || '',
+        width: Math.max(1, Math.round(spriteWidth * scale)),
+        height: Math.max(1, Math.round(spriteHeight * scale)),
+        size: `${Math.max(1, Math.round(asset.cols * spriteWidth * scale))}px ${Math.max(1, Math.round(asset.rows * spriteHeight * scale))}px`,
+        position: `${-Math.round(col * spriteWidth * scale)}px ${-Math.round(row * spriteHeight * scale)}px`
       };
+    };
+
+    const renderItemOverlay = () => {
+      if (!mapOverlay) return;
+      mapOverlay.innerHTML = '';
+      mapOverlay.style.setProperty('--map-columns', String(state.layout.width));
+      mapOverlay.style.setProperty('--map-rows', String(state.layout.height));
+      mapOverlay.style.setProperty('--map-cell-size', `${state.layout.cellSize}px`);
+      if (state.view !== 'normal' && state.view !== 'items') {
+        mapOverlay.style.display = 'none';
+        return;
+      }
+      mapOverlay.style.display = 'block';
+      const sprites = [];
+      for (let index = 0; index < state.layout.cells.length; index += 1) {
+        const itemCell = state.layout.cells[index];
+        if (!itemCell) continue;
+        const asset = getItemAssetById(itemCell.assetId);
+        if (!asset) continue;
+        const spriteIndex = clamp(Number.parseInt(itemCell.spriteIndex, 10) || 1, 1, asset.spriteCount || 1);
+        const metrics = getSpriteMetrics(asset, spriteIndex, state.layout.cellSize);
+        if (!metrics) continue;
+        const col = index % state.layout.width;
+        const row = Math.floor(index / state.layout.width);
+        sprites.push({
+          row,
+          depth: asset.playerDepth === 'cover' ? 1 : 0,
+          left: col * (state.layout.cellSize + 1),
+          top: (row + 1) * (state.layout.cellSize + 1) - 1 - metrics.height,
+          metrics
+        });
+      }
+      sprites
+        .sort((a, b) => (a.row - b.row) || (a.depth - b.depth))
+        .forEach((sprite, order) => {
+          const layer = document.createElement('div');
+          layer.className = 'item-map-sprite';
+          layer.style.left = `${sprite.left}px`;
+          layer.style.top = `${sprite.top}px`;
+          layer.style.width = `${sprite.metrics.width}px`;
+          layer.style.height = `${sprite.metrics.height}px`;
+          layer.style.zIndex = String(order + 1);
+          if (sprite.metrics.imageUrl) {
+            layer.style.backgroundImage = `url(${sprite.metrics.imageUrl})`;
+            layer.style.backgroundSize = sprite.metrics.size;
+            layer.style.backgroundPosition = sprite.metrics.position;
+          } else {
+            layer.style.backgroundColor = '#2a2a2a';
+          }
+          mapOverlay.appendChild(layer);
+        });
     };
 
     const getBaseNeighbors = (x, y, assetNumber) => {
@@ -1107,8 +1164,7 @@
       const itemAsset = itemCell ? getItemAssetById(itemCell.assetId) : null;
       const baseSpriteIndex = baseCell && baseAsset ? getBaseSpriteIndex(baseCell, baseAsset, x, y) : 1;
       const itemSpriteIndex = itemCell ? clamp(Number.parseInt(itemCell.spriteIndex, 10) || 1, 1, itemAsset?.spriteCount || 1) : 1;
-      const baseLayer = baseAsset ? buildSpriteLayer(baseAsset, baseSpriteIndex) : null;
-      const itemLayer = itemAsset ? buildSpriteLayer(itemAsset, itemSpriteIndex) : null;
+      const baseLayer = baseAsset ? getSpriteMetrics(baseAsset, baseSpriteIndex, state.layout.cellSize) : null;
       const view = state.view;
 
       cell.classList.toggle('is-empty', !baseCell && !itemCell);
@@ -1144,30 +1200,24 @@
       }
 
       if (view === 'items') {
-        if (itemLayer) {
-          cell.style.backgroundImage = `url(${itemLayer.imageUrl})`;
-          cell.style.backgroundSize = itemLayer.size;
-          cell.style.backgroundPosition = itemLayer.position;
-          cell.style.backgroundRepeat = 'no-repeat';
-        } else if (itemAsset) {
-          cell.style.backgroundColor = itemAsset.color || '#2a2a2a';
-        } else if (baseAsset) {
+        if (baseAsset) {
           cell.style.backgroundColor = 'rgba(255,255,255,0.05)';
+        } else if (itemAsset) {
+          cell.style.backgroundColor = 'rgba(255,255,255,0.02)';
         }
-        cell.textContent = itemAsset ? String(itemAsset.number) : '0';
+        cell.textContent = '';
         return;
       }
 
-      const layers = [itemLayer, baseLayer].filter(Boolean);
-      if (layers.length) {
-        cell.style.backgroundImage = layers.map((layer) => `url(${layer.imageUrl})`).join(', ');
-        cell.style.backgroundSize = layers.map((layer) => layer.size).join(', ');
-        cell.style.backgroundPosition = layers.map((layer) => layer.position).join(', ');
-        cell.style.backgroundRepeat = layers.map(() => 'no-repeat').join(', ');
-      } else if (itemAsset) {
-        cell.style.backgroundColor = itemAsset.color || '#2a2a2a';
+      if (baseLayer?.imageUrl) {
+        cell.style.backgroundImage = `url(${baseLayer.imageUrl})`;
+        cell.style.backgroundSize = baseLayer.size;
+        cell.style.backgroundPosition = baseLayer.position;
+        cell.style.backgroundRepeat = 'no-repeat';
       } else if (baseAsset) {
         cell.style.backgroundColor = baseAsset.color || '#20242a';
+      } else if (itemAsset) {
+        cell.style.backgroundColor = 'rgba(255,255,255,0.02)';
       }
       cell.textContent = '';
     };
@@ -1176,7 +1226,13 @@
       ensureCells();
       mapGrid.innerHTML = '';
       mapGrid.style.setProperty('--map-columns', state.layout.width);
+      mapGrid.style.setProperty('--map-rows', state.layout.height);
       mapGrid.style.setProperty('--map-cell-size', `${state.layout.cellSize}px`);
+      if (mapOverlay) {
+        mapOverlay.style.setProperty('--map-columns', String(state.layout.width));
+        mapOverlay.style.setProperty('--map-rows', String(state.layout.height));
+        mapOverlay.style.setProperty('--map-cell-size', `${state.layout.cellSize}px`);
+      }
       const total = state.layout.width * state.layout.height;
       for (let i = 0; i < total; i += 1) {
         const cell = document.createElement('div');
@@ -1185,6 +1241,7 @@
         renderMapCell(cell, i);
         mapGrid.appendChild(cell);
       }
+      renderItemOverlay();
     };
 
     const createPaintCell = () => {
