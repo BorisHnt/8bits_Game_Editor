@@ -201,21 +201,6 @@
           </div>
           <div class="map-control-row map-control-row-2">
             <div class="map-control-group">
-              <label class="panel-label" data-i18n="items.mapSize">Map Size</label>
-              <div class="grid-inputs">
-                <input class="grid-size-input" type="number" id="item-map-width" min="4" max="200" value="50" aria-label="Item map width" />
-                <span class="grid-separator">x</span>
-                <input class="grid-size-input" type="number" id="item-map-height" min="4" max="200" value="50" aria-label="Item map height" />
-                <button class="button-secondary" type="button" id="item-apply-map-size" data-i18n="panel.gridApply">Apply</button>
-              </div>
-            </div>
-            <div class="map-control-group">
-              <label class="panel-label" data-i18n="items.importHint">Import</label>
-              <p class="panel-subtitle" data-i18n="items.importHelp">Import a Map Creator JSON or a Prop Dropper JSON.</p>
-            </div>
-          </div>
-          <div class="map-control-row map-control-row-2">
-            <div class="map-control-group">
               <label class="panel-label" data-i18n="items.tool">Tool</label>
               <div class="map-toggle">
                 <button class="button-secondary is-active" type="button" data-item-tool="pencil" data-i18n="map.toolPencil">Pencil</button>
@@ -264,6 +249,25 @@
       </div>
       <div class="modal-footer">
         <button class="button-secondary" type="button" id="item-cache-purge" data-i18n="items.cachePurge">Purge cache</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay is-hidden" id="item-mask-modal" aria-hidden="true">
+    <div class="modal-panel item-mask-modal-panel" role="dialog" aria-modal="true" aria-labelledby="item-mask-title">
+      <div class="modal-header">
+        <div>
+          <h2 class="panel-title" id="item-mask-title" data-i18n="items.maskTitle">Edit Mask</h2>
+          <p class="panel-subtitle" id="item-mask-subtitle" data-i18n="items.maskSubtitle">Paint passable and blocking zones on each sprite.</p>
+        </div>
+        <button class="button-secondary" type="button" id="item-mask-close" data-i18n="items.cacheClose">Close</button>
+      </div>
+      <div class="modal-body">
+        <div class="item-mask-toolbar">
+          <button class="button-secondary is-active" type="button" id="item-mask-brush-blocking" data-mask-brush="blocking" data-i18n="items.maskBlocking">Blocking</button>
+          <button class="button-secondary" type="button" id="item-mask-brush-passable" data-mask-brush="passable" data-i18n="items.maskPassable">Passable</button>
+        </div>
+        <div class="item-mask-sprite-grid" id="item-mask-sprite-grid"></div>
       </div>
     </div>
   </div>

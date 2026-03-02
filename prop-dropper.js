@@ -29,6 +29,7 @@
       collisionMaskSprite: 'Sprite',
       blockingZone: 'Blocking',
       passableZone: 'Passable',
+      editMask: 'Edit Mask',
       blocking: 'Blocking',
       passable: 'Passable',
       playerDepth: 'Player depth',
@@ -59,6 +60,7 @@
       collisionMaskSprite: 'Sprite',
       blockingZone: 'Bloquant',
       passableZone: 'Passant',
+      editMask: 'Edit Mask',
       blocking: 'Bloquant',
       passable: 'Passant',
       playerDepth: 'Profondeur joueur',
@@ -118,6 +120,12 @@
     const cacheCount = qs('#item-cache-count');
     const cacheSize = qs('#item-cache-size');
     const cacheEmpty = qs('#item-cache-empty');
+    const maskModal = qs('#item-mask-modal');
+    const maskCloseButton = qs('#item-mask-close');
+    const maskSpriteGrid = qs('#item-mask-sprite-grid');
+    const maskBlockingButton = qs('#item-mask-brush-blocking');
+    const maskPassableButton = qs('#item-mask-brush-passable');
+    const maskSubtitle = qs('#item-mask-subtitle');
 
     if (!assetList || !assetGrid || !mapGrid) return;
 
@@ -165,6 +173,9 @@
     let undoStack = [];
     let redoStack = [];
     let historyBatchActive = false;
+    let maskEditorAssetId = null;
+    let maskBrush = 'blocking';
+    let maskPainting = false;
 
     const getEffectiveTool = () => itemTemporaryTool || state.tool;
     const refreshTemporaryTool = () => {
@@ -410,6 +421,7 @@
         ? clamp(state.selectedSpriteIndex, 1, Math.max(1, asset?.spriteCount || 1))
         : 1
     );
+    const getMaskEditorAsset = () => getItemAssetById(maskEditorAssetId);
 
     const ensureCells = () => {
       const total = state.layout.width * state.layout.height;
@@ -905,52 +917,18 @@
         collisionModeField.appendChild(collisionModeLabel);
         collisionModeField.appendChild(collisionModeSelect);
 
-        const maskField = document.createElement('div');
-        maskField.className = 'asset-field asset-mask-field';
-        const maskLabel = document.createElement('label');
-        maskLabel.className = 'panel-label';
-        maskLabel.textContent = msg('collisionMask', 'Mask 4x4');
-        const maskEditor = document.createElement('div');
-        maskEditor.className = 'asset-mask-editor';
-        if (asset.collisionMode !== 'mask') maskEditor.classList.add('is-disabled');
-        const maskPreview = document.createElement('div');
-        maskPreview.className = 'asset-mask-preview';
-        const maskSpriteIndex = getAssetMaskEditorSpriteIndex(asset);
-        const previewLayer = buildSpriteLayer(asset, maskSpriteIndex, 64);
-        if (previewLayer?.imageUrl) {
-          maskPreview.style.backgroundImage = `url(${previewLayer.imageUrl})`;
-          maskPreview.style.backgroundSize = previewLayer.size;
-          maskPreview.style.backgroundPosition = previewLayer.position;
-          maskPreview.style.backgroundRepeat = 'no-repeat';
-        } else {
-          maskPreview.style.backgroundColor = asset.color || '#2a2a2a';
-        }
-        const maskGrid = document.createElement('div');
-        maskGrid.className = 'asset-mask-grid';
-        const maskValues = getCollisionMaskForSprite(asset, maskSpriteIndex, { create: asset.collisionMode === 'mask' });
-        maskValues.forEach((isBlocking, maskIndex) => {
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = `asset-mask-cell ${isBlocking ? 'is-blocking' : 'is-passable'}`;
-          button.title = isBlocking ? msg('blockingZone', 'Blocking') : msg('passableZone', 'Passable');
-          button.addEventListener('click', () => {
-            if (asset.collisionMode !== 'mask') return;
-            const liveMask = getCollisionMaskForSprite(asset, maskSpriteIndex, { create: true });
-            liveMask[maskIndex] = !liveMask[maskIndex];
-            renderAssetList();
-            renderMapGrid();
-            scheduleSave();
-          });
-          maskGrid.appendChild(button);
-        });
-        maskPreview.appendChild(maskGrid);
-        const maskMeta = document.createElement('div');
-        maskMeta.className = 'asset-mask-meta';
-        maskMeta.textContent = `${msg('collisionMaskSprite', 'Sprite')} ${maskSpriteIndex}`;
-        maskEditor.appendChild(maskPreview);
-        maskEditor.appendChild(maskMeta);
-        maskField.appendChild(maskLabel);
-        maskField.appendChild(maskEditor);
+        const maskButtonField = document.createElement('div');
+        maskButtonField.className = 'asset-field asset-mask-button-field';
+        const maskButtonLabel = document.createElement('label');
+        maskButtonLabel.className = 'panel-label';
+        maskButtonLabel.textContent = msg('collisionMask', 'Mask 4x4');
+        const editMaskButton = document.createElement('button');
+        editMaskButton.type = 'button';
+        editMaskButton.className = 'button-secondary';
+        editMaskButton.textContent = msg('editMask', 'Edit Mask');
+        editMaskButton.disabled = asset.collisionMode !== 'mask';
+        maskButtonField.appendChild(maskButtonLabel);
+        maskButtonField.appendChild(editMaskButton);
 
         const depthField = document.createElement('div');
         depthField.className = 'asset-field';
@@ -1001,7 +979,7 @@
         row.appendChild(assetTypeField);
         row.appendChild(collisionField);
         row.appendChild(collisionModeField);
-        row.appendChild(maskField);
+        row.appendChild(maskButtonField);
         row.appendChild(depthField);
         row.appendChild(orderControls);
         row.appendChild(selectButton);
@@ -1098,6 +1076,10 @@
           asset.collisionMode = collisionModeSelect.value === 'mask' ? 'mask' : 'simple';
           if (asset.collisionMode === 'mask') {
             getCollisionMaskForSprite(asset, getAssetMaskEditorSpriteIndex(asset), { create: true });
+          } else if (maskEditorAssetId === asset.id) {
+            maskModal?.classList.add('is-hidden');
+            maskModal?.setAttribute('aria-hidden', 'true');
+            maskEditorAssetId = null;
           }
           renderAssetList();
           renderMapGrid();
@@ -1113,6 +1095,13 @@
           state.selectedSpriteIndex = Math.min(state.selectedSpriteIndex, asset.spriteCount);
           renderAssetList();
           renderAssetGrid();
+        });
+        editMaskButton.addEventListener('click', () => {
+          if (asset.collisionMode !== 'mask') return;
+          maskEditorAssetId = asset.id;
+          renderMaskEditor();
+          maskModal?.classList.remove('is-hidden');
+          maskModal?.setAttribute('aria-hidden', 'false');
         });
         upButton.addEventListener('click', (event) => {
           event.stopPropagation();
@@ -1311,13 +1300,22 @@
         cell.appendChild(overlay);
       };
 
+      const appendDebugCode = (value) => {
+        const code = document.createElement('span');
+        code.className = 'map-debug-code';
+        code.textContent = value;
+        cell.appendChild(code);
+      };
+
       if (view === 'collision') {
         const collision = getEffectiveCollision(index);
         applyLayers();
         if (collision === 'mixed') {
           appendMaskOverlay(getEffectiveCollisionMask(index));
+          appendDebugCode('M');
         } else {
           cell.style.backgroundColor = collision === 'blocking' ? '#7a1f1f' : '#1f6f3a';
+          appendDebugCode(collision === 'blocking' ? '1' : '0');
         }
         return;
       }
@@ -1326,10 +1324,13 @@
         const depth = getPlayerDepth(index);
         if (!itemCell) {
           cell.style.backgroundColor = baseCell ? '#1f2933' : '#0d0d0d';
+          appendDebugCode('0');
         } else if (depth === 'cover') {
           cell.style.backgroundColor = '#6e2d1d';
+          appendDebugCode('C');
         } else {
           cell.style.backgroundColor = '#1d4c6e';
+          appendDebugCode('F');
         }
         return;
       }
@@ -1729,6 +1730,75 @@
       URL.revokeObjectURL(url);
     };
 
+    const updateMaskBrushButtons = () => {
+      maskBlockingButton?.classList.toggle('is-active', maskBrush === 'blocking');
+      maskPassableButton?.classList.toggle('is-active', maskBrush === 'passable');
+    };
+
+    const closeMaskEditor = () => {
+      maskPainting = false;
+      maskEditorAssetId = null;
+      maskModal?.classList.add('is-hidden');
+      maskModal?.setAttribute('aria-hidden', 'true');
+    };
+
+    const paintMaskValue = (asset, spriteIndex, maskIndex) => {
+      if (!asset || asset.collisionMode !== 'mask') return;
+      const mask = getCollisionMaskForSprite(asset, spriteIndex, { create: true });
+      const nextValue = maskBrush === 'blocking';
+      if (mask[maskIndex] === nextValue) return;
+      mask[maskIndex] = nextValue;
+      renderMaskEditor();
+      renderMapGrid();
+      scheduleSave();
+    };
+
+    const renderMaskEditor = () => {
+      if (!maskSpriteGrid) return;
+      const asset = getMaskEditorAsset();
+      updateMaskBrushButtons();
+      maskSpriteGrid.innerHTML = '';
+      if (!asset) return;
+      if (maskSubtitle) {
+        const assetName = asset.name || asset.fileName || `Item ${asset.number}`;
+        maskSubtitle.textContent = `${assetName} - ${msg('collisionMask', 'Mask 4x4')}`;
+      }
+      for (let spriteIndex = 1; spriteIndex <= Math.max(1, asset.spriteCount || 1); spriteIndex += 1) {
+        const card = document.createElement('div');
+        card.className = 'item-mask-sprite-card';
+        const preview = document.createElement('div');
+        preview.className = 'item-mask-sprite-preview';
+        const layer = buildSpriteLayer(asset, spriteIndex, 32);
+        if (layer?.imageUrl) {
+          preview.style.backgroundImage = `url(${layer.imageUrl})`;
+          preview.style.backgroundSize = layer.size;
+          preview.style.backgroundPosition = layer.position;
+          preview.style.backgroundRepeat = 'no-repeat';
+        } else {
+          preview.style.backgroundColor = asset.color || '#2a2a2a';
+        }
+        const grid = document.createElement('div');
+        grid.className = 'item-mask-edit-grid';
+        const mask = getCollisionMaskForSprite(asset, spriteIndex, { create: true });
+        mask.forEach((isBlocking, maskIndex) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = `item-mask-edit-cell ${isBlocking ? 'is-blocking' : 'is-passable'}`;
+          button.dataset.spriteIndex = String(spriteIndex);
+          button.dataset.maskIndex = String(maskIndex);
+          button.title = isBlocking ? msg('blockingZone', 'Blocking') : msg('passableZone', 'Passable');
+          grid.appendChild(button);
+        });
+        preview.appendChild(grid);
+        const meta = document.createElement('div');
+        meta.className = 'item-mask-sprite-meta';
+        meta.textContent = `${msg('collisionMaskSprite', 'Sprite')} ${spriteIndex}`;
+        card.appendChild(preview);
+        card.appendChild(meta);
+        maskSpriteGrid.appendChild(card);
+      }
+    };
+
     const bindGrid = () => {
       mapGrid.addEventListener('pointerdown', (event) => {
         const target = event.target.closest('.map-cell');
@@ -1853,6 +1923,46 @@
       cachePurgeButton?.addEventListener('click', () => {
         cacheClear().then(updateCacheModal);
       });
+      maskBlockingButton?.addEventListener('click', () => {
+        maskBrush = 'blocking';
+        updateMaskBrushButtons();
+      });
+      maskPassableButton?.addEventListener('click', () => {
+        maskBrush = 'passable';
+        updateMaskBrushButtons();
+      });
+      maskCloseButton?.addEventListener('click', closeMaskEditor);
+      maskModal?.addEventListener('click', (event) => {
+        if (event.target === maskModal) closeMaskEditor();
+      });
+      maskSpriteGrid?.addEventListener('pointerdown', (event) => {
+        const target = event.target.closest('.item-mask-edit-cell');
+        if (!target) return;
+        const asset = getMaskEditorAsset();
+        if (!asset) return;
+        event.preventDefault();
+        maskPainting = true;
+        paintMaskValue(
+          asset,
+          Number.parseInt(target.dataset.spriteIndex, 10) || 1,
+          Number.parseInt(target.dataset.maskIndex, 10) || 0
+        );
+      });
+      maskSpriteGrid?.addEventListener('pointerover', (event) => {
+        if (!maskPainting) return;
+        const target = event.target.closest('.item-mask-edit-cell');
+        if (!target) return;
+        const asset = getMaskEditorAsset();
+        if (!asset) return;
+        paintMaskValue(
+          asset,
+          Number.parseInt(target.dataset.spriteIndex, 10) || 1,
+          Number.parseInt(target.dataset.maskIndex, 10) || 0
+        );
+      });
+      window.addEventListener('pointerup', () => {
+        maskPainting = false;
+      });
     };
 
     const handleModifierKeys = (event) => {
@@ -1906,12 +2016,14 @@
       itemAltEraserActive = false;
       itemSpaceEyedropperActive = false;
       itemTemporaryTool = null;
+      maskPainting = false;
       endHistoryBatch();
     });
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
         cacheModal?.classList.add('is-hidden');
         cacheModal?.setAttribute('aria-hidden', 'true');
+        closeMaskEditor();
       }
     });
 
@@ -1919,6 +2031,7 @@
       updateBaseMapLabel();
       renderAssetList();
       renderAssetGrid();
+      renderMaskEditor();
     });
 
     bindGrid();

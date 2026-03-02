@@ -1686,24 +1686,41 @@ svg {
   min-width: 110px;
 }
 
-.asset-mask-field {
+.asset-mask-button-field {
   min-width: 92px;
 }
 
-.asset-mask-editor {
+.item-mask-modal-panel {
+  width: min(920px, 94vw);
+  max-height: min(80vh, 820px);
+}
+
+.item-mask-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.item-mask-sprite-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  gap: 10px;
+  max-height: 56vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.item-mask-sprite-card {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  align-items: center;
 }
 
-.asset-mask-editor.is-disabled {
-  opacity: 0.42;
-}
-
-.asset-mask-preview {
+.item-mask-sprite-preview {
   position: relative;
-  width: 64px;
-  height: 64px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-sm);
   border: 1px solid rgba(255, 255, 255, 0.14);
   overflow: hidden;
@@ -1711,7 +1728,7 @@ svg {
   image-rendering: pixelated;
 }
 
-.asset-mask-grid,
+.item-mask-edit-grid,
 .map-mask-overlay {
   position: absolute;
   inset: 0;
@@ -1722,7 +1739,7 @@ svg {
   background: rgba(0, 0, 0, 0.15);
 }
 
-.asset-mask-cell,
+.item-mask-edit-cell,
 .map-mask-cell {
   min-width: 0;
   min-height: 0;
@@ -1732,30 +1749,44 @@ svg {
   background: rgba(30, 111, 58, 0.18);
 }
 
-.asset-mask-cell {
+.item-mask-edit-cell {
   cursor: pointer;
   border-radius: 0;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
-.asset-mask-cell.is-blocking,
+.item-mask-edit-cell.is-blocking,
 .map-mask-cell.is-blocking {
   background: rgba(122, 31, 31, 0.6);
 }
 
-.asset-mask-cell.is-passable,
+.item-mask-edit-cell.is-passable,
 .map-mask-cell.is-passable {
   background: rgba(31, 111, 58, 0.34);
 }
 
-.asset-mask-meta {
-  font-size: 0.5rem;
+.item-mask-sprite-meta {
+  font-size: 0.54rem;
   letter-spacing: 0.08em;
   color: var(--color-text-secondary);
   text-transform: uppercase;
+  text-align: center;
 }
 
 .map-mask-overlay {
+  pointer-events: none;
+}
+
+.map-debug-code {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.48rem;
+  font-weight: 700;
+  color: #f6f3ea;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
   pointer-events: none;
 }
 

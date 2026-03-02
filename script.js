@@ -301,7 +301,12 @@
       'items.cachePurge': 'Purge cache',
       'items.playerDepth': 'Player depth',
       'items.depthFront': 'Player in front',
-      'items.depthCover': 'Hide player'
+      'items.depthCover': 'Hide player',
+      'items.editMask': 'Edit Mask',
+      'items.maskTitle': 'Edit Mask',
+      'items.maskSubtitle': 'Paint passable and blocking zones on each sprite.',
+      'items.maskBlocking': 'Blocking',
+      'items.maskPassable': 'Passable'
     },
     fr: {
       'title.home': "8bits Game Editor — Laboratoire créatif pour makers indés",
@@ -604,7 +609,12 @@
       'items.cachePurge': 'Purger le cache',
       'items.playerDepth': 'Profondeur joueur',
       'items.depthFront': 'Joueur devant',
-      'items.depthCover': 'Cache joueur'
+      'items.depthCover': 'Cache joueur',
+      'items.editMask': 'Edit Mask',
+      'items.maskTitle': 'Edit Mask',
+      'items.maskSubtitle': 'Peins les zones passantes et bloquantes sur chaque sprite.',
+      'items.maskBlocking': 'Bloquant',
+      'items.maskPassable': 'Passant'
     }
   };
 
