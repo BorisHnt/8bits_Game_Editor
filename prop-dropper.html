@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>8bits Game Editor — Map Creator</title>
+  <title>8bits Game Editor — Prop Dropper</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body class="page-map">
+<body class="page-item">
   <header class="navigation-bar-sticky">
     <div class="navigation-bar-inner">
       <a class="brand-lockup" href="index.html" aria-label="8bits Game Editor home">
@@ -133,11 +133,11 @@
     </div>
   </header>
 
-  <main class="workspace-page map-creator">
+  <main class="workspace-page item-creator">
     <section class="workspace-header">
       <div>
-        <h1 class="workspace-title" data-i18n="map.title">Map Creator</h1>
-        <p class="workspace-subtitle" data-i18n="map.subtitle">Import assets, map sprites, and paint layouts on a custom grid.</p>
+        <h1 class="workspace-title" data-i18n="items.title">Prop Dropper</h1>
+        <p class="workspace-subtitle" data-i18n="items.subtitle">Import a base map, place gameplay items on top, and export the combined layout.</p>
       </div>
     </section>
 
@@ -145,169 +145,130 @@
       <aside class="workspace-panel-left map-panel-left">
         <div class="panel-header">
           <div>
-            <h2 class="panel-title" data-i18n="map.assets">Assets</h2>
-            <p class="panel-subtitle" data-i18n="map.assetsSubtitle">Add images and configure sprite metadata.</p>
+            <h2 class="panel-title" data-i18n="items.assets">Items</h2>
+            <p class="panel-subtitle" data-i18n="items.assetsSubtitle">Add object sheets and configure collision and player depth.</p>
           </div>
-          <button class="button-secondary" type="button" id="add-asset" data-i18n="map.addAsset">Add Asset</button>
+          <button class="button-secondary" type="button" id="item-add-asset" data-i18n="items.addAsset">Add Item</button>
         </div>
-        <div class="asset-type-filters" id="asset-type-filters"></div>
-        <div class="asset-list" id="asset-list"></div>
+        <div class="asset-type-filters" id="item-asset-type-filters"></div>
+        <div class="asset-list" id="item-asset-list"></div>
       </aside>
 
       <section class="workspace-panel-center map-panel-center">
         <div class="panel-header">
           <div>
-            <h2 class="panel-title" data-i18n="map.assetGrid">Asset Grid</h2>
-            <p class="panel-subtitle" id="asset-grid-label" data-i18n="map.assetGridHint">Select an asset to preview its sprites.</p>
+            <h2 class="panel-title" data-i18n="items.assetGrid">Item Grid</h2>
+            <p class="panel-subtitle" id="item-asset-grid-label" data-i18n="items.assetGridHint">Select an item sheet to preview its sprites.</p>
           </div>
         </div>
-        <div class="asset-grid" id="asset-grid"></div>
+        <div class="asset-grid" id="item-asset-grid"></div>
       </section>
 
       <aside class="workspace-panel-right map-panel-right">
         <div class="panel-header">
           <div>
-            <h2 class="panel-title" data-i18n="map.mapBuilder">Map Builder</h2>
-            <p class="panel-subtitle" data-i18n="map.mapBuilderHint">Configure grid size and paint tiles.</p>
+            <h2 class="panel-title" data-i18n="items.builder">Item Builder</h2>
+            <p class="panel-subtitle" data-i18n="items.builderHint">Overlay props and gameplay items directly onto a base map.</p>
           </div>
-          <button class="button-secondary" type="button" id="map-options" data-i18n="map.options">Options</button>
+          <button class="button-secondary" type="button" id="item-options" data-i18n="items.options">Options</button>
         </div>
         <div class="map-controls">
           <div class="map-control-row map-control-row-2">
             <div class="map-control-group">
-              <label class="panel-label" data-i18n="map.name">Map name</label>
-              <input class="asset-input" type="text" id="map-name" placeholder="Map name" />
+              <label class="panel-label" data-i18n="items.name">Layout name</label>
+              <input class="asset-input" type="text" id="item-map-name" placeholder="Item layout name" data-i18n-placeholder="items.namePlaceholder" />
             </div>
             <div class="map-control-group">
-              <label class="panel-label" data-i18n="map.data">Data</label>
+              <label class="panel-label" data-i18n="items.data">Data</label>
               <div class="map-toggle">
-                <button class="button-secondary" type="button" id="map-undo" data-i18n="map.undo">Undo</button>
-                <button class="button-secondary" type="button" id="map-redo" data-i18n="map.redo">Redo</button>
-                <button class="button-secondary" type="button" id="map-export" data-i18n="map.exportJson">Export JSON</button>
-                <button class="button-secondary" type="button" id="map-import" data-i18n="map.importJson">Import JSON</button>
-                <button class="button-secondary" type="button" id="map-new" data-i18n="map.newMap">New Map</button>
-                <input class="map-file-input" type="file" id="map-import-file" accept=".json" />
+                <button class="button-secondary" type="button" id="item-undo" data-i18n="items.undo">Undo</button>
+                <button class="button-secondary" type="button" id="item-redo" data-i18n="items.redo">Redo</button>
+                <button class="button-secondary" type="button" id="item-export" data-i18n="items.exportJson">Export JSON</button>
+                <button class="button-secondary" type="button" id="item-import" data-i18n="items.importJson">Import JSON</button>
+                <input class="map-file-input" type="file" id="item-import-file" accept=".json" />
               </div>
             </div>
           </div>
           <div class="map-control-row map-control-row-2">
             <div class="map-control-group">
-              <label class="panel-label" data-i18n="map.mapSize">Map Size</label>
+              <label class="panel-label" data-i18n="items.baseMap">Base map</label>
+              <span class="panel-value item-base-map-note" id="item-base-map-label" data-i18n="items.baseMapEmpty">No base map loaded.</span>
+            </div>
+            <div class="map-control-group">
+              <label class="panel-label" for="item-cell-size" data-i18n="items.cellSize">Cell Size</label>
+              <input type="range" id="item-cell-size" min="10" max="32" value="16" />
+            </div>
+          </div>
+          <div class="map-control-row map-control-row-2">
+            <div class="map-control-group">
+              <label class="panel-label" data-i18n="items.mapSize">Map Size</label>
               <div class="grid-inputs">
-                <input class="grid-size-input" type="number" id="map-width" min="4" max="200" value="50" aria-label="Map width" />
+                <input class="grid-size-input" type="number" id="item-map-width" min="4" max="200" value="50" aria-label="Item map width" />
                 <span class="grid-separator">x</span>
-                <input class="grid-size-input" type="number" id="map-height" min="4" max="200" value="50" aria-label="Map height" />
-                <button class="button-secondary" type="button" id="apply-map-size" data-i18n="panel.gridApply">Apply</button>
+                <input class="grid-size-input" type="number" id="item-map-height" min="4" max="200" value="50" aria-label="Item map height" />
+                <button class="button-secondary" type="button" id="item-apply-map-size" data-i18n="panel.gridApply">Apply</button>
               </div>
             </div>
             <div class="map-control-group">
-              <label class="panel-label" for="map-cell-size" data-i18n="map.cellSize">Cell Size</label>
-              <input type="range" id="map-cell-size" min="10" max="32" value="16" />
-            </div>
-          </div>
-          <div class="map-control-row">
-            <div class="map-control-group">
-              <label class="panel-label" data-i18n="map.mode">Mode</label>
-              <div class="map-toggle">
-                <button class="button-secondary is-active" type="button" data-map-mode="manual" data-i18n="map.modeManual">Manual</button>
-                <button class="button-secondary" type="button" data-map-mode="auto" data-i18n="map.modeAuto">Auto</button>
-                <button class="button-secondary" type="button" data-map-mode="switch" data-i18n="map.modeSwitch">Switch</button>
-              </div>
-            </div>
-            <div class="map-control-group">
-              <label class="panel-label" data-i18n="map.tool">Tool</label>
-              <div class="map-toggle">
-                <button class="button-secondary is-active" type="button" data-map-tool="pencil" data-i18n="map.toolPencil">Pencil</button>
-                <button class="button-secondary" type="button" data-map-tool="eraser" data-i18n="map.toolEraser">Eraser</button>
-                <button class="button-secondary" type="button" data-map-tool="eyedropper" data-i18n="map.toolEyedropper">Eyedropper</button>
-                <button class="button-secondary" type="button" data-map-tool="fill" data-i18n="map.toolFill">Fill Bucket</button>
-                <button class="button-secondary" type="button" id="map-randomize" data-i18n="map.randomize">Randomize</button>
-                <input
-                  class="asset-input map-randomize-range"
-                  type="text"
-                  id="map-randomize-range"
-                  data-i18n-placeholder="map.randomizePlaceholder"
-                  placeholder="1-4, 7, 9-11"
-                  aria-label="Randomize tile range"
-                />
-              </div>
-            </div>
-            <div class="map-control-group">
-              <label class="panel-label" data-i18n="map.markers">Markers</label>
-              <div class="map-toggle">
-                <button class="button-secondary" type="button" data-map-marker="portal" data-i18n="map.markerPortal">Entry/Exit</button>
-              </div>
+              <label class="panel-label" data-i18n="items.importHint">Import</label>
+              <p class="panel-subtitle" data-i18n="items.importHelp">Import a Map Creator JSON or a Prop Dropper JSON.</p>
             </div>
           </div>
           <div class="map-control-row map-control-row-2">
             <div class="map-control-group">
-              <label class="panel-label" data-i18n="map.shift">Shift</label>
+              <label class="panel-label" data-i18n="items.tool">Tool</label>
               <div class="map-toggle">
-                <button class="button-secondary" type="button" data-map-shift="up" data-i18n="map.shiftUp">Up</button>
-                <button class="button-secondary" type="button" data-map-shift="down" data-i18n="map.shiftDown">Down</button>
-                <button class="button-secondary" type="button" data-map-shift="left" data-i18n="map.shiftLeft">Left</button>
-                <button class="button-secondary" type="button" data-map-shift="right" data-i18n="map.shiftRight">Right</button>
+                <button class="button-secondary is-active" type="button" data-item-tool="pencil" data-i18n="map.toolPencil">Pencil</button>
+                <button class="button-secondary" type="button" data-item-tool="eraser" data-i18n="map.toolEraser">Eraser</button>
+                <button class="button-secondary" type="button" data-item-tool="eyedropper" data-i18n="map.toolEyedropper">Eyedropper</button>
+                <button class="button-secondary" type="button" data-item-tool="fill" data-i18n="map.toolFill">Fill Bucket</button>
               </div>
             </div>
             <div class="map-control-group">
-              <label class="panel-label" data-i18n="map.view">View</label>
+              <label class="panel-label" data-i18n="items.view">View</label>
               <div class="map-toggle">
-                <button class="button-secondary is-active" type="button" data-map-view="normal" data-i18n="map.viewNormal">Normal</button>
-                <button class="button-secondary" type="button" data-map-view="assets" data-i18n="map.viewAssets">Assets</button>
-                <button class="button-secondary" type="button" data-map-view="collision" data-i18n="map.viewCollision">Passable/Bloquant</button>
+                <button class="button-secondary is-active" type="button" data-item-view="normal" data-i18n="items.viewNormal">Normal</button>
+                <button class="button-secondary" type="button" data-item-view="items" data-i18n="items.viewItems">Items</button>
+                <button class="button-secondary" type="button" data-item-view="collision" data-i18n="items.viewCollision">Collision</button>
+                <button class="button-secondary" type="button" data-item-view="depth" data-i18n="items.viewDepth">Player Depth</button>
               </div>
             </div>
           </div>
         </div>
         <div class="map-grid-wrapper">
-          <div class="map-grid" id="map-grid"></div>
+          <div class="map-grid" id="item-map-grid"></div>
         </div>
       </aside>
     </section>
   </main>
 
-  <div class="modal-overlay is-hidden" id="map-cache-modal" aria-hidden="true">
-    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="map-cache-title">
+  <div class="modal-overlay is-hidden" id="item-cache-modal" aria-hidden="true">
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="item-cache-title">
       <div class="modal-header">
-        <h2 class="panel-title" id="map-cache-title" data-i18n="map.cacheTitle">Cache</h2>
-        <button class="button-secondary" type="button" id="map-cache-close" data-i18n="map.cacheClose">Close</button>
+        <h2 class="panel-title" id="item-cache-title" data-i18n="items.cacheTitle">Cache</h2>
+        <button class="button-secondary" type="button" id="item-cache-close" data-i18n="items.cacheClose">Close</button>
       </div>
       <div class="modal-body">
         <div class="cache-stats">
           <div class="cache-stat">
-            <span class="panel-label" data-i18n="map.cacheCount">Items</span>
-            <span class="panel-value" id="map-cache-count">0</span>
+            <span class="panel-label" data-i18n="items.cacheCount">Items</span>
+            <span class="panel-value" id="item-cache-count">0</span>
           </div>
           <div class="cache-stat">
-            <span class="panel-label" data-i18n="map.cacheSize">Estimated size</span>
-            <span class="panel-value" id="map-cache-size">0 KB</span>
+            <span class="panel-label" data-i18n="items.cacheSize">Estimated size</span>
+            <span class="panel-value" id="item-cache-size">0 KB</span>
           </div>
         </div>
-        <div class="cache-list" id="map-cache-list"></div>
-        <p class="panel-subtitle is-hidden" id="map-cache-empty" data-i18n="map.cacheEmpty">Cache is empty.</p>
+        <div class="cache-list" id="item-cache-list"></div>
+        <p class="panel-subtitle is-hidden" id="item-cache-empty" data-i18n="items.cacheEmpty">Cache is empty.</p>
       </div>
       <div class="modal-footer">
-        <button class="button-secondary" type="button" id="map-cache-purge" data-i18n="map.cachePurge">Purger le cache</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal-overlay is-hidden" id="map-new-modal" aria-hidden="true">
-    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="map-new-title">
-      <div class="modal-header">
-        <h2 class="panel-title" id="map-new-title" data-i18n="map.newMapTitle">New Map</h2>
-      </div>
-      <div class="modal-body">
-        <p class="panel-subtitle" data-i18n="map.newMapWarning">Voulez vous un nouvel espace de travail vide ? Attention, cette action va effacer la map en cours.</p>
-      </div>
-      <div class="modal-footer">
-        <button class="button-secondary" type="button" id="map-new-no" data-i18n="map.newMapNo">No</button>
-        <button class="button-secondary" type="button" id="map-new-export" data-i18n="map.newMapExport">Export JSON</button>
-        <button class="button-primary" type="button" id="map-new-yes" data-i18n="map.newMapYes">Yes</button>
+        <button class="button-secondary" type="button" id="item-cache-purge" data-i18n="items.cachePurge">Purge cache</button>
       </div>
     </div>
   </div>
 
   <script src="script.js"></script>
+  <script src="prop-dropper.js"></script>
 </body>
 </html>

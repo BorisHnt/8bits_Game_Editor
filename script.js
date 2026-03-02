@@ -8,7 +8,7 @@
       'title.walls': '8bits Game Editor — Walls Designer',
       'title.floor': '8bits Game Editor — Floor Designer',
       'title.map': '8bits Game Editor — Map Creator',
-      'title.item': '8bits Game Editor — Item Creator',
+      'title.item': '8bits Game Editor — Prop Dropper',
       'title.world': '8bits Game Editor — World Creator',
       'title.tester': '8bits Game Editor — Map Tester',
       'nav.home': 'Home',
@@ -17,7 +17,7 @@
       'nav.walls': 'Walls Designer',
       'nav.floor': 'Floor Designer',
       'nav.map': 'Map Creator',
-      'nav.items': 'Item Creator',
+      'nav.items': 'Prop Dropper',
       'nav.world': 'World Creator',
       'nav.tester': 'Map Tester',
       'hero.kicker': 'Experimental Studio / Creative Workshop',
@@ -264,7 +264,7 @@
       'map.typeBlocking': 'Blocking',
       'map.typePassable': 'Passable',
       'map.selectAsset': 'Select',
-      'items.title': 'Item Creator',
+      'items.title': 'Prop Dropper',
       'items.subtitle': 'Import a base map, place gameplay items on top, and export the combined layout.',
       'items.assets': 'Items',
       'items.assetsSubtitle': 'Add object sheets and configure collision and player depth.',
@@ -286,7 +286,7 @@
       'items.cellSize': 'Cell Size',
       'items.mapSize': 'Map Size',
       'items.importHint': 'Import',
-      'items.importHelp': 'Import a Map Creator JSON or an Item Creator JSON.',
+      'items.importHelp': 'Import a Map Creator JSON or a Prop Dropper JSON.',
       'items.tool': 'Tool',
       'items.view': 'View',
       'items.viewNormal': 'Normal',
@@ -311,7 +311,7 @@
       'title.walls': "8bits Game Editor — Design de murs",
       'title.floor': "8bits Game Editor — Design de sols",
       'title.map': "8bits Game Editor — Créateur de maps",
-      'title.item': "8bits Game Editor — Créateur d'items",
+      'title.item': "8bits Game Editor — Prop Dropper",
       'title.world': "8bits Game Editor — Créateur de monde",
       'title.tester': "8bits Game Editor — Map Tester",
       'nav.home': 'Accueil',
@@ -320,7 +320,7 @@
       'nav.walls': 'Designer Murs',
       'nav.floor': 'Designer Sols',
       'nav.map': 'Créateur de map',
-      'nav.items': "Créateur d'items",
+      'nav.items': "Prop Dropper",
       'nav.world': 'Créateur de monde',
       'nav.tester': 'Map Tester',
       'hero.kicker': 'Atelier expérimental / Studio de création',
@@ -567,7 +567,7 @@
       'map.typeBlocking': 'Bloquant',
       'map.typePassable': 'Passant',
       'map.selectAsset': 'Selectionner',
-      'items.title': "Créateur d'items",
+      'items.title': "Prop Dropper",
       'items.subtitle': 'Importer une map de base, poser des items dessus et exporter le layout combine.',
       'items.assets': 'Items',
       'items.assetsSubtitle': 'Ajouter des sheets dobjets et regler collision et profondeur joueur.',
@@ -589,7 +589,7 @@
       'items.cellSize': 'Taille case',
       'items.mapSize': 'Taille map',
       'items.importHint': 'Import',
-      'items.importHelp': 'Importer un JSON de Map Creator ou un JSON de Item Creator.',
+      'items.importHelp': 'Importer un JSON de Map Creator ou un JSON de Prop Dropper.',
       'items.tool': 'Outil',
       'items.view': 'Vue',
       'items.viewNormal': 'Normal',
@@ -6303,9 +6303,6 @@
             const spriteRow = Math.floor((spriteIndex - 1) / cols);
             const sx = spriteCol * spriteWidth;
             const sy = spriteRow * spriteHeight;
-            const scale = safeCellSize / 16;
-            const drawWidth = Math.max(1, Math.round(spriteWidth * scale));
-            const drawHeight = Math.max(1, Math.round(spriteHeight * scale));
             ctx.drawImage(
               image,
               sx,
@@ -6313,9 +6310,9 @@
               spriteWidth,
               spriteHeight,
               x * safeCellSize,
-              (y + 1) * safeCellSize - drawHeight,
-              drawWidth,
-              drawHeight
+              y * safeCellSize,
+              safeCellSize,
+              safeCellSize
             );
           } else {
             ctx.fillStyle = assetDef.color || '#2a2a2a';
@@ -7446,9 +7443,9 @@
               spriteWidth,
               spriteHeight,
               x * tileSize,
-              (y + 1) * tileSize - spriteHeight,
-              spriteWidth,
-              spriteHeight
+              y * tileSize,
+              tileSize,
+              tileSize
             );
           } else {
             mapCtx.fillStyle = asset.color || '#2a2a2a';

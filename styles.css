@@ -1649,25 +1649,6 @@ svg {
   grid-auto-rows: var(--map-cell-size, 16px);
   gap: 1px;
   width: fit-content;
-  position: relative;
-  z-index: 1;
-}
-
-.item-map-overlay {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  width: calc(var(--map-columns, 20) * var(--map-cell-size, 16px) + (var(--map-columns, 20) - 1) * 1px);
-  height: calc(var(--map-rows, 20) * var(--map-cell-size, 16px) + (var(--map-rows, 20) - 1) * 1px);
-  pointer-events: none;
-  z-index: 2;
-  overflow: visible;
-}
-
-.item-map-sprite {
-  position: absolute;
-  background-repeat: no-repeat;
-  image-rendering: pixelated;
 }
 
 .map-cell {
