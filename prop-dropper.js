@@ -142,6 +142,7 @@
       selectedAssetId: null,
       selectedSpriteIndex: 1,
       tool: 'pencil',
+      markerMode: null,
       view: 'normal',
       shiftPaint: false,
       shiftPaintIndex: null,
@@ -505,6 +506,7 @@
       selectedAssetId: state.selectedAssetId,
       selectedSpriteIndex: state.selectedSpriteIndex,
       tool: state.tool,
+      markerMode: state.markerMode,
       view: state.view,
       baseMap: {
         sourceFile: state.baseMap.sourceFile,
@@ -535,6 +537,7 @@
       state.selectedAssetId = snapshot.selectedAssetId || state.assets[0]?.id || null;
       state.selectedSpriteIndex = clamp(Number.parseInt(snapshot.selectedSpriteIndex, 10) || 1, 1, 9999);
       state.tool = snapshot.tool || 'pencil';
+      state.markerMode = snapshot.markerMode || null;
       state.view = snapshot.view || 'normal';
       state.baseMap.sourceFile = snapshot.baseMap.sourceFile || '';
       state.baseMap.assetColorPalette = snapshot.baseMap.assetColorPalette || 'studio';
@@ -1515,6 +1518,14 @@
         floodFill(index);
         return;
       }
+      if (state.markerMode) {
+        ensureHistorySnapshot();
+        const current = state.baseMap.map.markers[index];
+        state.baseMap.map.markers[index] = current === state.markerMode ? null : state.markerMode;
+        renderMapGrid();
+        scheduleSave();
+        return;
+      }
       if (tool === 'stamppaint') {
         const asset = getSelectedAsset();
         if (!asset) return;
@@ -1591,6 +1602,9 @@
     const updateInteractionControls = () => {
       qsa('[data-item-tool]').forEach((button) => {
         button.classList.toggle('is-active', (button.dataset.itemTool || 'pencil') === state.tool);
+      });
+      qsa('[data-item-marker]').forEach((button) => {
+        button.classList.toggle('is-active', (button.dataset.itemMarker || null) === state.markerMode);
       });
       qsa('[data-item-view]').forEach((button) => {
         button.classList.toggle('is-active', (button.dataset.itemView || 'normal') === state.view);
@@ -1937,7 +1951,7 @@
         state.isDrawing = true;
         state.shiftPaintIndex = index;
         mapGrid.setPointerCapture(event.pointerId);
-        if (currentTool !== 'eyedropper') beginHistoryBatch();
+        if (state.markerMode || currentTool !== 'eyedropper') beginHistoryBatch();
         if (currentTool === 'stamppaint') updateStampPreview(index);
         applyCell(index);
       });
@@ -1956,12 +1970,12 @@
         if (state.isDrawing) {
           if (state.shiftPaintIndex === index) return;
           state.shiftPaintIndex = index;
-          if (!historyBatchActive && currentTool !== 'eyedropper') beginHistoryBatch();
+          if (!historyBatchActive && (state.markerMode || currentTool !== 'eyedropper')) beginHistoryBatch();
           applyCell(index);
           return;
         }
         if (hoverPaintActive) {
-          if (!historyBatchActive && currentTool !== 'eyedropper') beginHistoryBatch();
+          if (!historyBatchActive && (state.markerMode || currentTool !== 'eyedropper')) beginHistoryBatch();
           if (state.shiftPaintIndex === index) return;
           state.shiftPaintIndex = index;
           applyCell(index);
@@ -2026,6 +2040,13 @@
           updateInteractionControls();
           if (getEffectiveTool() === 'stamppaint' && stampPreviewIndex !== null) updateStampPreview(stampPreviewIndex);
           else clearStampPreview();
+        });
+      });
+      qsa('[data-item-marker]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const marker = button.dataset.itemMarker || null;
+          state.markerMode = state.markerMode === marker ? null : marker;
+          updateInteractionControls();
         });
       });
       qsa('[data-item-view]').forEach((button) => {
