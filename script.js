@@ -193,6 +193,8 @@
       'map.cacheClose': 'Close',
       'map.cacheCount': 'Items',
       'map.cacheSize': 'Estimated size',
+      'map.cacheImported': 'First import',
+      'map.cacheDelete': 'Delete',
       'map.cacheEmpty': 'Cache is empty.',
       'map.cachePurge': 'Purge cache',
       'world.title': 'World Creator',
@@ -601,6 +603,8 @@
       'map.cacheClose': 'Fermer',
       'map.cacheCount': 'Elements',
       'map.cacheSize': 'Taille estimee',
+      'map.cacheImported': 'Premier import',
+      'map.cacheDelete': 'Supprimer',
       'map.cacheEmpty': 'Cache vide.',
       'map.cachePurge': 'Purger le cache',
       'world.title': 'Créateur de monde',
@@ -4074,6 +4078,14 @@
       req.onerror = () => reject(req.error);
     }));
 
+    const cacheDelete = (key) => openCacheDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(cacheStoreName, 'readwrite');
+      const store = tx.objectStore(cacheStoreName);
+      const req = store.delete(key);
+      req.onsuccess = () => resolve(true);
+      req.onerror = () => reject(req.error);
+    }));
+
     const cacheClear = () => openCacheDb().then((db) => new Promise((resolve, reject) => {
       const tx = db.transaction(cacheStoreName, 'readwrite');
       const store = tx.objectStore(cacheStoreName);
@@ -4095,17 +4107,43 @@
           return;
         }
         cacheEmpty.classList.add('is-hidden');
+        const formatImportedAt = (value) => {
+          if (!value) return '—';
+          try {
+            return new Intl.DateTimeFormat(currentLanguage === 'fr' ? 'fr-FR' : 'en-US', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit'
+            }).format(new Date(value));
+          } catch (error) {
+            return '—';
+          }
+        };
         entries
           .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
           .forEach((entry) => {
             const item = document.createElement('div');
             item.className = 'cache-item';
+            const meta = document.createElement('div');
+            meta.className = 'cache-item-meta';
             const name = document.createElement('strong');
             name.textContent = entry.name || entry.key;
-            const size = document.createElement('span');
-            size.textContent = formatBytes(entry.size || 0);
-            item.appendChild(name);
-            item.appendChild(size);
+            const details = document.createElement('span');
+            details.textContent = `${formatBytes(entry.size || 0)} • ${getText('map.cacheImported', 'First import')}: ${formatImportedAt(entry.createdAt)}`;
+            const deleteButton = document.createElement('button');
+            deleteButton.type = 'button';
+            deleteButton.className = 'button-secondary';
+            deleteButton.textContent = getText('map.cacheDelete', 'Delete');
+            deleteButton.addEventListener('click', async () => {
+              await cacheDelete(entry.key);
+              await updateCacheModal();
+            });
+            meta.appendChild(name);
+            meta.appendChild(details);
+            item.appendChild(meta);
+            item.appendChild(deleteButton);
             cacheList.appendChild(item);
           });
       } catch (error) {
@@ -4145,12 +4183,14 @@
       if (!file) return null;
       const key = `${file.name}::${file.size}::${file.lastModified}`;
       try {
+        const existing = await cacheGet(key);
         await cachePut({
           key,
           name: file.name,
           size: file.size,
           type: file.type,
           lastModified: file.lastModified,
+          createdAt: existing?.createdAt || Date.now(),
           blob: file
         });
         return key;
@@ -5741,6 +5781,9 @@
     document.addEventListener('languagechange', () => {
       renderAssetList();
       renderAssetGrid();
+      if (cacheModal && !cacheModal.classList.contains('is-hidden')) {
+        updateCacheModal();
+      }
     });
 
     const cacheLoaded = loadCachedMapState();

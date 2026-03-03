@@ -1722,9 +1722,23 @@ svg {
 .cache-item {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
   font-size: 0.8rem;
   color: var(--color-text-secondary);
+}
+
+.cache-item-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cache-item-meta span {
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
 }
 
 .cache-item strong {
