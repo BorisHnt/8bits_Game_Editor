@@ -272,6 +272,7 @@
       'map.assetCollision': 'Collision',
       'map.typeBlocking': 'Blocking',
       'map.typePassable': 'Passable',
+      'map.removeAsset': 'Remove',
       'map.selectAsset': 'Select',
       'items.title': 'Prop Dropper',
       'items.subtitle': 'Import a base map, place gameplay items on top, and export the combined layout.',
@@ -677,6 +678,7 @@
       'map.assetCollision': 'Collision',
       'map.typeBlocking': 'Bloquant',
       'map.typePassable': 'Passant',
+      'map.removeAsset': 'Supprimer',
       'map.selectAsset': 'Selectionner',
       'items.title': "Prop Dropper",
       'items.subtitle': 'Importer une map de base, poser des items dessus et exporter le layout combine.',
@@ -4523,12 +4525,23 @@
       scheduleMapSave();
     };
 
-    const getFillKey = (cell) => {
+    const getFillGroupKey = (cell) => {
       if (!cell) return 'empty';
       const assetId = cell.assetId || 'none';
-      if (cell.auto !== false) return `auto:${assetId}`;
-      const spriteIndex = Number.isInteger(cell.spriteIndex) ? cell.spriteIndex : 1;
-      return `manual:${assetId}:${spriteIndex}`;
+      return `asset:${assetId}`;
+    };
+
+    const isSamePaintCell = (left, right) => {
+      if (!left && !right) return true;
+      if (!left || !right) return false;
+      if ((left.assetId || null) !== (right.assetId || null)) return false;
+      const leftAuto = left.auto !== false;
+      const rightAuto = right.auto !== false;
+      if (leftAuto !== rightAuto) return false;
+      if (leftAuto) return true;
+      const leftSprite = Number.isInteger(left.spriteIndex) ? left.spriteIndex : 1;
+      const rightSprite = Number.isInteger(right.spriteIndex) ? right.spriteIndex : 1;
+      return leftSprite === rightSprite;
     };
 
     const parseRandomizeRange = (value, maxSpriteIndex) => {
@@ -4594,11 +4607,10 @@
       const width = mapState.map.width;
       const height = mapState.map.height;
       ensureMapCells();
-      const targetKey = getFillKey(mapState.map.cells[startIndex]);
+      const targetKey = getFillGroupKey(mapState.map.cells[startIndex]);
       const paintCell = createPaintCell();
       if (!paintCell) return;
-      const paintKey = getFillKey(paintCell);
-      if (!mapState.randomize && targetKey === paintKey) return;
+      if (!mapState.randomize && isSamePaintCell(mapState.map.cells[startIndex], paintCell)) return;
       ensureMapHistorySnapshot();
 
       const stack = [startIndex];
@@ -4607,7 +4619,7 @@
         const index = stack.pop();
         if (visited.has(index)) continue;
         visited.add(index);
-        if (getFillKey(mapState.map.cells[index]) !== targetKey) continue;
+        if (getFillGroupKey(mapState.map.cells[index]) !== targetKey) continue;
 
         const x = index % width;
         const y = Math.floor(index / width);
@@ -4987,6 +4999,11 @@
         selectButton.className = 'button-secondary asset-select-button';
         selectButton.textContent = getText('map.selectAsset', 'Select');
 
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'button-secondary asset-select-button';
+        removeButton.textContent = getText('map.removeAsset', 'Remove');
+
         const orderControls = document.createElement('div');
         orderControls.className = 'asset-order-controls';
         const upButton = document.createElement('button');
@@ -5012,6 +5029,7 @@
         row.appendChild(assetTypeField);
         row.appendChild(collisionField);
         row.appendChild(orderControls);
+        row.appendChild(removeButton);
         row.appendChild(selectButton);
 
         fileInput.addEventListener('change', () => {
@@ -5125,6 +5143,26 @@
           mapState.selectedSpriteIndex = Math.min(mapState.selectedSpriteIndex, asset.spriteCount);
           renderAssetList();
           renderAssetGrid();
+        });
+
+        removeButton.addEventListener('click', (event) => {
+          event.stopPropagation();
+          ensureMapHistorySnapshot();
+          mapState.map.cells = mapState.map.cells.map((cell) => (
+            cell?.assetId === asset.id ? null : cell
+          ));
+          if (asset.imageUrl?.startsWith('blob:')) {
+            URL.revokeObjectURL(asset.imageUrl);
+          }
+          mapState.assets = mapState.assets.filter((entry) => entry.id !== asset.id);
+          normalizeAssetNumbers();
+          const visibleAfterDelete = getFilteredAssets();
+          mapState.selectedAssetId = visibleAfterDelete[0]?.id || mapState.assets[0]?.id || null;
+          mapState.selectedSpriteIndex = 1;
+          renderAssetList();
+          renderAssetGrid();
+          renderMapGrid();
+          scheduleMapSave();
         });
 
         upButton.addEventListener('click', (event) => {
