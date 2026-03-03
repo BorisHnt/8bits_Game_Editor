@@ -107,6 +107,8 @@
     const mapCellSize = qs('#item-cell-size');
     const mapNameInput = qs('#item-map-name');
     const baseMapLabel = qs('#item-base-map-label');
+    const refreshBaseMapButton = qs('#item-refresh-base-map');
+    const refreshBaseMapFile = qs('#item-refresh-base-map-file');
     const undoButton = qs('#item-undo');
     const redoButton = qs('#item-redo');
     const exportButton = qs('#item-export');
@@ -483,6 +485,19 @@
       color: asset.color,
       cacheKey: asset.cacheKey
     });
+    const remapLayoutCells = (sourceCells, sourceWidth, sourceHeight, targetWidth, targetHeight) => {
+      const resized = Array.from({ length: targetWidth * targetHeight }, () => null);
+      const copyWidth = Math.min(sourceWidth, targetWidth);
+      const copyHeight = Math.min(sourceHeight, targetHeight);
+      for (let row = 0; row < copyHeight; row += 1) {
+        for (let col = 0; col < copyWidth; col += 1) {
+          const prevIndex = row * sourceWidth + col;
+          const nextIndex = row * targetWidth + col;
+          resized[nextIndex] = cloneItemCell(sourceCells[prevIndex]);
+        }
+      }
+      return resized;
+    };
 
     const buildSnapshot = () => ({
       assets: state.assets.map(cloneItemAsset),
@@ -1703,6 +1718,9 @@
 
     const applyBaseMapPayload = async (payload, fileName = '', options = {}) => {
       const { clearItems = true } = options;
+      const previousWidth = state.layout.width;
+      const previousHeight = state.layout.height;
+      const previousCells = state.layout.cells.map(cloneItemCell);
       const normalized = normalizeImportedBaseMap(payload, fileName);
       state.baseMap = normalized;
       state.layout.width = normalized.map.width;
@@ -1711,8 +1729,9 @@
       if (clearItems) {
         state.layout.cells = Array.from({ length: state.layout.width * state.layout.height }, () => null);
       } else {
-        ensureCells();
+        state.layout.cells = remapLayoutCells(previousCells, previousWidth, previousHeight, state.layout.width, state.layout.height);
       }
+      ensureCells();
       if (!state.layout.name) {
         state.layout.name = normalized.map.name || '';
       }
@@ -1724,6 +1743,22 @@
       await loadCachedImages();
       renderMapGrid();
       scheduleSave();
+    };
+
+    const refreshBaseMap = (file) => {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const payload = JSON.parse(String(reader.result || '{}'));
+          if (!payload?.map || !Array.isArray(payload?.assets)) return;
+          pushHistorySnapshot();
+          await applyBaseMapPayload(payload, file.name, { clearItems: false });
+        } catch (error) {
+          // ignore invalid JSON
+        }
+      };
+      reader.readAsText(file);
     };
 
     const applyItemPayload = async (payload, fileName = '') => {
@@ -2008,6 +2043,12 @@
         const file = importFile.files?.[0];
         if (file) importJson(file);
         importFile.value = '';
+      });
+      refreshBaseMapButton?.addEventListener('click', () => refreshBaseMapFile?.click());
+      refreshBaseMapFile?.addEventListener('change', () => {
+        const file = refreshBaseMapFile.files?.[0];
+        if (file) refreshBaseMap(file);
+        refreshBaseMapFile.value = '';
       });
       optionsButton?.addEventListener('click', async () => {
         if (!cacheModal) return;
