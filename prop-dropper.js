@@ -176,11 +176,14 @@
     let maskEditorAssetId = null;
     let maskBrush = 'blocking';
     let maskPainting = false;
+    let stampPreviewIndex = null;
+    let stampPreviewCells = [];
 
     const getEffectiveTool = () => itemTemporaryTool || state.tool;
     const refreshTemporaryTool = () => {
       itemTemporaryTool = itemSpaceEyedropperActive ? 'eyedropper' : itemAltEraserActive ? 'eraser' : null;
     };
+    const getSelectedAsset = () => getItemAssetById(state.selectedAssetId);
 
     const formatBytes = (bytes) => {
       if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
@@ -692,7 +695,7 @@
 
     const renderAssetGrid = () => {
       assetGrid.innerHTML = '';
-      const asset = getItemAssetById(state.selectedAssetId);
+      const asset = getSelectedAsset();
       if (!asset) {
         if (assetGridLabel) assetGridLabel.textContent = msg('assetGridHint', 'Select an item sheet to preview its sprites.');
         return;
@@ -719,6 +722,7 @@
             cell.addEventListener('click', () => {
               state.selectedSpriteIndex = spriteIndex;
               renderAssetGrid();
+              if (getEffectiveTool() === 'stamppaint' && stampPreviewIndex !== null) updateStampPreview(stampPreviewIndex);
             });
           }
           assetGrid.appendChild(cell);
@@ -1099,6 +1103,7 @@
           state.selectedSpriteIndex = Math.min(state.selectedSpriteIndex, asset.spriteCount);
           renderAssetList();
           renderAssetGrid();
+          if (getEffectiveTool() === 'stamppaint' && stampPreviewIndex !== null) updateStampPreview(stampPreviewIndex);
         });
         editMaskButton.addEventListener('click', () => {
           if (asset.collisionMode !== 'mask') return;
@@ -1129,6 +1134,65 @@
         size: `${asset.cols * cellSize}px ${asset.rows * cellSize}px`,
         position: `${-col * cellSize}px ${-row * cellSize}px`
       };
+    };
+
+    const getStampPlacements = (anchorIndex) => {
+      const asset = getSelectedAsset();
+      if (!asset || anchorIndex < 0 || anchorIndex >= state.layout.cells.length) return [];
+      const anchorX = anchorIndex % state.layout.width;
+      const anchorY = Math.floor(anchorIndex / state.layout.width);
+      const placements = [];
+      const totalSprites = Math.max(1, asset.spriteCount || 1);
+      for (let spriteIndex = 1; spriteIndex <= totalSprites; spriteIndex += 1) {
+        const offsetX = (spriteIndex - 1) % asset.cols;
+        const offsetY = Math.floor((spriteIndex - 1) / asset.cols);
+        const x = anchorX + offsetX;
+        const y = anchorY + offsetY;
+        if (x < 0 || y < 0 || x >= state.layout.width || y >= state.layout.height) continue;
+        placements.push({
+          index: y * state.layout.width + x,
+          spriteIndex,
+          isOrigin: spriteIndex === 1
+        });
+      }
+      return placements;
+    };
+
+    const clearStampPreview = () => {
+      stampPreviewCells.forEach((index) => {
+        const cell = mapGrid.querySelector(`.map-cell[data-index="${index}"]`);
+        if (!cell) return;
+        cell.classList.remove('has-stamp-preview');
+        cell.querySelector('.map-stamp-preview')?.remove();
+      });
+      stampPreviewCells = [];
+    };
+
+    const updateStampPreview = (anchorIndex) => {
+      clearStampPreview();
+      stampPreviewIndex = anchorIndex;
+      if (getEffectiveTool() !== 'stamppaint') return;
+      const asset = getSelectedAsset();
+      if (!asset || anchorIndex == null || anchorIndex < 0) return;
+      const placements = getStampPlacements(anchorIndex);
+      placements.forEach((placement) => {
+        const cell = mapGrid.querySelector(`.map-cell[data-index="${placement.index}"]`);
+        if (!cell) return;
+        const preview = document.createElement('div');
+        preview.className = 'map-stamp-preview';
+        if (placement.isOrigin) preview.classList.add('is-origin');
+        const layer = buildSpriteLayer(asset, placement.spriteIndex, state.layout.cellSize);
+        if (layer?.imageUrl) {
+          preview.style.backgroundImage = `url(${layer.imageUrl})`;
+          preview.style.backgroundSize = layer.size;
+          preview.style.backgroundPosition = layer.position;
+        } else {
+          preview.style.backgroundColor = asset.color || '#2a2a2a';
+        }
+        cell.classList.add('has-stamp-preview');
+        cell.appendChild(preview);
+        stampPreviewCells.push(placement.index);
+      });
     };
 
     const getBaseNeighbors = (x, y, assetNumber) => {
@@ -1359,6 +1423,7 @@
     const renderMapGrid = () => {
       ensureCells();
       mapGrid.innerHTML = '';
+      stampPreviewCells = [];
       mapGrid.style.setProperty('--map-columns', state.layout.width);
       mapGrid.style.setProperty('--map-cell-size', `${state.layout.cellSize}px`);
       const total = state.layout.width * state.layout.height;
@@ -1369,14 +1434,17 @@
         renderMapCell(cell, i);
         mapGrid.appendChild(cell);
       }
+      if (getEffectiveTool() === 'stamppaint' && stampPreviewIndex !== null) {
+        updateStampPreview(stampPreviewIndex);
+      }
     };
 
-    const createPaintCell = () => {
-      const asset = getItemAssetById(state.selectedAssetId);
+    const createPaintCell = (spriteIndex = null) => {
+      const asset = getSelectedAsset();
       if (!asset) return null;
       return {
         assetId: asset.id,
-        spriteIndex: clamp(state.selectedSpriteIndex, 1, asset.spriteCount || 1)
+        spriteIndex: clamp(spriteIndex ?? state.selectedSpriteIndex, 1, asset.spriteCount || 1)
       };
     };
 
@@ -1432,9 +1500,30 @@
         floodFill(index);
         return;
       }
+      if (tool === 'stamppaint') {
+        const asset = getSelectedAsset();
+        if (!asset) return;
+        const placements = getStampPlacements(index);
+        if (!placements.length) return;
+        ensureHistorySnapshot();
+        placements.forEach((placement) => {
+          state.layout.cells[placement.index] = createPaintCell(placement.spriteIndex);
+        });
+        renderMapGrid();
+        scheduleSave();
+        return;
+      }
       if (tool === 'eraser') {
         ensureHistorySnapshot();
         state.layout.cells[index] = null;
+      } else if (tool === 'seqpaint') {
+        const asset = getSelectedAsset();
+        if (!asset) return;
+        const spriteIndex = clamp(state.selectedSpriteIndex, 1, asset.spriteCount || 1);
+        ensureHistorySnapshot();
+        state.layout.cells[index] = createPaintCell(spriteIndex);
+        state.selectedSpriteIndex = spriteIndex >= Math.max(1, asset.spriteCount || 1) ? 1 : spriteIndex + 1;
+        renderAssetGrid();
       } else {
         const paintCell = createPaintCell();
         if (!paintCell) return;
@@ -1808,11 +1897,14 @@
         const target = event.target.closest('.map-cell');
         if (!target) return;
         const currentTool = getEffectiveTool();
+        const index = Number.parseInt(target.dataset.index, 10);
         event.preventDefault();
         state.isDrawing = true;
+        state.shiftPaintIndex = index;
         mapGrid.setPointerCapture(event.pointerId);
         if (currentTool !== 'eyedropper') beginHistoryBatch();
-        applyCell(Number.parseInt(target.dataset.index, 10));
+        if (currentTool === 'stamppaint') updateStampPreview(index);
+        applyCell(index);
       });
 
       mapGrid.addEventListener('pointermove', (event) => {
@@ -1820,12 +1912,15 @@
         if (!target) return;
         const currentTool = getEffectiveTool();
         const index = Number.parseInt(target.dataset.index, 10);
+        if (currentTool === 'stamppaint') updateStampPreview(index);
         const altEraserHover = (itemAltEraserActive || event.altKey) && currentTool === 'eraser';
         const hoverPaintActive = state.shiftPaint || altEraserHover;
         if (currentTool === 'eyedropper' || currentTool === 'fill') {
           if (!state.isDrawing) return;
         }
         if (state.isDrawing) {
+          if (state.shiftPaintIndex === index) return;
+          state.shiftPaintIndex = index;
           if (!historyBatchActive && currentTool !== 'eyedropper') beginHistoryBatch();
           applyCell(index);
           return;
@@ -1846,6 +1941,7 @@
         } catch (error) {
           // ignore
         }
+        state.shiftPaintIndex = null;
         endHistoryBatch();
       };
 
@@ -1853,6 +1949,8 @@
       mapGrid.addEventListener('pointerleave', stopDrawing);
       mapGrid.addEventListener('pointerleave', () => {
         state.shiftPaintIndex = null;
+        stampPreviewIndex = null;
+        clearStampPreview();
         endHistoryBatch();
       });
     };
@@ -1889,7 +1987,10 @@
       qsa('[data-item-tool]').forEach((button) => {
         button.addEventListener('click', () => {
           state.tool = button.dataset.itemTool || 'pencil';
+          state.shiftPaintIndex = null;
           updateInteractionControls();
+          if (getEffectiveTool() === 'stamppaint' && stampPreviewIndex !== null) updateStampPreview(stampPreviewIndex);
+          else clearStampPreview();
         });
       });
       qsa('[data-item-view]').forEach((button) => {
@@ -2021,6 +2122,8 @@
       itemSpaceEyedropperActive = false;
       itemTemporaryTool = null;
       maskPainting = false;
+      stampPreviewIndex = null;
+      clearStampPreview();
       endHistoryBatch();
     });
     window.addEventListener('keydown', (event) => {
