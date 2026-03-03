@@ -224,6 +224,8 @@
       'world.mapName': 'Map name',
       'world.portals': 'Portals',
       'world.file': 'File',
+      'world.mapUp': 'Up',
+      'world.mapDown': 'Down',
       'world.mapReplace': 'Replace',
       'world.remove': 'Remove',
       'tester.title': 'Map Tester',
@@ -630,6 +632,8 @@
       'world.mapName': 'Nom de map',
       'world.portals': 'Portails',
       'world.file': 'Fichier',
+      'world.mapUp': 'Monter',
+      'world.mapDown': 'Descendre',
       'world.mapReplace': 'Remplacer',
       'world.remove': 'Supprimer',
       'tester.title': 'Map Tester',
@@ -6802,9 +6806,22 @@
       reader.readAsText(file);
     };
 
+    const moveMapEntry = (mapEntry, direction) => {
+      const currentIndex = worldState.maps.findIndex((entry) => entry.id === mapEntry?.id);
+      if (currentIndex === -1) return;
+      const nextIndex = currentIndex + direction;
+      if (nextIndex < 0 || nextIndex >= worldState.maps.length) return;
+      const [entry] = worldState.maps.splice(currentIndex, 1);
+      worldState.maps.splice(nextIndex, 0, entry);
+      renderMapList();
+      refreshSelects();
+      renderConnections();
+      scheduleWorldSave();
+    };
+
     const renderMapList = () => {
       mapList.innerHTML = '';
-      worldState.maps.forEach((mapEntry) => {
+      worldState.maps.forEach((mapEntry, mapIndex) => {
         const row = document.createElement('div');
         row.className = 'world-map-row';
 
@@ -6852,6 +6869,18 @@
         replaceButton.className = 'button-secondary world-replace';
         replaceButton.textContent = getText('world.mapReplace', 'Replace');
 
+        const upButton = document.createElement('button');
+        upButton.type = 'button';
+        upButton.className = 'button-secondary world-replace';
+        upButton.textContent = getText('world.mapUp', 'Up');
+        upButton.disabled = mapIndex === 0;
+
+        const downButton = document.createElement('button');
+        downButton.type = 'button';
+        downButton.className = 'button-secondary world-replace';
+        downButton.textContent = getText('world.mapDown', 'Down');
+        downButton.disabled = mapIndex === worldState.maps.length - 1;
+
         const replaceInput = document.createElement('input');
         replaceInput.type = 'file';
         replaceInput.accept = '.json';
@@ -6859,6 +6888,8 @@
 
         const actions = document.createElement('div');
         actions.className = 'world-map-actions';
+        actions.appendChild(upButton);
+        actions.appendChild(downButton);
         actions.appendChild(replaceButton);
         actions.appendChild(removeButton);
         actions.appendChild(replaceInput);
@@ -6890,6 +6921,8 @@
         });
 
         replaceButton.addEventListener('click', () => replaceInput.click());
+        upButton.addEventListener('click', () => moveMapEntry(mapEntry, -1));
+        downButton.addEventListener('click', () => moveMapEntry(mapEntry, 1));
         replaceInput.addEventListener('change', () => {
           const file = replaceInput.files?.[0];
           if (file) {
