@@ -39,6 +39,20 @@
       blockingZone: 'Blocking',
       passableZone: 'Passable',
       editMask: 'Edit Mask',
+      editAnimation: 'Edit Animation',
+      animation: 'Animation',
+      animationStart: 'Start image',
+      animationFrames: 'Animation images',
+      animationFramesHint: 'Use commas or ranges, for example 2,3,4-6.',
+      animationEnd: 'End image',
+      animationLoop: 'Loop',
+      animationLoopOn: 'Yes',
+      animationLoopOff: 'No',
+      animationLoopFrom: 'Loop from',
+      animationLoopTo: 'Loop to',
+      animationPreview: 'Preview',
+      animationTarget: 'Sprite picker target',
+      animationNone: 'No animation configured',
       blocking: 'Blocking',
       passable: 'Passable',
       playerDepth: 'Player depth',
@@ -79,6 +93,20 @@
       blockingZone: 'Bloquant',
       passableZone: 'Passant',
       editMask: 'Edit Mask',
+      editAnimation: 'Edit Animation',
+      animation: 'Animation',
+      animationStart: 'Image de depart',
+      animationFrames: "Images d'animation",
+      animationFramesHint: 'Utilise des virgules ou des intervalles, par exemple 2,3,4-6.',
+      animationEnd: 'Image de fin',
+      animationLoop: 'Loop',
+      animationLoopOn: 'Oui',
+      animationLoopOff: 'Non',
+      animationLoopFrom: 'Loop de',
+      animationLoopTo: 'Loop a',
+      animationPreview: 'Apercu',
+      animationTarget: 'Cible du picker',
+      animationNone: 'Aucune animation configuree',
       blocking: 'Bloquant',
       passable: 'Passant',
       playerDepth: 'Profondeur joueur',
@@ -95,6 +123,36 @@
 
   const getLanguage = () => (document.documentElement.lang === 'fr' ? 'fr' : 'en');
   const msg = (key, fallback = '') => messages[getLanguage()]?.[key] ?? fallback;
+  const parseSpriteSequence = (value, maxSprites) => {
+    const limit = Math.max(1, Number.parseInt(maxSprites, 10) || 1);
+    if (Array.isArray(value)) {
+      return value
+        .map((entry) => Number.parseInt(entry, 10))
+        .filter((entry) => Number.isFinite(entry) && entry >= 1 && entry <= limit)
+        .map((entry) => clamp(entry, 1, limit));
+    }
+    const raw = String(value || '').trim();
+    if (!raw) return [];
+    const sequence = [];
+    raw.split(',').map((part) => part.trim()).filter(Boolean).forEach((part) => {
+      const range = part.match(/^(\d+)\s*-\s*(\d+)$/);
+      if (range) {
+        const start = clamp(Number.parseInt(range[1], 10) || 1, 1, limit);
+        const end = clamp(Number.parseInt(range[2], 10) || 1, 1, limit);
+        const step = start <= end ? 1 : -1;
+        for (let sprite = start; step > 0 ? sprite <= end : sprite >= end; sprite += step) {
+          sequence.push(sprite);
+        }
+        return;
+      }
+      const spriteIndex = Number.parseInt(part, 10);
+      if (Number.isFinite(spriteIndex) && spriteIndex >= 1 && spriteIndex <= limit) {
+        sequence.push(spriteIndex);
+      }
+    });
+    return sequence;
+  };
+  const formatSpriteSequence = (sequence) => sequence.length ? sequence.join(', ') : '';
 
   const patternFromRows = (rows) => rows.join('');
   const maskSize = 4;
@@ -144,6 +202,20 @@
     const maskBlockingButton = qs('#item-mask-brush-blocking');
     const maskPassableButton = qs('#item-mask-brush-passable');
     const maskSubtitle = qs('#item-mask-subtitle');
+    const animationModal = qs('#item-animation-modal');
+    const animationCloseButton = qs('#item-animation-close');
+    const animationSubtitle = qs('#item-animation-subtitle');
+    const animationStartInput = qs('#item-animation-start');
+    const animationFramesInput = qs('#item-animation-frames');
+    const animationEndInput = qs('#item-animation-end');
+    const animationLoopEnabled = qs('#item-animation-loop-enabled');
+    const animationLoopFromInput = qs('#item-animation-loop-from');
+    const animationLoopToInput = qs('#item-animation-loop-to');
+    const animationPickerTarget = qs('#item-animation-picker-target');
+    const animationPreviewBox = qs('#item-animation-preview-box');
+    const animationPreviewFrame = qs('#item-animation-preview-frame');
+    const animationPreviewSequence = qs('#item-animation-preview-sequence');
+    const animationSpriteGrid = qs('#item-animation-sprite-grid');
 
     if (!assetList || !assetGrid || !mapGrid) return;
 
@@ -194,6 +266,9 @@
     let maskEditorAssetId = null;
     let maskBrush = 'blocking';
     let maskPainting = false;
+    let animationEditorAssetId = null;
+    let animationPreviewTick = 0;
+    let animationPreviewTimer = null;
 
     const getEffectiveTool = () => itemTemporaryTool || state.tool;
     const refreshTemporaryTool = () => {
@@ -320,6 +395,23 @@
       }
     };
 
+    const normalizeInteractionAnimation = (animation, maxSprites, fallbackStart = 1) => {
+      const limit = Math.max(1, Number.parseInt(maxSprites, 10) || 1);
+      const normalizeSprite = (value, fallback = null) => {
+        const parsed = Number.parseInt(value, 10);
+        if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+        return clamp(parsed, 1, limit);
+      };
+      return {
+        startSprite: normalizeSprite(animation?.startSprite, clamp(fallbackStart, 1, limit)),
+        animationFrames: parseSpriteSequence(animation?.animationFrames, limit),
+        endSprite: normalizeSprite(animation?.endSprite, null),
+        loop: animation?.loop === true,
+        loopFromSprite: normalizeSprite(animation?.loopFromSprite, null),
+        loopToSprite: normalizeSprite(animation?.loopToSprite, null)
+      };
+    };
+
     const normalizeItemAsset = (asset, fallbackNumber = 1) => {
       const cols = clamp(Number.parseInt(asset?.cols, 10) || 1, 1, 64);
       const rows = clamp(Number.parseInt(asset?.rows, 10) || 1, 1, 64);
@@ -361,6 +453,7 @@
         type: asset?.type === 'passable' ? 'passable' : 'blocking',
         collisionMode: asset?.collisionMode === 'mask' ? 'mask' : 'simple',
         collisionMasks: normalizeCollisionMasks(asset?.collisionMasks || asset?.collisionMask, asset?.type === 'passable' ? 'passable' : 'blocking'),
+        interactionAnimation: normalizeInteractionAnimation(asset?.interactionAnimation, maxSprites),
         playerDepth: asset?.playerDepth === 'cover' ? 'cover' : 'front',
         color: asset?.color || '#2a2a2a',
         cacheKey: asset?.cacheKey || null
@@ -447,6 +540,54 @@
         : 1
     );
     const getMaskEditorAsset = () => getItemAssetById(maskEditorAssetId);
+    const getAnimationEditorAsset = () => getItemAssetById(animationEditorAssetId);
+    const getInteractionAnimation = (asset) => normalizeInteractionAnimation(
+      asset?.interactionAnimation,
+      asset?.cols * asset?.rows || asset?.spriteCount || 1,
+      1
+    );
+    const buildInteractionAnimationSequence = (asset) => {
+      const animation = getInteractionAnimation(asset);
+      const sequence = [];
+      if (animation.startSprite) sequence.push(animation.startSprite);
+      sequence.push(...animation.animationFrames);
+      if (animation.endSprite) sequence.push(animation.endSprite);
+      return sequence.length ? sequence : [1];
+    };
+    const getInteractionAnimationLoopRange = (asset, sequence = buildInteractionAnimationSequence(asset)) => {
+      const animation = getInteractionAnimation(asset);
+      if (!animation.loop || !sequence.length) return null;
+      const fromSprite = animation.loopFromSprite;
+      const toSprite = animation.loopToSprite;
+      let startIndex = Number.isFinite(fromSprite) ? sequence.indexOf(fromSprite) : -1;
+      let endIndex = Number.isFinite(toSprite) ? sequence.lastIndexOf(toSprite) : -1;
+      if (startIndex < 0 || endIndex < startIndex) {
+        const startOffset = animation.startSprite ? 1 : 0;
+        const frameCount = animation.animationFrames.length;
+        if (frameCount > 0) {
+          startIndex = startOffset;
+          endIndex = startOffset + frameCount - 1;
+        } else if (sequence.length > 1) {
+          startIndex = 0;
+          endIndex = sequence.length - 1;
+        } else {
+          return null;
+        }
+      }
+      return { start: startIndex, end: endIndex };
+    };
+    const buildInteractionAnimationSummary = (asset) => {
+      const animation = getInteractionAnimation(asset);
+      const parts = [];
+      if (animation.startSprite) parts.push(`S:${animation.startSprite}`);
+      if (animation.animationFrames.length) parts.push(`A:${formatSpriteSequence(animation.animationFrames)}`);
+      if (animation.endSprite) parts.push(`E:${animation.endSprite}`);
+      if (animation.loop) {
+        const range = [animation.loopFromSprite, animation.loopToSprite].filter((value) => Number.isFinite(value));
+        parts.push(`L:${range.length ? range.join('-') : 'on'}`);
+      }
+      return parts.length ? parts.join(' | ') : msg('animationNone', 'No animation configured');
+    };
 
     const ensureCells = () => {
       const total = state.layout.width * state.layout.height;
@@ -489,6 +630,7 @@
       type: asset.type,
       collisionMode: asset.collisionMode,
       collisionMasks: cloneCollisionMasks(asset.collisionMasks),
+      interactionAnimation: normalizeInteractionAnimation(asset.interactionAnimation, asset.cols * asset.rows || asset.spriteCount || 1),
       playerDepth: asset.playerDepth,
       color: asset.color,
       cacheKey: asset.cacheKey
@@ -688,6 +830,14 @@
         oneShot: true,
         type: 'blocking',
         collisionMode: 'simple',
+        interactionAnimation: {
+          startSprite: 1,
+          animationFrames: [],
+          endSprite: null,
+          loop: false,
+          loopFromSprite: null,
+          loopToSprite: null
+        },
         playerDepth: 'front',
         color: '#2a2a2a'
       }, number);
@@ -1013,6 +1163,22 @@
         maskButtonField.appendChild(maskButtonLabel);
         maskButtonField.appendChild(editMaskButton);
 
+        const animationField = document.createElement('div');
+        animationField.className = 'asset-field asset-animation-button-field';
+        const animationLabel = document.createElement('label');
+        animationLabel.className = 'panel-label';
+        animationLabel.textContent = msg('animation', 'Animation');
+        const editAnimationButton = document.createElement('button');
+        editAnimationButton.type = 'button';
+        editAnimationButton.className = 'button-secondary';
+        editAnimationButton.textContent = msg('editAnimation', 'Edit Animation');
+        const animationNote = document.createElement('span');
+        animationNote.className = 'asset-inline-note';
+        animationNote.textContent = buildInteractionAnimationSummary(asset);
+        animationField.appendChild(animationLabel);
+        animationField.appendChild(editAnimationButton);
+        animationField.appendChild(animationNote);
+
         const depthField = document.createElement('div');
         depthField.className = 'asset-field';
         const depthLabel = document.createElement('label');
@@ -1066,6 +1232,7 @@
         row.appendChild(collisionField);
         row.appendChild(collisionModeField);
         row.appendChild(maskButtonField);
+        row.appendChild(animationField);
         row.appendChild(depthField);
         row.appendChild(orderControls);
         row.appendChild(selectButton);
@@ -1085,6 +1252,7 @@
           renderAssetList();
           renderAssetGrid();
           renderMapGrid();
+          if (animationEditorAssetId === asset.id) renderAnimationEditor();
           scheduleSave();
           fileInput.value = '';
         });
@@ -1097,6 +1265,7 @@
         colorInput.addEventListener('input', () => {
           asset.color = colorInput.value.toLowerCase();
           renderMapGrid();
+          if (animationEditorAssetId === asset.id) renderAnimationEditor();
           scheduleSave();
         });
         numberInput.addEventListener('change', () => {
@@ -1113,15 +1282,19 @@
         colsInput.addEventListener('change', () => {
           asset.cols = clamp(Number.parseInt(colsInput.value, 10) || 1, 1, 64);
           asset.spriteCount = clamp(asset.spriteCount, 1, asset.cols * asset.rows);
+          asset.interactionAnimation = normalizeInteractionAnimation(asset.interactionAnimation, asset.spriteCount || asset.cols * asset.rows || 1, 1);
           renderAssetGrid();
           renderMapGrid();
+          if (animationEditorAssetId === asset.id) renderAnimationEditor();
           scheduleSave();
         });
         rowsInput.addEventListener('change', () => {
           asset.rows = clamp(Number.parseInt(rowsInput.value, 10) || 1, 1, 64);
           asset.spriteCount = clamp(asset.spriteCount, 1, asset.cols * asset.rows);
+          asset.interactionAnimation = normalizeInteractionAnimation(asset.interactionAnimation, asset.spriteCount || asset.cols * asset.rows || 1, 1);
           renderAssetGrid();
           renderMapGrid();
+          if (animationEditorAssetId === asset.id) renderAnimationEditor();
           scheduleSave();
         });
         widthInput.addEventListener('change', () => {
@@ -1136,9 +1309,11 @@
         });
         countInput.addEventListener('change', () => {
           asset.spriteCount = clamp(Number.parseInt(countInput.value, 10) || 1, 1, asset.cols * asset.rows);
+          asset.interactionAnimation = normalizeInteractionAnimation(asset.interactionAnimation, asset.spriteCount || asset.cols * asset.rows || 1, 1);
           if (state.selectedSpriteIndex > asset.spriteCount) state.selectedSpriteIndex = asset.spriteCount;
           renderAssetGrid();
           renderMapGrid();
+          if (animationEditorAssetId === asset.id) renderAnimationEditor();
           scheduleSave();
         });
         assetTypeInput.addEventListener('input', () => {
@@ -1200,6 +1375,14 @@
           renderMaskEditor();
           maskModal?.classList.remove('is-hidden');
           maskModal?.setAttribute('aria-hidden', 'false');
+        });
+        editAnimationButton.addEventListener('click', () => {
+          animationEditorAssetId = asset.id;
+          animationPreviewTick = 0;
+          renderAnimationEditor();
+          animationModal?.classList.remove('is-hidden');
+          animationModal?.setAttribute('aria-hidden', 'false');
+          startAnimationPreview();
         });
         upButton.addEventListener('click', (event) => {
           event.stopPropagation();
@@ -1648,6 +1831,7 @@
           type: asset.type,
           collisionMode: asset.collisionMode,
           collisionMasks: cloneCollisionMasks(asset.collisionMasks),
+          interactionAnimation: normalizeInteractionAnimation(asset.interactionAnimation, asset.cols * asset.rows || asset.spriteCount || 1, 1),
           playerDepth: asset.playerDepth
         })),
         gameItemLayer: {
@@ -1906,6 +2090,150 @@
       }
     };
 
+    const closeAnimationEditor = () => {
+      animationEditorAssetId = null;
+      animationPreviewTick = 0;
+      if (animationPreviewTimer) {
+        window.clearInterval(animationPreviewTimer);
+        animationPreviewTimer = null;
+      }
+      animationModal?.classList.add('is-hidden');
+      animationModal?.setAttribute('aria-hidden', 'true');
+      renderAssetList();
+    };
+
+    const updateAnimationPreview = () => {
+      const asset = getAnimationEditorAsset();
+      if (!asset || !animationPreviewBox || !animationPreviewFrame || !animationPreviewSequence) return;
+      const sequence = buildInteractionAnimationSequence(asset);
+      const loopRange = getInteractionAnimationLoopRange(asset, sequence);
+      let frameIndex = Math.min(animationPreviewTick, Math.max(0, sequence.length - 1));
+      if (loopRange && animationPreviewTick > loopRange.end) {
+        const loopLength = loopRange.end - loopRange.start + 1;
+        frameIndex = loopRange.start + ((animationPreviewTick - loopRange.start) % loopLength);
+      } else if (!loopRange && sequence.length) {
+        frameIndex = Math.min(animationPreviewTick, sequence.length - 1);
+      }
+      const spriteIndex = sequence[frameIndex] || 1;
+      const layer = buildSpriteLayer(asset, spriteIndex, 96);
+      animationPreviewBox.style.backgroundImage = layer?.imageUrl ? `url(${layer.imageUrl})` : '';
+      animationPreviewBox.style.backgroundSize = layer?.size || '';
+      animationPreviewBox.style.backgroundPosition = layer?.position || '';
+      animationPreviewBox.style.backgroundColor = layer?.imageUrl ? '#0f0f0f' : (asset.color || '#2a2a2a');
+      animationPreviewFrame.textContent = `Sprite ${spriteIndex}`;
+      const sequenceLabel = buildInteractionAnimationSummary(asset);
+      animationPreviewSequence.textContent = sequenceLabel;
+    };
+
+    const startAnimationPreview = () => {
+      if (animationPreviewTimer) window.clearInterval(animationPreviewTimer);
+      updateAnimationPreview();
+      animationPreviewTimer = window.setInterval(() => {
+        const asset = getAnimationEditorAsset();
+        if (!asset || animationModal?.classList.contains('is-hidden')) return;
+        animationPreviewTick += 1;
+        updateAnimationPreview();
+      }, 220);
+    };
+
+    const syncAnimationEditorInputs = () => {
+      const asset = getAnimationEditorAsset();
+      if (!asset) return;
+      const animation = getInteractionAnimation(asset);
+      if (animationStartInput) animationStartInput.value = animation.startSprite ? String(animation.startSprite) : '';
+      if (animationFramesInput) animationFramesInput.value = formatSpriteSequence(animation.animationFrames);
+      if (animationEndInput) animationEndInput.value = animation.endSprite ? String(animation.endSprite) : '';
+      if (animationLoopEnabled) animationLoopEnabled.value = animation.loop ? 'true' : 'false';
+      if (animationLoopFromInput) animationLoopFromInput.value = animation.loopFromSprite ? String(animation.loopFromSprite) : '';
+      if (animationLoopToInput) animationLoopToInput.value = animation.loopToSprite ? String(animation.loopToSprite) : '';
+    };
+
+    const renderAnimationSpritePicker = () => {
+      if (!animationSpriteGrid) return;
+      const asset = getAnimationEditorAsset();
+      animationSpriteGrid.innerHTML = '';
+      if (!asset) return;
+      const animation = getInteractionAnimation(asset);
+      const selectedFrames = new Set(animation.animationFrames);
+      for (let spriteIndex = 1; spriteIndex <= Math.max(1, asset.spriteCount || 1); spriteIndex += 1) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'item-animation-sprite-button';
+        button.dataset.spriteIndex = String(spriteIndex);
+        button.textContent = String(spriteIndex);
+        const layer = buildSpriteLayer(asset, spriteIndex, 42);
+        if (layer?.imageUrl) {
+          button.style.backgroundImage = `url(${layer.imageUrl})`;
+          button.style.backgroundSize = layer.size;
+          button.style.backgroundPosition = layer.position;
+        }
+        const pickerTarget = animationPickerTarget?.value || 'start';
+        const isSelected = (
+          (pickerTarget === 'start' && animation.startSprite === spriteIndex) ||
+          (pickerTarget === 'frames' && selectedFrames.has(spriteIndex)) ||
+          (pickerTarget === 'end' && animation.endSprite === spriteIndex) ||
+          (pickerTarget === 'loopFrom' && animation.loopFromSprite === spriteIndex) ||
+          (pickerTarget === 'loopTo' && animation.loopToSprite === spriteIndex)
+        );
+        button.classList.toggle('is-selected', isSelected);
+        animationSpriteGrid.appendChild(button);
+      }
+    };
+
+    const renderAnimationEditor = () => {
+      const asset = getAnimationEditorAsset();
+      if (!asset) return;
+      if (animationSubtitle) {
+        const assetName = asset.name || asset.fileName || `Item ${asset.number}`;
+        animationSubtitle.textContent = assetName;
+      }
+      syncAnimationEditorInputs();
+      renderAnimationSpritePicker();
+      updateAnimationPreview();
+    };
+
+    const applyAnimationEditorValues = () => {
+      const asset = getAnimationEditorAsset();
+      if (!asset) return;
+      const maxSprites = Math.max(1, asset.spriteCount || asset.cols * asset.rows || 1);
+      asset.interactionAnimation = normalizeInteractionAnimation({
+        startSprite: animationStartInput?.value,
+        animationFrames: parseSpriteSequence(animationFramesInput?.value, maxSprites),
+        endSprite: animationEndInput?.value,
+        loop: animationLoopEnabled?.value === 'true',
+        loopFromSprite: animationLoopFromInput?.value,
+        loopToSprite: animationLoopToInput?.value
+      }, maxSprites, 1);
+      animationPreviewTick = 0;
+      renderAnimationEditor();
+      scheduleSave();
+    };
+
+    const applyAnimationSpriteSelection = (spriteIndex) => {
+      const asset = getAnimationEditorAsset();
+      if (!asset) return;
+      const animation = getInteractionAnimation(asset);
+      const pickerTarget = animationPickerTarget?.value || 'start';
+      if (pickerTarget === 'frames') {
+        const frameSet = new Set(animation.animationFrames);
+        if (frameSet.has(spriteIndex)) frameSet.delete(spriteIndex);
+        else frameSet.add(spriteIndex);
+        animation.animationFrames = Array.from(frameSet).sort((a, b) => a - b);
+      } else if (pickerTarget === 'start') {
+        animation.startSprite = spriteIndex;
+      } else if (pickerTarget === 'end') {
+        animation.endSprite = spriteIndex;
+      } else if (pickerTarget === 'loopFrom') {
+        animation.loopFromSprite = spriteIndex;
+      } else if (pickerTarget === 'loopTo') {
+        animation.loopToSprite = spriteIndex;
+      }
+      asset.interactionAnimation = normalizeInteractionAnimation(animation, asset.spriteCount || asset.cols * asset.rows || 1, 1);
+      animationPreviewTick = 0;
+      renderAnimationEditor();
+      scheduleSave();
+    };
+
     const bindGrid = () => {
       mapGrid.addEventListener('pointerdown', (event) => {
         const target = event.target.closest('.map-cell');
@@ -2070,6 +2398,22 @@
       window.addEventListener('pointerup', () => {
         maskPainting = false;
       });
+      animationCloseButton?.addEventListener('click', closeAnimationEditor);
+      animationModal?.addEventListener('click', (event) => {
+        if (event.target === animationModal) closeAnimationEditor();
+      });
+      animationStartInput?.addEventListener('change', applyAnimationEditorValues);
+      animationFramesInput?.addEventListener('change', applyAnimationEditorValues);
+      animationEndInput?.addEventListener('change', applyAnimationEditorValues);
+      animationLoopEnabled?.addEventListener('change', applyAnimationEditorValues);
+      animationLoopFromInput?.addEventListener('change', applyAnimationEditorValues);
+      animationLoopToInput?.addEventListener('change', applyAnimationEditorValues);
+      animationPickerTarget?.addEventListener('change', renderAnimationSpritePicker);
+      animationSpriteGrid?.addEventListener('click', (event) => {
+        const target = event.target.closest('.item-animation-sprite-button');
+        if (!target) return;
+        applyAnimationSpriteSelection(Number.parseInt(target.dataset.spriteIndex, 10) || 1);
+      });
     };
 
     const handleModifierKeys = (event) => {
@@ -2124,13 +2468,23 @@
       itemSpaceEyedropperActive = false;
       itemTemporaryTool = null;
       maskPainting = false;
+      if (animationPreviewTimer) {
+        window.clearInterval(animationPreviewTimer);
+        animationPreviewTimer = null;
+      }
       endHistoryBatch();
+    });
+    window.addEventListener('focus', () => {
+      if (animationEditorAssetId && animationModal && !animationModal.classList.contains('is-hidden')) {
+        startAnimationPreview();
+      }
     });
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
         cacheModal?.classList.add('is-hidden');
         cacheModal?.setAttribute('aria-hidden', 'true');
         closeMaskEditor();
+        closeAnimationEditor();
       }
     });
 
@@ -2139,6 +2493,7 @@
       renderAssetList();
       renderAssetGrid();
       renderMaskEditor();
+      renderAnimationEditor();
     });
 
     bindGrid();
