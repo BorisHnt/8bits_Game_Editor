@@ -364,6 +364,23 @@
           <div class="cache-list" id="map-world-list"></div>
           <p class="panel-subtitle is-hidden" id="map-world-empty" data-i18n="map.cacheWorldsEmpty">No cached worlds.</p>
         </div>
+        <div class="cache-section">
+          <h3 class="panel-label cache-section-title" data-i18n="map.manualMergeTitle">Manual merge</h3>
+        <div class="map-control-row map-control-row-2">
+          <div class="map-control-group">
+            <label class="panel-label" for="map-merge-source" data-i18n="map.manualMergeSource">Map A</label>
+            <select class="asset-select" id="map-merge-source"></select>
+          </div>
+            <div class="map-control-group">
+              <label class="panel-label" for="map-merge-target" data-i18n="map.manualMergeTarget">Map B</label>
+            <select class="asset-select" id="map-merge-target"></select>
+          </div>
+        </div>
+        <p class="panel-subtitle" id="map-merge-hint" data-i18n="map.manualMergeHint">Select two cached maps. The most recently updated compatible base map will be kept.</p>
+        <div class="cache-actions">
+          <button class="button-secondary" type="button" id="map-merge-selected" data-i18n="map.manualMergeAction">Merge Selected Maps</button>
+        </div>
+      </div>
       </div>
       <div class="modal-footer">
         <div class="cache-actions">
