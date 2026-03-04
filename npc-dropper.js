@@ -214,6 +214,14 @@
           markers: []
         }
       },
+      inheritedProps: {
+        assets: [],
+        cells: []
+      },
+      inheritedItems: {
+        assets: [],
+        cells: []
+      },
       layout: {
         name: '',
         width: 50,
@@ -436,6 +444,9 @@
         spriteHeight: clamp(Number.parseInt(asset?.spriteHeight, 10) || 16, 1, 256),
         spriteCount: clamp(Number.parseInt(asset?.spriteCount, 10) || 1, 1, maxSprites),
         assetType: String(asset?.assetType || asset?.category || '').trim(),
+        itemKind: ['pickup', 'usable', 'quest', 'trigger'].includes(asset?.itemKind) ? asset.itemKind : 'pickup',
+        oneShot: asset?.oneShot !== false,
+        interactionAnimation: asset?.interactionAnimation || null,
         npcName: String(asset?.npcName || '').trim(),
         interactionId: String(asset?.interactionId || '').trim(),
         facing: ['down', 'up', 'left', 'right'].includes(asset?.facing) ? asset.facing : 'down',
@@ -488,10 +499,14 @@
     const loadCachedImages = async () => {
       await Promise.all(state.assets.map((asset) => loadCachedImageForAsset(asset)));
       await Promise.all(state.baseMap.assets.map((asset) => loadCachedImageForAsset(asset)));
+      await Promise.all(state.inheritedProps.assets.map((asset) => loadCachedImageForAsset(asset)));
+      await Promise.all(state.inheritedItems.assets.map((asset) => loadCachedImageForAsset(asset)));
     };
 
     const getItemAssetById = (id) => state.assets.find((asset) => asset.id === id);
     const getBaseAssetByNumber = (number) => state.baseMap.assets.find((asset) => asset.number === number);
+    const getInheritedPropAssetByNumber = (number) => state.inheritedProps.assets.find((asset) => asset.number === number);
+    const getInheritedItemAssetByNumber = (number) => state.inheritedItems.assets.find((asset) => asset.number === number);
     const createDefaultCollisionMask = (type = 'blocking') => Array.from({ length: maskCellCount }, () => type !== 'passable');
     const normalizeCollisionMask = (mask, fallbackType = 'blocking') => Array.from({ length: maskCellCount }, (_, index) => {
       const value = Array.isArray(mask) ? mask[index] : null;
@@ -535,6 +550,12 @@
       if (state.layout.cells.length !== total) {
         state.layout.cells = Array.from({ length: total }, (_, index) => state.layout.cells[index] || null);
       }
+      if (state.inheritedProps.cells.length !== total) {
+        state.inheritedProps.cells = Array.from({ length: total }, (_, index) => state.inheritedProps.cells[index] || null);
+      }
+      if (state.inheritedItems.cells.length !== total) {
+        state.inheritedItems.cells = Array.from({ length: total }, (_, index) => state.inheritedItems.cells[index] || null);
+      }
       if (state.baseMap.map.cells.length !== total) {
         state.baseMap.map.cells = Array.from({ length: total }, (_, index) => state.baseMap.map.cells[index] || null);
       }
@@ -565,6 +586,9 @@
       spriteHeight: asset.spriteHeight,
       spriteCount: asset.spriteCount,
       assetType: asset.assetType,
+      itemKind: asset.itemKind,
+      oneShot: asset.oneShot,
+      interactionAnimation: asset.interactionAnimation || null,
       npcName: asset.npcName,
       interactionId: asset.interactionId,
       facing: asset.facing,
@@ -1452,6 +1476,26 @@
           return getUniformCollisionMask(itemAsset.type === 'blocking' ? 'blocking' : 'passable');
         }
       }
+      const inheritedItemCell = state.inheritedItems.cells[index];
+      if (inheritedItemCell) {
+        const inheritedItemAsset = getInheritedItemAssetByNumber(inheritedItemCell.assetNumber);
+        if (inheritedItemAsset?.collisionMode === 'mask') {
+          return getCollisionMaskForSprite(inheritedItemAsset, inheritedItemCell.spriteIndex || 1);
+        }
+        if (inheritedItemAsset) {
+          return getUniformCollisionMask(inheritedItemAsset.type === 'blocking' ? 'blocking' : 'passable');
+        }
+      }
+      const propCell = state.inheritedProps.cells[index];
+      if (propCell) {
+        const propAsset = getInheritedPropAssetByNumber(propCell.assetNumber);
+        if (propAsset?.collisionMode === 'mask') {
+          return getCollisionMaskForSprite(propAsset, propCell.spriteIndex || 1);
+        }
+        if (propAsset) {
+          return getUniformCollisionMask(propAsset.type === 'blocking' ? 'blocking' : 'passable');
+        }
+      }
       return getUniformCollisionMask(getBaseCollision(index));
     };
 
@@ -1464,9 +1508,14 @@
 
     const getPlayerDepth = (index) => {
       const itemCell = state.layout.cells[index];
-      if (!itemCell) return null;
-      const itemAsset = getItemAssetById(itemCell.assetId);
-      return itemAsset?.playerDepth === 'cover' ? 'cover' : itemAsset ? 'front' : null;
+      const itemAsset = itemCell ? getItemAssetById(itemCell.assetId) : null;
+      if (itemAsset) return itemAsset.playerDepth === 'cover' ? 'cover' : 'front';
+      const inheritedItemCell = state.inheritedItems.cells[index];
+      const inheritedItemAsset = inheritedItemCell ? getInheritedItemAssetByNumber(inheritedItemCell.assetNumber) : null;
+      if (inheritedItemAsset) return inheritedItemAsset.playerDepth === 'cover' ? 'cover' : 'front';
+      const propCell = state.inheritedProps.cells[index];
+      const propAsset = propCell ? getInheritedPropAssetByNumber(propCell.assetNumber) : null;
+      return propAsset?.playerDepth === 'cover' ? 'cover' : propAsset ? 'front' : null;
     };
 
     const renderMapCell = (cell, index) => {
@@ -1474,17 +1523,25 @@
       const x = index % width;
       const y = Math.floor(index / width);
       const baseCell = state.baseMap.map.cells[index];
+      const propCell = state.inheritedProps.cells[index];
+      const inheritedItemCell = state.inheritedItems.cells[index];
       const itemCell = state.layout.cells[index];
       const marker = state.baseMap.map.markers[index];
       const baseAsset = baseCell ? getBaseAssetByNumber(baseCell.assetNumber) : null;
+      const propAsset = propCell ? getInheritedPropAssetByNumber(propCell.assetNumber) : null;
+      const inheritedItemAsset = inheritedItemCell ? getInheritedItemAssetByNumber(inheritedItemCell.assetNumber) : null;
       const itemAsset = itemCell ? getItemAssetById(itemCell.assetId) : null;
       const baseSpriteIndex = baseCell && baseAsset ? getBaseSpriteIndex(baseCell, baseAsset, x, y) : 1;
+      const propSpriteIndex = propCell ? clamp(Number.parseInt(propCell.spriteIndex, 10) || 1, 1, propAsset?.spriteCount || 1) : 1;
+      const inheritedItemSpriteIndex = inheritedItemCell ? clamp(Number.parseInt(inheritedItemCell.spriteIndex, 10) || 1, 1, inheritedItemAsset?.spriteCount || 1) : 1;
       const itemSpriteIndex = itemCell ? clamp(Number.parseInt(itemCell.spriteIndex, 10) || 1, 1, itemAsset?.spriteCount || 1) : 1;
       const baseLayer = baseAsset ? buildSpriteLayer(baseAsset, baseSpriteIndex, state.layout.cellSize) : null;
+      const propLayer = propAsset ? buildSpriteLayer(propAsset, propSpriteIndex, state.layout.cellSize) : null;
+      const inheritedItemLayer = inheritedItemAsset ? buildSpriteLayer(inheritedItemAsset, inheritedItemSpriteIndex, state.layout.cellSize) : null;
       const npcLayer = itemAsset ? buildSpriteLayer(itemAsset, itemSpriteIndex, state.layout.cellSize) : null;
       const view = state.view;
 
-      cell.classList.toggle('is-empty', !baseCell && !itemCell);
+      cell.classList.toggle('is-empty', !baseCell && !propCell && !inheritedItemCell && !itemCell);
       cell.classList.toggle('has-marker', Boolean(marker));
       cell.classList.toggle('marker-entry', marker === 'portal');
       cell.classList.toggle('marker-exit', marker === 'portal');
@@ -1496,7 +1553,7 @@
       cell.replaceChildren();
 
       const applyLayers = () => {
-        const layers = [npcLayer, baseLayer].filter(Boolean);
+        const layers = [npcLayer, inheritedItemLayer, propLayer, baseLayer].filter(Boolean);
         if (layers.length) {
           cell.style.backgroundImage = layers.map((layer) => `url(${layer.imageUrl})`).join(', ');
           cell.style.backgroundSize = layers.map((layer) => layer.size).join(', ');
@@ -1504,6 +1561,10 @@
           cell.style.backgroundRepeat = layers.map(() => 'no-repeat').join(', ');
         } else if (itemAsset) {
           cell.style.backgroundColor = itemAsset.color || '#2a2a2a';
+        } else if (inheritedItemAsset) {
+          cell.style.backgroundColor = inheritedItemAsset.color || '#2a2a2a';
+        } else if (propAsset) {
+          cell.style.backgroundColor = propAsset.color || '#2a2a2a';
         } else if (baseAsset) {
           cell.style.backgroundColor = baseAsset.color || '#20242a';
         }
@@ -1563,6 +1624,20 @@
           cell.style.backgroundRepeat = 'no-repeat';
         } else if (itemAsset) {
           cell.style.backgroundColor = itemAsset.color || '#2a2a2a';
+        } else if (inheritedItemLayer?.imageUrl) {
+          cell.style.backgroundImage = `url(${inheritedItemLayer.imageUrl})`;
+          cell.style.backgroundSize = inheritedItemLayer.size;
+          cell.style.backgroundPosition = inheritedItemLayer.position;
+          cell.style.backgroundRepeat = 'no-repeat';
+        } else if (inheritedItemAsset) {
+          cell.style.backgroundColor = inheritedItemAsset.color || '#2a2a2a';
+        } else if (propLayer?.imageUrl) {
+          cell.style.backgroundImage = `url(${propLayer.imageUrl})`;
+          cell.style.backgroundSize = propLayer.size;
+          cell.style.backgroundPosition = propLayer.position;
+          cell.style.backgroundRepeat = 'no-repeat';
+        } else if (propAsset) {
+          cell.style.backgroundColor = propAsset.color || '#2a2a2a';
         } else if (baseAsset) {
           cell.style.backgroundColor = 'rgba(255,255,255,0.05)';
         }
@@ -1753,6 +1828,82 @@
         editor: 'npc-dropper',
         name: state.layout.name || state.baseMap.map.name || '',
         sourceFile: state.baseMap.sourceFile || '',
+        itemAssets: state.inheritedProps.assets.map((asset) => ({
+          name: asset.name,
+          fileName: asset.fileName,
+          assetType: asset.assetType || '',
+          number: asset.number,
+          color: asset.color,
+          cacheKey: asset.cacheKey,
+          cols: asset.cols,
+          rows: asset.rows,
+          spriteWidth: asset.spriteWidth,
+          spriteHeight: asset.spriteHeight,
+          spriteCount: asset.spriteCount,
+          type: asset.type,
+          collisionMode: asset.collisionMode,
+          collisionMasks: cloneCollisionMasks(asset.collisionMasks),
+          playerDepth: asset.playerDepth
+        })),
+        itemLayer: {
+          name: state.layout.name || '',
+          width: state.layout.width,
+          height: state.layout.height,
+          cellSize: state.layout.cellSize,
+          cells: state.inheritedProps.cells.map((cell) => {
+            if (!cell) return null;
+            const asset = getInheritedPropAssetByNumber(cell.assetNumber);
+            return {
+              assetNumber: cell.assetNumber ?? null,
+              spriteIndex: cell.spriteIndex ?? 1,
+              collision: asset?.type === 'passable' ? 'passable' : 'blocking',
+              collisionMode: asset?.collisionMode === 'mask' ? 'mask' : 'simple',
+              playerDepth: asset?.playerDepth === 'cover' ? 'cover' : 'front'
+            };
+          })
+        },
+        gameItemAssets: state.inheritedItems.assets.map((asset) => ({
+          name: asset.name,
+          fileName: asset.fileName,
+          assetType: asset.assetType || '',
+          itemKind: asset.itemKind || 'pickup',
+          interactionId: asset.interactionId || '',
+          oneShot: asset.oneShot !== false,
+          number: asset.number,
+          color: asset.color,
+          cacheKey: asset.cacheKey,
+          cols: asset.cols,
+          rows: asset.rows,
+          spriteWidth: asset.spriteWidth,
+          spriteHeight: asset.spriteHeight,
+          spriteCount: asset.spriteCount,
+          type: asset.type,
+          collisionMode: asset.collisionMode,
+          collisionMasks: cloneCollisionMasks(asset.collisionMasks),
+          interactionAnimation: asset.interactionAnimation || null,
+          playerDepth: asset.playerDepth
+        })),
+        gameItemLayer: {
+          name: state.layout.name || '',
+          width: state.layout.width,
+          height: state.layout.height,
+          cellSize: state.layout.cellSize,
+          cells: state.inheritedItems.cells.map((cell) => {
+            if (!cell) return null;
+            const asset = getInheritedItemAssetByNumber(cell.assetNumber);
+            return {
+              instanceId: cell.instanceId || createId(),
+              assetNumber: cell.assetNumber ?? null,
+              spriteIndex: cell.spriteIndex ?? 1,
+              itemKind: asset?.itemKind || 'pickup',
+              interactionId: asset?.interactionId || '',
+              oneShot: asset?.oneShot !== false,
+              collision: asset?.type === 'passable' ? 'passable' : 'blocking',
+              collisionMode: asset?.collisionMode === 'mask' ? 'mask' : 'simple',
+              playerDepth: asset?.playerDepth === 'cover' ? 'cover' : 'front'
+            };
+          })
+        },
         npcAssets: state.assets.map((asset) => ({
           name: asset.name,
           fileName: asset.fileName,
@@ -1846,7 +1997,39 @@
       const previousHeight = state.layout.height;
       const previousCells = state.layout.cells.map(cloneItemCell);
       const normalized = normalizeImportedBaseMap(payload, fileName);
+      const total = normalized.map.width * normalized.map.height;
+      const propAssets = Array.isArray(payload?.itemAssets)
+        ? payload.itemAssets.map((asset, index) => normalizeItemAsset(asset, index + 1))
+        : [];
+      const propCells = Array.from({ length: total }, () => null);
+      const rawPropCells = Array.isArray(payload?.itemLayer?.cells) ? payload.itemLayer.cells : [];
+      for (let i = 0; i < Math.min(rawPropCells.length, total); i += 1) {
+        const entry = rawPropCells[i];
+        if (!entry || !entry.assetNumber) continue;
+        propCells[i] = {
+          assetNumber: Number.parseInt(entry.assetNumber, 10) || null,
+          spriteIndex: Number.isInteger(entry.spriteIndex) ? entry.spriteIndex : 1
+        };
+      }
+      const inheritedItemAssets = Array.isArray(payload?.gameItemAssets)
+        ? payload.gameItemAssets.map((asset, index) => normalizeItemAsset(asset, index + 1))
+        : [];
+      const inheritedItemCells = Array.from({ length: total }, () => null);
+      const rawInheritedItemCells = Array.isArray(payload?.gameItemLayer?.cells) ? payload.gameItemLayer.cells : [];
+      for (let i = 0; i < Math.min(rawInheritedItemCells.length, total); i += 1) {
+        const entry = rawInheritedItemCells[i];
+        if (!entry || !entry.assetNumber) continue;
+        inheritedItemCells[i] = {
+          assetNumber: Number.parseInt(entry.assetNumber, 10) || null,
+          spriteIndex: Number.isInteger(entry.spriteIndex) ? entry.spriteIndex : 1,
+          instanceId: entry.instanceId || createId()
+        };
+      }
       state.baseMap = normalized;
+      state.inheritedProps.assets = propAssets;
+      state.inheritedProps.cells = propCells;
+      state.inheritedItems.assets = inheritedItemAssets;
+      state.inheritedItems.cells = inheritedItemCells;
       state.layout.width = normalized.map.width;
       state.layout.height = normalized.map.height;
       state.layout.cellSize = normalized.map.cellSize;
