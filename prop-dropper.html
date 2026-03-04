@@ -228,8 +228,13 @@
         <div class="map-controls">
           <div class="map-control-row map-control-row-2">
             <div class="map-control-group">
+              <label class="panel-label">Select Map</label>
+              <select class="world-select" id="item-map-select"></select>
               <label class="panel-label" data-i18n="items.name">Layout name</label>
-              <input class="asset-input" type="text" id="item-map-name" placeholder="Item layout name" data-i18n-placeholder="items.namePlaceholder" />
+              <div class="map-name-edit-row">
+                <input class="asset-input" type="text" id="item-map-name" placeholder="Item layout name" data-i18n-placeholder="items.namePlaceholder" />
+                <button class="button-secondary" type="button" id="item-map-update">Update</button>
+              </div>
             </div>
             <div class="map-control-group">
               <label class="panel-label" data-i18n="items.data">Data</label>

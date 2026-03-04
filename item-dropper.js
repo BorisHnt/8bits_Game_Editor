@@ -181,7 +181,9 @@
     const mapHeightInput = qs('#item-map-height');
     const mapApplyButton = qs('#item-apply-map-size');
     const mapCellSize = qs('#item-cell-size');
+    const mapSelect = qs('#item-map-select');
     const mapNameInput = qs('#item-map-name');
+    const mapUpdateButton = qs('#item-map-update');
     const baseMapLabel = qs('#item-base-map-label');
     const refreshBaseMapButton = qs('#item-refresh-base-map');
     const refreshBaseMapFile = qs('#item-refresh-base-map-file');
@@ -288,6 +290,7 @@
     let undoStack = [];
     let redoStack = [];
     let historyBatchActive = false;
+    let currentProjectDocKey = null;
     let maskEditorAssetId = null;
     let maskBrush = 'blocking';
     let maskPainting = false;
@@ -817,10 +820,12 @@
         } catch (error) {
           // ignore storage errors
         }
-        projectManager?.publishStageDocument('itemDropper', payload, {
+        const entry = projectManager?.publishStageDocument('itemDropper', payload, {
+          docKey: currentProjectDocKey,
           lookupName: payload?.map?.name || payload?.name || 'item_map',
           displayName: payload?.name || payload?.map?.name || 'Item Dropper'
         });
+        currentProjectDocKey = entry?.docKey || currentProjectDocKey;
       }, 200);
     };
 
@@ -1967,6 +1972,7 @@
       updateBaseMapLabel();
       await loadCachedImages();
       renderMapGrid();
+      refreshProjectMapOptions();
       scheduleSave();
     };
 
@@ -2031,6 +2037,7 @@
       renderAssetList();
       renderAssetGrid();
       renderMapGrid();
+      refreshProjectMapOptions();
       updateInteractionControls();
       scheduleSave();
     };
@@ -2080,8 +2087,10 @@
       }
     };
     const loadProjectState = async () => {
-      const payload = projectManager?.getStageActiveCache('itemDropper');
+      const doc = projectManager?.getStageActiveDocument('itemDropper');
+      const payload = doc?.payload || projectManager?.getStageActiveCache('itemDropper');
       if (!payload) return false;
+      currentProjectDocKey = doc?.docKey || currentProjectDocKey;
       if (payload?.gameItemLayer && Array.isArray(payload?.gameItemAssets) && payload?.map && Array.isArray(payload?.assets)) {
         await applyItemPayload(payload, payload?.sourceFile || '');
         return true;
@@ -2091,6 +2100,58 @@
         return true;
       }
       return false;
+    };
+    const refreshProjectMapOptions = () => {
+      if (!mapSelect || !projectManager) return;
+      const docs = projectManager.listStageDocuments('itemDropper');
+      const previousValue = mapSelect.value;
+      mapSelect.innerHTML = '';
+      if (!docs.length) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = '—';
+        mapSelect.appendChild(option);
+        return;
+      }
+      docs.forEach((doc) => {
+        const option = document.createElement('option');
+        option.value = doc.docKey;
+        option.textContent = doc.displayName || doc.lookupName || 'Map';
+        if (doc.docKey === currentProjectDocKey || (!currentProjectDocKey && doc.docKey === previousValue)) {
+          option.selected = true;
+        }
+        mapSelect.appendChild(option);
+      });
+    };
+    const loadProjectDocument = async (docKey) => {
+      if (!projectManager || !docKey) return false;
+      const doc = projectManager.getStageDocumentByKey('itemDropper', docKey);
+      if (!doc?.payload) return false;
+      currentProjectDocKey = doc.docKey;
+      projectManager.setStageActiveDocument('itemDropper', docKey);
+      if (doc.payload?.gameItemLayer && Array.isArray(doc.payload?.gameItemAssets) && doc.payload?.map && Array.isArray(doc.payload?.assets)) {
+        await applyItemPayload(doc.payload, doc.payload?.sourceFile || '');
+        return true;
+      }
+      if (doc.payload?.map && Array.isArray(doc.payload?.assets)) {
+        await applyBaseMapPayload(doc.payload, doc.payload?.sourceFile || '', { clearItems: true });
+        return true;
+      }
+      return false;
+    };
+    const renameCurrentProjectMap = () => {
+      const nextName = String(mapNameInput?.value || '').trim();
+      if (!nextName) return;
+      state.layout.name = nextName;
+      const entry = projectManager?.publishStageDocument('itemDropper', buildExportPayload(), {
+        docKey: currentProjectDocKey,
+        lookupName: nextName,
+        displayName: nextName
+      });
+      currentProjectDocKey = entry?.docKey || currentProjectDocKey;
+      refreshProjectMapOptions();
+      updateBaseMapLabel();
+      scheduleSave();
     };
 
     const exportJson = () => {
@@ -2400,6 +2461,18 @@
         state.layout.name = mapNameInput.value;
         scheduleSave();
       });
+      mapNameInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          renameCurrentProjectMap();
+        }
+      });
+      mapUpdateButton?.addEventListener('click', renameCurrentProjectMap);
+      mapSelect?.addEventListener('change', () => {
+        const docKey = mapSelect.value;
+        if (!docKey) return;
+        loadProjectDocument(docKey);
+      });
       qsa('[data-item-tool]').forEach((button) => {
         button.addEventListener('click', () => {
           state.tool = button.dataset.itemTool || 'pencil';
@@ -2607,6 +2680,9 @@
         projectImportButton.textContent = labels.importProject;
       }
     });
+    window.addEventListener('8bits-project-updated', () => {
+      refreshProjectMapOptions();
+    });
 
     bindGrid();
     bindControls();
@@ -2614,6 +2690,7 @@
     renderAssetList();
     renderAssetGrid();
     renderMapGrid();
+    refreshProjectMapOptions();
     updateBaseMapLabel();
     updateInteractionControls();
     updateUndoRedoButtons();

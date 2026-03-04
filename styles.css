@@ -540,6 +540,32 @@ svg {
   max-width: 520px;
 }
 
+.project-header-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 240px;
+}
+
+.project-header-label {
+  text-align: right;
+}
+
+.project-header-input {
+  min-width: 240px;
+}
+
+.map-name-edit-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.map-name-edit-row .asset-input,
+.map-name-edit-row .world-input {
+  flex: 1 1 auto;
+}
+
 
 .workspace-layout {
   display: grid;
@@ -2609,6 +2635,23 @@ svg {
     flex-direction: column;
     align-items: flex-start;
     gap: 20px;
+  }
+
+  .project-header-controls {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .project-header-label {
+    text-align: left;
+  }
+
+  .project-header-input {
+    min-width: 0;
+  }
+
+  .map-name-edit-row {
+    flex-wrap: wrap;
   }
 
   .footer-inner {

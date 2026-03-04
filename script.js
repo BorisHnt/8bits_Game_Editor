@@ -3061,6 +3061,7 @@
   const getDefaultSharedProject = () => ({
     type: sharedProjectBundleType,
     version: 1,
+    name: '',
     updatedAt: new Date().toISOString(),
     stages: {},
     activeCaches: {}
@@ -3070,6 +3071,7 @@
       ? {
         type: rawProject.type || sharedProjectBundleType,
         version: Number.parseInt(rawProject.version, 10) || 1,
+        name: String(rawProject.name || '').trim(),
         updatedAt: rawProject.updatedAt || new Date().toISOString(),
         stages: rawProject.stages && typeof rawProject.stages === 'object' ? rawProject.stages : {},
         activeCaches: rawProject.activeCaches && typeof rawProject.activeCaches === 'object' ? rawProject.activeCaches : {}
@@ -3106,6 +3108,7 @@
     } catch (error) {
       // ignore storage errors
     }
+    window.dispatchEvent(new CustomEvent('8bits-project-updated', { detail: { project: cloneProjectPayload(normalized) } }));
   };
   const resolveProjectDocNames = (payload, options = {}) => {
     const lookupCandidates = [
@@ -3140,6 +3143,12 @@
     const names = resolveProjectDocNames(payload, options);
     const existingEntry = Object.values(stageData.documents).find((entry) => entry?.normalizedLookupName === names.normalizedLookupName);
     const docKey = options.docKey || existingEntry?.docKey || `${stage}:${names.normalizedLookupName}`;
+    Object.keys(stageData.documents).forEach((key) => {
+      if (key === docKey) return;
+      if (stageData.documents[key]?.normalizedLookupName === names.normalizedLookupName) {
+        delete stageData.documents[key];
+      }
+    });
     stageData.documents[docKey] = {
       docKey,
       lookupName: names.lookupName,
@@ -3174,6 +3183,28 @@
     const exact = Object.values(stageData.documents || {}).find((entry) => entry?.normalizedLookupName === normalizedLookupName);
     return exact?.payload ? cloneProjectPayload(exact) : null;
   };
+  const getSharedProjectDocumentByKey = (stage, docKey = '') => {
+    if (!sharedProjectStages[stage] || !docKey) return null;
+    const project = readSharedProject();
+    const entry = project.stages[stage]?.documents?.[docKey] || null;
+    return entry?.payload ? cloneProjectPayload(entry) : null;
+  };
+  const getSharedProjectActiveDocument = (stage) => {
+    if (!sharedProjectStages[stage]) return null;
+    const project = readSharedProject();
+    const activeDocKey = project.stages[stage]?.activeDocKey || null;
+    if (!activeDocKey) return null;
+    return getSharedProjectDocumentByKey(stage, activeDocKey);
+  };
+  const setSharedProjectActiveDocument = (stage, docKey = '') => {
+    if (!sharedProjectStages[stage] || !docKey) return false;
+    const project = readSharedProject();
+    if (!project.stages[stage]?.documents?.[docKey]) return false;
+    project.stages[stage].activeDocKey = docKey;
+    project.activeCaches[stage] = cloneProjectPayload(project.stages[stage].documents[docKey].payload);
+    writeSharedProject(project);
+    return true;
+  };
   const getSharedProjectActiveCache = (stage) => {
     if (!sharedProjectStages[stage]) return null;
     const project = readSharedProject();
@@ -3184,6 +3215,14 @@
     const project = readSharedProject();
     project.activeCaches[stage] = cloneProjectPayload(payload);
     writeSharedProject(project);
+  };
+  const getSharedProjectName = () => readSharedProject().name || '';
+  const setSharedProjectName = (name = '') => {
+    const project = readSharedProject();
+    project.name = String(name || '').trim();
+    writeSharedProject(project);
+    window.dispatchEvent(new CustomEvent('8bits-project-namechange', { detail: { name: project.name } }));
+    return project.name;
   };
   const getSharedProjectUpstreamPayload = (stage, lookupName = '') => {
     const upstreamStage = sharedProjectStages[stage]?.upstreamStage;
@@ -3294,6 +3333,7 @@
         blob
       }).catch(() => null);
     }
+    window.dispatchEvent(new CustomEvent('8bits-project-namechange', { detail: { name: project.name || '' } }));
     window.dispatchEvent(new CustomEvent('8bits-project-imported'));
     return true;
   };
@@ -3332,9 +3372,14 @@
     stages: sharedProjectStages,
     readProject: readSharedProject,
     writeProject: writeSharedProject,
+    getProjectName: getSharedProjectName,
+    setProjectName: setSharedProjectName,
     publishStageDocument: publishSharedProjectDocument,
     listStageDocuments: listSharedProjectDocuments,
     getStageDocument: getSharedProjectDocument,
+    getStageDocumentByKey: getSharedProjectDocumentByKey,
+    getStageActiveDocument: getSharedProjectActiveDocument,
+    setStageActiveDocument: setSharedProjectActiveDocument,
     getStageActiveCache: getSharedProjectActiveCache,
     setStageActiveCache: setSharedProjectActiveCache,
     getUpstreamPayload: getSharedProjectUpstreamPayload,
@@ -4100,6 +4145,69 @@
     scheduleCacheSave();
   };
 
+  const getCurrentPageTitleKey = () => {
+    if (document.body.classList.contains('page-home')) return 'title.home';
+    if (document.body.classList.contains('page-map')) return 'title.map';
+    if (document.body.classList.contains('page-item-dropper')) return 'title.itemdropper';
+    if (document.body.classList.contains('page-npc-dropper')) return 'title.npcdropper';
+    if (document.body.classList.contains('page-item')) return 'title.item';
+    if (document.body.classList.contains('page-world')) return 'title.world';
+    if (document.body.classList.contains('page-tester')) return 'title.tester';
+    const designer = document.body.dataset.designer;
+    if (designer === 'tiles') return 'title.tiles';
+    if (designer === 'sprite') return 'title.sprite';
+    if (designer === 'walls') return 'title.walls';
+    if (designer === 'floor') return 'title.floor';
+    return 'title.graphic';
+  };
+  const updateDocumentTitle = () => {
+    const dictionary = translations[currentLanguage] || {};
+    const pageTitleKey = getCurrentPageTitleKey();
+    const baseTitle = dictionary[pageTitleKey] || document.title;
+    const projectName = window.EightBitsProjectManager?.getProjectName?.() || '';
+    document.title = projectName ? `${projectName} — ${baseTitle}` : baseTitle;
+  };
+  const bindProjectHeaderControls = () => {
+    if (document.body.classList.contains('page-home')) return;
+    const projectManager = window.EightBitsProjectManager || null;
+    const header = qs('.workspace-header');
+    if (!projectManager || !header || qs('.project-header-controls', header)) return;
+    const controls = document.createElement('div');
+    controls.className = 'project-header-controls';
+    const label = document.createElement('label');
+    label.className = 'panel-label project-header-label';
+    label.textContent = currentLanguage === 'fr' ? 'Projet' : 'Project';
+    label.setAttribute('for', 'project-name-input');
+    const input = document.createElement('input');
+    input.id = 'project-name-input';
+    input.className = 'asset-input project-header-input';
+    input.type = 'text';
+    input.placeholder = currentLanguage === 'fr' ? 'Nom du projet' : 'Project name';
+    input.value = projectManager.getProjectName?.() || '';
+    controls.appendChild(label);
+    controls.appendChild(input);
+    header.appendChild(controls);
+
+    let saveTimer = null;
+    input.addEventListener('input', () => {
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = window.setTimeout(() => {
+        saveTimer = null;
+        projectManager.setProjectName?.(input.value);
+        updateDocumentTitle();
+      }, 150);
+    });
+
+    document.addEventListener('languagechange', () => {
+      label.textContent = currentLanguage === 'fr' ? 'Projet' : 'Project';
+      input.placeholder = currentLanguage === 'fr' ? 'Nom du projet' : 'Project name';
+    });
+    window.addEventListener('8bits-project-namechange', (event) => {
+      input.value = String(event.detail?.name || '');
+      updateDocumentTitle();
+    });
+  };
+
   const applyTranslations = (language) => {
     currentLanguage = language;
     document.documentElement.lang = language;
@@ -4119,31 +4227,7 @@
       }
     });
 
-    let pageTitleKey = 'title.graphic';
-    if (document.body.classList.contains('page-home')) {
-      pageTitleKey = 'title.home';
-    } else if (document.body.classList.contains('page-map')) {
-      pageTitleKey = 'title.map';
-    } else if (document.body.classList.contains('page-item-dropper')) {
-      pageTitleKey = 'title.itemdropper';
-    } else if (document.body.classList.contains('page-npc-dropper')) {
-      pageTitleKey = 'title.npcdropper';
-    } else if (document.body.classList.contains('page-item')) {
-      pageTitleKey = 'title.item';
-    } else if (document.body.classList.contains('page-world')) {
-      pageTitleKey = 'title.world';
-    } else if (document.body.classList.contains('page-tester')) {
-      pageTitleKey = 'title.tester';
-    } else {
-      const designer = document.body.dataset.designer;
-      if (designer === 'tiles') pageTitleKey = 'title.tiles';
-      if (designer === 'sprite') pageTitleKey = 'title.sprite';
-      if (designer === 'walls') pageTitleKey = 'title.walls';
-      if (designer === 'floor') pageTitleKey = 'title.floor';
-    }
-    if (dictionary[pageTitleKey]) {
-      document.title = dictionary[pageTitleKey];
-    }
+    updateDocumentTitle();
 
     qsa('[data-lang-block]').forEach((block) => {
       block.classList.toggle('is-active', block.dataset.langBlock === language);
@@ -4249,7 +4333,9 @@
     const mapHeightInput = qs('#map-height');
     const mapApplyButton = qs('#apply-map-size');
     const mapCellSize = qs('#map-cell-size');
+    const mapProjectSelect = qs('#map-project-select');
     const mapNameInput = qs('#map-name');
+    const mapNameUpdateButton = qs('#map-name-update');
     const mapUndoButton = qs('#map-undo');
     const mapRedoButton = qs('#map-redo');
     const mapExportButton = qs('#map-export');
@@ -4341,6 +4427,7 @@
     let mapUndoStack = [];
     let mapRedoStack = [];
     let mapHistoryBatchActive = false;
+    let currentMapProjectDocKey = null;
     let cachePreviewTooltip = null;
     let cachePreviewImage = null;
     let cachePreviewLabel = null;
@@ -4880,6 +4967,7 @@
       renderAssetList();
       renderAssetGrid();
       renderMapGrid();
+      refreshProjectMapOptions();
       updateRandomizeControls();
       scheduleMapSave();
     };
@@ -4920,10 +5008,12 @@
         } catch (error) {
           // ignore storage errors
         }
-        projectManager?.publishStageDocument('mapCreator', payload, {
+        const entry = projectManager?.publishStageDocument('mapCreator', payload, {
+          docKey: currentMapProjectDocKey,
           lookupName: payload?.map?.name || payload?.name || 'map',
           displayName: payload?.map?.name || payload?.name || 'Map'
         });
+        currentMapProjectDocKey = entry?.docKey || currentMapProjectDocKey;
       }, 200);
     };
 
@@ -4940,10 +5030,57 @@
       }
     };
     const loadProjectMapState = () => {
-      const payload = projectManager?.getStageActiveCache('mapCreator');
+      const doc = projectManager?.getStageActiveDocument('mapCreator');
+      const payload = doc?.payload || projectManager?.getStageActiveCache('mapCreator');
       if (!payload) return false;
+      currentMapProjectDocKey = doc?.docKey || currentMapProjectDocKey;
       applyMapPayload(payload);
       return true;
+    };
+    const refreshProjectMapOptions = () => {
+      if (!mapProjectSelect || !projectManager) return;
+      const docs = projectManager.listStageDocuments('mapCreator');
+      const previousValue = mapProjectSelect.value;
+      mapProjectSelect.innerHTML = '';
+      if (!docs.length) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = '—';
+        mapProjectSelect.appendChild(option);
+        return;
+      }
+      docs.forEach((doc) => {
+        const option = document.createElement('option');
+        option.value = doc.docKey;
+        option.textContent = doc.displayName || doc.lookupName || 'Map';
+        if (doc.docKey === currentMapProjectDocKey || (!currentMapProjectDocKey && doc.docKey === previousValue)) {
+          option.selected = true;
+        }
+        mapProjectSelect.appendChild(option);
+      });
+    };
+    const loadProjectMapDocument = (docKey) => {
+      if (!projectManager || !docKey) return false;
+      const doc = projectManager.getStageDocumentByKey('mapCreator', docKey);
+      if (!doc?.payload) return false;
+      currentMapProjectDocKey = doc.docKey;
+      projectManager.setStageActiveDocument('mapCreator', docKey);
+      applyMapPayload(doc.payload);
+      return true;
+    };
+    const renameCurrentProjectMap = () => {
+      const nextName = String(mapNameInput?.value || '').trim();
+      if (!nextName) return;
+      mapState.map.name = nextName;
+      const entry = projectManager?.publishStageDocument('mapCreator', buildMapPayload(), {
+        docKey: currentMapProjectDocKey,
+        lookupName: nextName,
+        displayName: nextName
+      });
+      currentMapProjectDocKey = entry?.docKey || currentMapProjectDocKey;
+      refreshProjectMapOptions();
+      renderMapGrid();
+      scheduleMapSave();
     };
 
     const shiftMap = (dx, dy) => {
@@ -5902,6 +6039,18 @@
         mapState.map.name = mapNameInput.value;
         scheduleMapSave();
       });
+      mapNameInput?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          renameCurrentProjectMap();
+        }
+      });
+      mapNameUpdateButton?.addEventListener('click', renameCurrentProjectMap);
+      mapProjectSelect?.addEventListener('change', () => {
+        const docKey = mapProjectSelect.value;
+        if (!docKey) return;
+        loadProjectMapDocument(docKey);
+      });
 
       qsa('[data-map-mode]').forEach((button) => {
         button.addEventListener('click', () => {
@@ -6129,10 +6278,12 @@
       renderAssetList();
       renderAssetGrid();
       renderMapGrid();
+      refreshProjectMapOptions();
       loadCachedImagesForAssets().then(() => {
         renderAssetList();
         renderAssetGrid();
         renderMapGrid();
+        refreshProjectMapOptions();
       });
       scheduleMapSave();
     };
@@ -6198,6 +6349,9 @@
         mapProjectImportButton.textContent = labels.importProject;
       }
     });
+    window.addEventListener('8bits-project-updated', () => {
+      refreshProjectMapOptions();
+    });
 
     const cacheLoaded = loadCachedMapState() || loadProjectMapState();
     if (!cacheLoaded && !mapState.assets.length) {
@@ -6214,6 +6368,7 @@
     renderAssetList();
     renderAssetGrid();
     renderMapGrid();
+    refreshProjectMapOptions();
     bindMapGrid();
     bindMapControls();
     updateMapModeButtons();
@@ -9169,6 +9324,7 @@
       initTester();
     }
 
+    bindProjectHeaderControls();
     bindLanguageToggle();
 
     const storedLanguage = localStorage.getItem('preferredLanguage') || 'en';
