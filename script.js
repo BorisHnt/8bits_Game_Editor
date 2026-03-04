@@ -3390,6 +3390,330 @@
     getLabels: getProjectButtonLabels
   };
 
+  const compactMapVersion = 2;
+  const isPortalMarkerValue = (marker) => (
+    marker === 'portal'
+    || marker === 'entry'
+    || marker === 'exit'
+    || marker === 1
+    || marker === true
+  );
+  const encodeMapCellTuple = (entry) => {
+    if (!entry || entry.assetNumber == null) return null;
+    const assetNumber = Number.parseInt(entry.assetNumber, 10);
+    if (!Number.isFinite(assetNumber)) return null;
+    const spriteIndex = Number.parseInt(entry.spriteIndex, 10);
+    return [
+      assetNumber,
+      Number.isFinite(spriteIndex) ? spriteIndex : 0,
+      entry.auto !== false ? 1 : 0
+    ];
+  };
+  const decodeMapCellTuple = (entry) => {
+    if (!entry) return null;
+    if (Array.isArray(entry)) {
+      const assetNumber = Number.parseInt(entry[0], 10);
+      if (!Number.isFinite(assetNumber)) return null;
+      const spriteIndex = Number.parseInt(entry[1], 10);
+      return {
+        assetNumber,
+        spriteIndex: Number.isFinite(spriteIndex) && spriteIndex > 0 ? spriteIndex : null,
+        auto: entry[2] !== 0
+      };
+    }
+    if (typeof entry !== 'object' || entry.assetNumber == null) return null;
+    const assetNumber = Number.parseInt(entry.assetNumber, 10);
+    if (!Number.isFinite(assetNumber)) return null;
+    const spriteIndex = Number.parseInt(entry.spriteIndex, 10);
+    return {
+      ...entry,
+      assetNumber,
+      spriteIndex: Number.isFinite(spriteIndex) && spriteIndex > 0 ? spriteIndex : null,
+      auto: entry.auto !== false
+    };
+  };
+  const encodeRleEntries = (entries, encodeEntry) => {
+    const runs = [];
+    let runCount = 0;
+    let runValue = null;
+    let runKey = '';
+    entries.forEach((entry) => {
+      const encoded = encodeEntry(entry);
+      const key = encoded == null ? 'null' : JSON.stringify(encoded);
+      if (!runCount || key !== runKey) {
+        if (runCount) runs.push([runCount, runValue]);
+        runCount = 1;
+        runValue = encoded;
+        runKey = key;
+        return;
+      }
+      runCount += 1;
+    });
+    if (runCount) runs.push([runCount, runValue]);
+    return runs;
+  };
+  const isRleEncodedCells = (rawCells) => {
+    const first = Array.isArray(rawCells) ? rawCells.find((entry) => entry != null) : null;
+    return Array.isArray(first) && first.length === 2 && Number.isFinite(Number.parseInt(first[0], 10));
+  };
+  const decodeRleEntries = (rawCells, total, decodeEntry) => {
+    const dense = Array.from({ length: total }, () => null);
+    if (!Array.isArray(rawCells)) return dense;
+    if (!isRleEncodedCells(rawCells)) {
+      for (let index = 0; index < Math.min(rawCells.length, total); index += 1) {
+        dense[index] = decodeEntry(rawCells[index]);
+      }
+      return dense;
+    }
+    let writeIndex = 0;
+    rawCells.forEach((run) => {
+      const count = clamp(Number.parseInt(run?.[0], 10) || 0, 0, total - writeIndex);
+      const value = decodeEntry(run?.[1]);
+      for (let step = 0; step < count && writeIndex < total; step += 1) {
+        dense[writeIndex] = value ? cloneProjectPayload(value) : null;
+        writeIndex += 1;
+      }
+    });
+    return dense;
+  };
+  const encodeSparseMarkers = (markers, width) => {
+    const safeWidth = Math.max(1, Number.parseInt(width, 10) || 1);
+    const sparse = [];
+    markers.forEach((marker, index) => {
+      if (!isPortalMarkerValue(marker)) return;
+      sparse.push([index % safeWidth, Math.floor(index / safeWidth), 'portal']);
+    });
+    return sparse;
+  };
+  const decodeMarkers = (rawMarkers, width, height, encoding = '') => {
+    const total = Math.max(0, (Number.parseInt(width, 10) || 0) * (Number.parseInt(height, 10) || 0));
+    const dense = Array.from({ length: total }, () => null);
+    if (!Array.isArray(rawMarkers)) return dense;
+    const useSparse = encoding === 'sparse'
+      || rawMarkers.some((entry) => Array.isArray(entry) && entry.length >= 2);
+    if (!useSparse) {
+      for (let index = 0; index < Math.min(rawMarkers.length, total); index += 1) {
+        dense[index] = isPortalMarkerValue(rawMarkers[index]) ? 'portal' : null;
+      }
+      return dense;
+    }
+    rawMarkers.forEach((entry) => {
+      if (!Array.isArray(entry) || entry.length < 2) return;
+      const x = Number.parseInt(entry[0], 10);
+      const y = Number.parseInt(entry[1], 10);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      if (x < 0 || y < 0 || x >= width || y >= height) return;
+      dense[y * width + x] = isPortalMarkerValue(entry[2]) || entry[2] == null ? 'portal' : null;
+    });
+    return dense;
+  };
+  const encodePropCellTuple = (entry) => {
+    if (!entry || entry.assetNumber == null) return null;
+    const assetNumber = Number.parseInt(entry.assetNumber, 10);
+    if (!Number.isFinite(assetNumber)) return null;
+    const spriteIndex = Number.parseInt(entry.spriteIndex, 10);
+    return [assetNumber, Number.isFinite(spriteIndex) && spriteIndex > 0 ? spriteIndex : 1];
+  };
+  const decodePropCellTuple = (entry) => {
+    if (!entry) return null;
+    if (Array.isArray(entry)) {
+      const assetNumber = Number.parseInt(entry[0], 10);
+      if (!Number.isFinite(assetNumber)) return null;
+      const spriteIndex = Number.parseInt(entry[1], 10);
+      return {
+        assetNumber,
+        spriteIndex: Number.isFinite(spriteIndex) && spriteIndex > 0 ? spriteIndex : 1
+      };
+    }
+    if (typeof entry !== 'object' || entry.assetNumber == null) return null;
+    return {
+      ...entry,
+      assetNumber: Number.parseInt(entry.assetNumber, 10) || null,
+      spriteIndex: clamp(Number.parseInt(entry.spriteIndex, 10) || 1, 1, 9999)
+    };
+  };
+  const encodeItemCellTuple = (entry) => {
+    if (!entry || entry.assetNumber == null) return null;
+    const assetNumber = Number.parseInt(entry.assetNumber, 10);
+    if (!Number.isFinite(assetNumber)) return null;
+    const spriteIndex = Number.parseInt(entry.spriteIndex, 10);
+    const tuple = [
+      assetNumber,
+      Number.isFinite(spriteIndex) && spriteIndex > 0 ? spriteIndex : 1
+    ];
+    if (entry.instanceId) tuple.push(String(entry.instanceId));
+    return tuple;
+  };
+  const decodeItemCellTuple = (entry) => {
+    if (!entry) return null;
+    if (Array.isArray(entry)) {
+      const assetNumber = Number.parseInt(entry[0], 10);
+      if (!Number.isFinite(assetNumber)) return null;
+      const spriteIndex = Number.parseInt(entry[1], 10);
+      const instanceId = entry[2] != null ? String(entry[2]) : '';
+      return {
+        assetNumber,
+        spriteIndex: Number.isFinite(spriteIndex) && spriteIndex > 0 ? spriteIndex : 1,
+        instanceId: instanceId || createId()
+      };
+    }
+    if (typeof entry !== 'object' || entry.assetNumber == null) return null;
+    return {
+      ...entry,
+      assetNumber: Number.parseInt(entry.assetNumber, 10) || null,
+      spriteIndex: clamp(Number.parseInt(entry.spriteIndex, 10) || 1, 1, 9999),
+      instanceId: entry.instanceId || createId()
+    };
+  };
+  const encodeSparseLayerCells = (cells, width, encodeEntry) => {
+    const safeWidth = Math.max(1, Number.parseInt(width, 10) || 1);
+    const sparse = [];
+    cells.forEach((entry, index) => {
+      const encoded = encodeEntry(entry);
+      if (!encoded) return;
+      sparse.push([index % safeWidth, Math.floor(index / safeWidth), ...encoded]);
+    });
+    return sparse;
+  };
+  const decodeSparseLayerCells = (rawCells, width, height, decodeDenseEntry, decodeSparseTuple) => {
+    const safeWidth = Math.max(1, Number.parseInt(width, 10) || 1);
+    const safeHeight = Math.max(1, Number.parseInt(height, 10) || 1);
+    const total = safeWidth * safeHeight;
+    const dense = Array.from({ length: total }, () => null);
+    if (!Array.isArray(rawCells)) return dense;
+    const useSparse = rawCells.some((entry) => Array.isArray(entry) && entry.length >= 4);
+    if (!useSparse) {
+      for (let index = 0; index < Math.min(rawCells.length, total); index += 1) {
+        dense[index] = decodeDenseEntry(rawCells[index]);
+      }
+      return dense;
+    }
+    rawCells.forEach((entry) => {
+      if (!Array.isArray(entry) || entry.length < 4) return;
+      const x = Number.parseInt(entry[0], 10);
+      const y = Number.parseInt(entry[1], 10);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      if (x < 0 || y < 0 || x >= safeWidth || y >= safeHeight) return;
+      dense[y * safeWidth + x] = decodeSparseTuple(entry.slice(2));
+    });
+    return dense;
+  };
+  const normalizeCompactMapPayload = (rawPayload) => {
+    const payload = cloneProjectPayload(rawPayload);
+    if (!payload || typeof payload !== 'object') return payload;
+    if (Array.isArray(payload.maps)) {
+      payload.maps = payload.maps.map((entry) => {
+        if (entry?.payload?.map) {
+          return {
+            ...entry,
+            payload: normalizeCompactMapPayload(entry.payload)
+          };
+        }
+        if (entry?.map) {
+          return normalizeCompactMapPayload(entry);
+        }
+        return entry;
+      });
+      return payload;
+    }
+    if (!payload.map) return payload;
+    const mapWidth = clamp(Number.parseInt(payload.map.width, 10) || 50, 1, 9999);
+    const mapHeight = clamp(Number.parseInt(payload.map.height, 10) || 50, 1, 9999);
+    payload.map.cells = decodeRleEntries(payload.map.cells, mapWidth * mapHeight, decodeMapCellTuple);
+    payload.map.markers = decodeMarkers(payload.map.markers, mapWidth, mapHeight, payload.map.markerEncoding || '');
+    if (payload.itemLayer) {
+      const layerWidth = clamp(Number.parseInt(payload.itemLayer.width, 10) || mapWidth, 1, 9999);
+      const layerHeight = clamp(Number.parseInt(payload.itemLayer.height, 10) || mapHeight, 1, 9999);
+      payload.itemLayer.cells = decodeSparseLayerCells(
+        payload.itemLayer.cells,
+        layerWidth,
+        layerHeight,
+        decodePropCellTuple,
+        decodePropCellTuple
+      );
+    }
+    if (payload.gameItemLayer) {
+      const layerWidth = clamp(Number.parseInt(payload.gameItemLayer.width, 10) || mapWidth, 1, 9999);
+      const layerHeight = clamp(Number.parseInt(payload.gameItemLayer.height, 10) || mapHeight, 1, 9999);
+      payload.gameItemLayer.cells = decodeSparseLayerCells(
+        payload.gameItemLayer.cells,
+        layerWidth,
+        layerHeight,
+        decodeItemCellTuple,
+        decodeItemCellTuple
+      );
+    }
+    if (payload.npcLayer) {
+      const layerWidth = clamp(Number.parseInt(payload.npcLayer.width, 10) || mapWidth, 1, 9999);
+      const layerHeight = clamp(Number.parseInt(payload.npcLayer.height, 10) || mapHeight, 1, 9999);
+      payload.npcLayer.cells = decodeSparseLayerCells(
+        payload.npcLayer.cells,
+        layerWidth,
+        layerHeight,
+        decodeItemCellTuple,
+        decodeItemCellTuple
+      );
+    }
+    return payload;
+  };
+  const compactMapPayload = (rawPayload) => {
+    const payload = normalizeCompactMapPayload(rawPayload);
+    if (!payload || typeof payload !== 'object') return payload;
+    if (Array.isArray(payload.maps)) {
+      return {
+        ...payload,
+        maps: payload.maps.map((entry) => {
+          if (entry?.payload?.map) {
+            return {
+              ...entry,
+              payload: compactMapPayload(entry.payload)
+            };
+          }
+          if (entry?.map) {
+            return compactMapPayload(entry);
+          }
+          return entry;
+        })
+      };
+    }
+    if (!payload.map) return payload;
+    const next = cloneProjectPayload(payload) || {};
+    next.version = Math.max(compactMapVersion, Number.parseInt(next.version, 10) || compactMapVersion);
+    const mapWidth = clamp(Number.parseInt(next.map.width, 10) || 50, 1, 9999);
+    next.map.cellEncoding = 'rle';
+    next.map.cells = encodeRleEntries(payload.map.cells || [], encodeMapCellTuple);
+    next.map.markerEncoding = 'sparse';
+    next.map.markers = encodeSparseMarkers(payload.map.markers || [], mapWidth);
+    if (next.itemLayer) {
+      next.itemLayer.cellEncoding = 'sparse';
+      next.itemLayer.cells = encodeSparseLayerCells(payload.itemLayer?.cells || [], Number.parseInt(next.itemLayer.width, 10) || mapWidth, encodePropCellTuple);
+      delete next.itemLayer.effectiveCollision;
+      delete next.itemLayer.effectiveCollisionMasks;
+      delete next.itemLayer.effectiveDepth;
+    }
+    if (next.gameItemLayer) {
+      next.gameItemLayer.cellEncoding = 'sparse';
+      next.gameItemLayer.cells = encodeSparseLayerCells(payload.gameItemLayer?.cells || [], Number.parseInt(next.gameItemLayer.width, 10) || mapWidth, encodeItemCellTuple);
+      delete next.gameItemLayer.effectiveCollision;
+      delete next.gameItemLayer.effectiveCollisionMasks;
+      delete next.gameItemLayer.effectiveDepth;
+    }
+    if (next.npcLayer) {
+      next.npcLayer.cellEncoding = 'sparse';
+      next.npcLayer.cells = encodeSparseLayerCells(payload.npcLayer?.cells || [], Number.parseInt(next.npcLayer.width, 10) || mapWidth, encodeItemCellTuple);
+      delete next.npcLayer.effectiveCollision;
+      delete next.npcLayer.effectiveCollisionMasks;
+      delete next.npcLayer.effectiveDepth;
+    }
+    return next;
+  };
+  window.EightBitsMapSchema = {
+    version: compactMapVersion,
+    isPortalMarker: isPortalMarkerValue,
+    normalizePayload: normalizeCompactMapPayload,
+    compactPayload: compactMapPayload
+  };
+
   const normalizePixels = (pixels, width, height) => {
     const size = width * height;
     if (!Array.isArray(pixels)) {
@@ -6141,7 +6465,7 @@
       });
     };
 
-    const buildMapPayload = () => ({
+    const buildMapPayload = () => window.EightBitsMapSchema.compactPayload({
       version: 1,
       assetColorPalette: mapState.colorPaletteId,
       assets: mapState.assets.map((asset) => ({
@@ -6182,6 +6506,7 @@
     });
 
     const applyMapPayload = (payload) => {
+      payload = window.EightBitsMapSchema.normalizePayload(payload);
       if (!payload?.map || !Array.isArray(payload.assets)) return;
       const payloadColorPalette = String(
         payload.assetColorPalette
@@ -6623,7 +6948,7 @@
         id: entry.id,
         name: entry.name,
         fileName: entry.fileName || '',
-        payload: entry.payload,
+        payload: window.EightBitsMapSchema.compactPayload(entry.payload),
         position: (
           entry.position
           && Number.isFinite(entry.position.x)
@@ -6746,6 +7071,7 @@
     };
 
     const buildPortalList = (payload) => {
+      payload = window.EightBitsMapSchema.normalizePayload(payload);
       const markers = Array.isArray(payload?.map?.markers) ? payload.map.markers : [];
       const width = clamp(Number.parseInt(payload?.map?.width, 10) || 1, 1, 9999);
       const portals = [];
@@ -7483,6 +7809,7 @@
     };
 
     const createMapEntry = (payload, fileName = '') => {
+      payload = window.EightBitsMapSchema.normalizePayload(payload);
       const id = createId();
       const name = payload?.itemLayer?.name || payload?.name || payload?.map?.name || (fileName ? fileName.replace(/\.[^/.]+$/, '') : `Map ${worldState.maps.length + 1}`);
       const portals = buildPortalList(payload);
@@ -7526,7 +7853,7 @@
       reader.onload = async () => {
         try {
           const payload = JSON.parse(String(reader.result || '{}'));
-          const mapPayload = extractMapPayloadFromImport(payload);
+          const mapPayload = window.EightBitsMapSchema.normalizePayload(extractMapPayloadFromImport(payload));
           if (!mapPayload?.map) return;
           mapEntry.fileName = file.name;
           mapEntry.payload = mapPayload;
@@ -7764,7 +8091,7 @@
           id: entry.id,
           name: entry.name,
           fileName: entry.fileName,
-          payload: entry.payload
+          payload: window.EightBitsMapSchema.compactPayload(entry.payload)
         })),
         connections: worldState.connections
       };
@@ -7788,7 +8115,7 @@
       const nextMaps = [];
 
       rawMaps.forEach((entry, index) => {
-        const mapPayload = entry?.payload?.map ? entry.payload : entry;
+        const mapPayload = window.EightBitsMapSchema.normalizePayload(entry?.payload?.map ? entry.payload : entry);
         if (!mapPayload?.map) return;
 
         const sourceId = entry?.id != null ? String(entry.id) : '';
@@ -8171,7 +8498,7 @@
       maps: mapState.maps.map((entry) => ({
         id: entry.id,
         name: entry.name,
-        payload: entry.payload
+        payload: window.EightBitsMapSchema.compactPayload(entry.payload)
       })),
       connections: mapState.connections,
       currentIndex: mapState.currentIndex,
@@ -8302,6 +8629,7 @@
     };
 
     const buildPortalIndexSet = (payload) => {
+      payload = window.EightBitsMapSchema.normalizePayload(payload);
       const markers = Array.isArray(payload?.map?.markers) ? payload.map.markers : [];
       const portalIndexes = new Set();
       markers.forEach((marker, index) => {
@@ -8314,20 +8642,21 @@
 
     const normalizeMapPayloads = (payload, fallbackName = '') => {
       if (payload?.map && Array.isArray(payload.assets)) {
-        const name = payload.itemLayer?.name || payload.name || payload.map.name || fallbackName || 'Map';
+        const normalizedPayload = window.EightBitsMapSchema.normalizePayload(payload);
+        const name = normalizedPayload.itemLayer?.name || normalizedPayload.name || normalizedPayload.map.name || fallbackName || 'Map';
         return {
           maps: [{
             id: null,
             name,
-            payload,
-            portalIndexes: buildPortalIndexSet(payload)
+            payload: normalizedPayload,
+            portalIndexes: buildPortalIndexSet(normalizedPayload)
           }],
           connections: []
         };
       }
       if (Array.isArray(payload?.maps)) {
         const maps = payload.maps.map((entry, index) => {
-          const mapPayload = entry.payload || entry;
+          const mapPayload = window.EightBitsMapSchema.normalizePayload(entry.payload || entry);
           const name = entry.name || entry.fileName || mapPayload?.map?.name || `Map ${index + 1}`;
           const id = entry.id != null ? String(entry.id) : `map-${index + 1}`;
           return {
@@ -8659,6 +8988,7 @@
 
     let mapLoadToken = 0;
     const applyMapPayload = async (payload, name = '', options = {}) => {
+      payload = window.EightBitsMapSchema.normalizePayload(payload);
       const token = mapLoadToken + 1;
       mapLoadToken = token;
       state.isLoadingMap = true;

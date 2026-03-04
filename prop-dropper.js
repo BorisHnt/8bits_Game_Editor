@@ -1644,7 +1644,7 @@
       });
     };
 
-    const buildBasePayload = () => ({
+    const buildBasePayload = () => window.EightBitsMapSchema.compactPayload({
       version: 1,
       assetColorPalette: state.baseMap.assetColorPalette || 'studio',
       assets: state.baseMap.assets.map((asset) => ({
@@ -1681,7 +1681,7 @@
 
     const buildExportPayload = () => {
       const basePayload = buildBasePayload();
-      return {
+      return window.EightBitsMapSchema.compactPayload({
         ...basePayload,
         editor: 'item-creator',
         name: state.layout.name || state.baseMap.map.name || '',
@@ -1723,10 +1723,11 @@
           effectiveCollisionMasks: state.layout.cells.map((_, index) => getEffectiveCollisionMask(index)),
           effectiveDepth: state.layout.cells.map((_, index) => getPlayerDepth(index))
         }
-      };
+      });
     };
 
     const normalizeImportedBaseMap = (payload, fileName = '') => {
+      payload = window.EightBitsMapSchema.normalizePayload(payload);
       const width = clamp(Number.parseInt(payload?.map?.width, 10) || 50, 4, 200);
       const height = clamp(Number.parseInt(payload?.map?.height, 10) || 50, 4, 200);
       const total = width * height;
@@ -1817,6 +1818,7 @@
     };
 
     const applyItemPayload = async (payload, fileName = '') => {
+      payload = window.EightBitsMapSchema.normalizePayload(payload);
       await applyBaseMapPayload(payload, fileName || payload?.sourceFile || '', { clearItems: true });
       state.assets = Array.isArray(payload?.itemAssets) ? payload.itemAssets.map((asset, index) => normalizeItemAsset(asset, index + 1)) : [];
       normalizeAssetNumbers();
