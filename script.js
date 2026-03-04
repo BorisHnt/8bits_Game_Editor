@@ -6281,6 +6281,65 @@
       scheduleWorldSave();
     };
 
+    const removeMissingAssetFromMaps = async (assetEntry) => {
+      if (!assetEntry || assetEntry.cached) return;
+      const matchesAssetRef = (assetDef) => {
+        if (!assetDef) return false;
+        if (assetEntry.cacheKey && assetDef.cacheKey && assetDef.cacheKey === assetEntry.cacheKey) return true;
+        if (assetEntry.fileName && assetDef.fileName && assetDef.fileName === assetEntry.fileName) return true;
+        return false;
+      };
+
+      const targetMapIds = assetEntry?.maps instanceof Set && assetEntry.maps.size
+        ? assetEntry.maps
+        : null;
+
+      worldState.maps.forEach((mapEntry) => {
+        if (targetMapIds && !targetMapIds.has(mapEntry.id)) return;
+        const payload = mapEntry?.payload;
+        if (!payload) return;
+
+        const removedBaseNumbers = new Set();
+        const removedItemNumbers = new Set();
+
+        if (Array.isArray(payload.assets)) {
+          payload.assets = payload.assets.filter((assetDef) => {
+            if (!matchesAssetRef(assetDef)) return true;
+            const assetNumber = Number.parseInt(assetDef.number, 10);
+            if (Number.isFinite(assetNumber)) removedBaseNumbers.add(assetNumber);
+            return false;
+          });
+        }
+
+        if (Array.isArray(payload.itemAssets)) {
+          payload.itemAssets = payload.itemAssets.filter((assetDef) => {
+            if (!matchesAssetRef(assetDef)) return true;
+            const assetNumber = Number.parseInt(assetDef.number, 10);
+            if (Number.isFinite(assetNumber)) removedItemNumbers.add(assetNumber);
+            return false;
+          });
+        }
+
+        if (removedBaseNumbers.size && Array.isArray(payload?.map?.cells)) {
+          payload.map.cells = payload.map.cells.map((cell) => (
+            removedBaseNumbers.has(Number.parseInt(cell?.assetNumber, 10)) ? null : cell
+          ));
+        }
+
+        if (removedItemNumbers.size && Array.isArray(payload?.itemLayer?.cells)) {
+          payload.itemLayer.cells = payload.itemLayer.cells.map((cell) => (
+            removedItemNumbers.has(Number.parseInt(cell?.assetNumber, 10)) ? null : cell
+          ));
+        }
+      });
+
+      await rebuildAssets();
+      renderMapList();
+      refreshSelects();
+      renderConnections();
+      scheduleWorldSave();
+    };
+
     const renderAssetList = () => {
       assetList.innerHTML = '';
       if (!worldState.assets.length) return;
@@ -6319,6 +6378,11 @@
         uploadButton.className = 'button-secondary';
         uploadButton.textContent = assetEntry.cached ? getText('world.assetReplace', 'Replace') : getText('world.assetUpload', 'Upload');
 
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'button-secondary world-remove';
+        removeButton.textContent = getText('world.remove', 'Remove');
+
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = 'image/*';
@@ -6335,11 +6399,18 @@
 
         actions.appendChild(status);
         actions.appendChild(uploadButton);
+        if (!assetEntry.cached) {
+          actions.appendChild(removeButton);
+        }
         actions.appendChild(fileInput);
 
         row.appendChild(meta);
         row.appendChild(actions);
         assetList.appendChild(row);
+
+        removeButton.addEventListener('click', async () => {
+          await removeMissingAssetFromMaps(assetEntry);
+        });
       });
     };
 
