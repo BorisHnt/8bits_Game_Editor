@@ -6131,6 +6131,28 @@
         currentMapProjectDocKey = entry?.docKey || currentMapProjectDocKey;
       }, 200);
     };
+    const flushMapSave = () => {
+      const payload = buildMapPayload();
+      if (mapSaveTimer) {
+        clearTimeout(mapSaveTimer);
+        mapSaveTimer = null;
+      }
+      if (window.localStorage) {
+        try {
+          localStorage.setItem(mapCacheKey, JSON.stringify(payload));
+        } catch (error) {
+          // ignore storage errors
+        }
+      }
+      const entry = projectManager?.publishStageDocument('mapCreator', payload, {
+        docKey: currentMapProjectDocKey,
+        lookupName: payload?.map?.name || payload?.name || 'map',
+        displayName: payload?.map?.name || payload?.name || 'Map'
+      });
+      currentMapProjectDocKey = entry?.docKey || currentMapProjectDocKey;
+      refreshProjectMapOptions();
+      return payload;
+    };
 
     const loadCachedMapState = () => {
       if (!window.localStorage) return false;
@@ -6185,17 +6207,13 @@
     };
     const renameCurrentProjectMap = () => {
       const nextName = String(mapNameInput?.value || '').trim();
-      if (!nextName) return;
-      mapState.map.name = nextName;
-      const entry = projectManager?.publishStageDocument('mapCreator', buildMapPayload(), {
-        docKey: currentMapProjectDocKey,
-        lookupName: nextName,
-        displayName: nextName
-      });
-      currentMapProjectDocKey = entry?.docKey || currentMapProjectDocKey;
-      refreshProjectMapOptions();
+      if (nextName) {
+        mapState.map.name = nextName;
+      } else if (mapNameInput) {
+        mapNameInput.value = mapState.map.name || '';
+      }
+      flushMapSave();
       renderMapGrid();
-      scheduleMapSave();
     };
 
     const shiftMap = (dx, dy) => {

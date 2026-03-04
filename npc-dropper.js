@@ -692,6 +692,28 @@
         currentProjectDocKey = entry?.docKey || currentProjectDocKey;
       }, 200);
     };
+    const flushSave = () => {
+      const payload = buildExportPayload();
+      if (saveTimer) {
+        clearTimeout(saveTimer);
+        saveTimer = null;
+      }
+      if (window.localStorage) {
+        try {
+          localStorage.setItem(itemCacheKey, JSON.stringify(payload));
+        } catch (error) {
+          // ignore storage errors
+        }
+      }
+      const entry = projectManager?.publishStageDocument('npcDropper', payload, {
+        docKey: currentProjectDocKey,
+        lookupName: payload?.map?.name || payload?.name || 'npc_map',
+        displayName: payload?.name || payload?.map?.name || 'NPC Dropper'
+      });
+      currentProjectDocKey = entry?.docKey || currentProjectDocKey;
+      refreshProjectMapOptions();
+      return payload;
+    };
 
     const buildAssetTypeList = () => {
       const map = new Map();
@@ -1958,17 +1980,13 @@
     };
     const renameCurrentProjectMap = () => {
       const nextName = String(mapNameInput?.value || '').trim();
-      if (!nextName) return;
-      state.layout.name = nextName;
-      const entry = projectManager?.publishStageDocument('npcDropper', buildExportPayload(), {
-        docKey: currentProjectDocKey,
-        lookupName: nextName,
-        displayName: nextName
-      });
-      currentProjectDocKey = entry?.docKey || currentProjectDocKey;
-      refreshProjectMapOptions();
+      if (nextName) {
+        state.layout.name = nextName;
+      } else if (mapNameInput) {
+        mapNameInput.value = state.layout.name || '';
+      }
+      flushSave();
       updateBaseMapLabel();
-      scheduleSave();
     };
 
     const exportJson = () => {
