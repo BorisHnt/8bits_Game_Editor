@@ -203,6 +203,7 @@
       'map.cacheMapsEmpty': 'No cached maps.',
       'map.cacheWorldsTitle': 'World cache',
       'map.cacheWorldsEmpty': 'No cached worlds.',
+      'map.cacheMergeMaps': 'Merge Matching Maps',
       'map.cachePurge': 'Purge cache',
       'map.cachePurgeAssets': 'Purge Assets',
       'map.cachePurgeMaps': 'Purge Maps',
@@ -623,6 +624,7 @@
       'map.cacheMapsEmpty': 'Aucune map en cache.',
       'map.cacheWorldsTitle': 'Cache world',
       'map.cacheWorldsEmpty': 'Aucun world en cache.',
+      'map.cacheMergeMaps': 'Fusionner les maps homonymes',
       'map.cachePurge': 'Purger le cache',
       'map.cachePurgeAssets': 'Purger les assets',
       'map.cachePurgeMaps': 'Purger les maps',
@@ -3698,6 +3700,95 @@
     }));
     return true;
   };
+  const buildCanonicalBaseMapPayload = (payload, fallbackName = '') => {
+    const normalized = normalizeCompactMapPayload(payload);
+    if (!normalized?.map || !Array.isArray(normalized.assets)) return null;
+    const basePayload = {
+      version: normalized.version || 1,
+      assetColorPalette: normalized.assetColorPalette || normalized.map.assetColorPalette || 'studio',
+      assets: cloneProjectPayload(normalized.assets) || [],
+      map: {
+        name: normalized.map.name || normalized.name || fallbackName || '',
+        width: normalized.map.width,
+        height: normalized.map.height,
+        cellSize: normalized.map.cellSize,
+        assetColorPalette: normalized.assetColorPalette || normalized.map.assetColorPalette || 'studio',
+        randomize: cloneProjectPayload(normalized.map.randomize || null),
+        cells: cloneProjectPayload(normalized.map.cells) || [],
+        markers: cloneProjectPayload(normalized.map.markers) || []
+      }
+    };
+    return compactMapPayload(basePayload);
+  };
+  const mergeBaseMapIntoStagePayload = (basePayload, stagePayload, fallbackName = '') => {
+    const normalizedBase = normalizeCompactMapPayload(basePayload);
+    const normalizedStage = normalizeCompactMapPayload(stagePayload);
+    if (!normalizedBase?.map || !normalizedStage?.map) return normalizedStage || stagePayload;
+    const merged = {
+      ...cloneProjectPayload(normalizedStage),
+      version: Math.max(Number.parseInt(normalizedBase.version, 10) || 1, Number.parseInt(normalizedStage.version, 10) || 1),
+      assetColorPalette: normalizedBase.assetColorPalette || normalizedBase.map.assetColorPalette || normalizedStage.assetColorPalette || 'studio',
+      assets: cloneProjectPayload(normalizedBase.assets) || [],
+      map: {
+        ...cloneProjectPayload(normalizedBase.map),
+        name: normalizedBase.map.name || normalizedStage.map.name || normalizedStage.name || fallbackName || ''
+      }
+    };
+    return compactMapPayload(merged);
+  };
+  const mergeMatchingMapDocuments = () => {
+    const mapStages = ['mapCreator', 'propDropper', 'itemDropper', 'npcDropper'];
+    const project = readSharedProject();
+    const groups = new Map();
+
+    mapStages.forEach((stage) => {
+      const stageData = project.stages[stage];
+      Object.values(stageData?.documents || {}).forEach((entry) => {
+        if (!entry?.payload?.map) return;
+        const key = entry.normalizedLookupName || normalizeProjectLookupName(entry.lookupName || entry.displayName || entry.payload?.map?.name || '');
+        if (!key) return;
+        if (!groups.has(key)) groups.set(key, {});
+        groups.get(key)[stage] = entry;
+      });
+    });
+
+    let mergedGroups = 0;
+    groups.forEach((group, key) => {
+      const presentStages = mapStages.filter((stage) => group[stage]?.payload?.map);
+      if (presentStages.length < 2) return;
+      const canonicalSource = group.mapCreator || group.propDropper || group.itemDropper || group.npcDropper;
+      const canonicalBase = buildCanonicalBaseMapPayload(canonicalSource?.payload, canonicalSource?.lookupName || key);
+      if (!canonicalBase) return;
+      presentStages.forEach((stage) => {
+        const entry = group[stage];
+        const nextPayload = stage === 'mapCreator'
+          ? compactMapPayload(canonicalBase)
+          : mergeBaseMapIntoStagePayload(canonicalBase, entry.payload, entry.lookupName || key);
+        project.stages[stage].documents[entry.docKey] = {
+          ...project.stages[stage].documents[entry.docKey],
+          payload: nextPayload,
+          updatedAt: new Date().toISOString()
+        };
+        if (project.stages[stage].activeDocKey === entry.docKey) {
+          project.activeCaches[stage] = cloneProjectPayload(nextPayload);
+          if (window.localStorage) {
+            try {
+              localStorage.setItem(sharedProjectStages[stage].storageKey, JSON.stringify(nextPayload));
+            } catch (error) {
+              // ignore storage errors
+            }
+          }
+        }
+      });
+      mergedGroups += 1;
+    });
+
+    if (mergedGroups > 0) {
+      writeSharedProject(project);
+      window.dispatchEvent(new CustomEvent('8bits-project-merged', { detail: { mergedGroups } }));
+    }
+    return mergedGroups;
+  };
   const getProjectButtonLabels = () => (document.documentElement.lang === 'fr'
     ? {
       exportProject: 'Exporter projet',
@@ -3730,6 +3821,7 @@
     importBundle: importSharedProjectBundle,
     downloadBundle: downloadSharedProjectBundle,
     importBundleFile: importSharedProjectBundleFile,
+    mergeMatchingMaps: mergeMatchingMapDocuments,
     purgeAssets: clearSharedProjectImages,
     purgeStages: clearSharedProjectStagesData,
     purgePipeline: purgeSharedProjectPipeline,
@@ -5020,6 +5112,7 @@
     const cachePurgeAssetsButton = qs('#map-cache-purge-assets');
     const cachePurgeMapsButton = qs('#map-cache-purge-maps');
     const cachePurgeAllButton = qs('#map-cache-purge-all');
+    const cacheMergeMapsButton = qs('#map-cache-merge-maps');
     const cacheList = qs('#map-cache-list');
     const cacheCount = qs('#map-cache-count');
     const cacheSize = qs('#map-cache-size');
@@ -5368,6 +5461,19 @@
       }).catch(() => null);
       refreshProjectMapOptions();
       await updateCacheModal();
+    };
+    const mergeMatchingMaps = async () => {
+      const merged = projectManager?.mergeMatchingMaps?.() || 0;
+      refreshProjectMapOptions();
+      if (currentMapProjectDocKey) {
+        loadProjectMapDocument(currentMapProjectDocKey);
+      }
+      await updateCacheModal();
+      window.alert(
+        currentLanguage === 'fr'
+          ? `${merged} groupe(s) de maps fusionne(s).`
+          : `${merged} map group(s) merged.`
+      );
     };
 
     const openNewMapModal = () => {
@@ -7265,6 +7371,7 @@
     cachePurgeAssetsButton?.addEventListener('click', purgeAssetCache);
     cachePurgeMapsButton?.addEventListener('click', purgeProjectMaps);
     cachePurgeAllButton?.addEventListener('click', purgeEntirePipeline);
+    cacheMergeMapsButton?.addEventListener('click', mergeMatchingMaps);
   };
 
   const initWorldCreator = () => {
