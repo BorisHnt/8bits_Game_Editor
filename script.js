@@ -3110,6 +3110,7 @@
   const createMapProjectId = () => `map-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const getExportName = () => (qs('#export-name')?.value || '').trim() || 'export';
   const getExportFilename = (extension) => `${sanitizeFilename(getExportName())}.${extension}`;
+  const mapCacheModalRestoreKey = '8bits-map-cache-modal-restore';
 
   const sharedProjectStorageKey = '8bits-shared-project-v1';
   const sharedProjectReloadKey = '8bits-shared-project-reload-v1';
@@ -6039,6 +6040,11 @@
       if (!cacheModal) return;
       cacheModal.classList.remove('is-hidden');
       cacheModal.setAttribute('aria-hidden', 'false');
+      try {
+        sessionStorage.setItem(mapCacheModalRestoreKey, '1');
+      } catch (error) {
+        // ignore storage errors
+      }
       await updateCacheModal();
     };
 
@@ -6047,17 +6053,30 @@
       hideCachePreview();
       cacheModal.classList.add('is-hidden');
       cacheModal.setAttribute('aria-hidden', 'true');
+      try {
+        sessionStorage.removeItem(mapCacheModalRestoreKey);
+      } catch (error) {
+        // ignore storage errors
+      }
     };
     const confirmCacheAction = (messageEn, messageFr) => window.confirm(
       currentLanguage === 'fr' ? messageFr : messageEn
     );
+    const reloadCurrentPageWithCacheModal = () => {
+      try {
+        sessionStorage.setItem(mapCacheModalRestoreKey, '1');
+      } catch (error) {
+        // ignore storage errors
+      }
+      window.location.reload();
+    };
     const purgeAssetCache = async () => {
       if (!confirmCacheAction(
         'Purge all cached asset PNG files?',
         'Purger tous les PNG d assets du cache ?'
       )) return;
       await projectManager?.purgeAssets?.().catch(() => null);
-      await updateCacheModal();
+      reloadCurrentPageWithCacheModal();
     };
     const purgeProjectMaps = async () => {
       if (!confirmCacheAction(
@@ -6066,8 +6085,7 @@
       )) return;
       currentMapProjectDocKey = null;
       projectManager?.purgeStages?.(Object.keys(projectManager?.stages || {}), { resetProjectName: false });
-      refreshProjectMapOptions();
-      await updateCacheModal();
+      reloadCurrentPageWithCacheModal();
     };
     const purgeEntirePipeline = async () => {
       if (!confirmCacheAction(
@@ -6080,8 +6098,7 @@
         clearAssets: true,
         resetProjectName: true
       }).catch(() => null);
-      refreshProjectMapOptions();
-      await updateCacheModal();
+      reloadCurrentPageWithCacheModal();
     };
     const mergeMatchingMaps = async () => {
       const merged = projectManager?.mergeMatchingMaps?.() || 0;
@@ -8141,6 +8158,15 @@
     cachePurgeAllButton?.addEventListener('click', purgeEntirePipeline);
     cacheMergeMapsButton?.addEventListener('click', mergeMatchingMaps);
     mergeSelectedButton?.addEventListener('click', mergeSelectedMaps);
+    if (cacheModal) {
+      try {
+        if (sessionStorage.getItem(mapCacheModalRestoreKey) === '1') {
+          openCacheModal();
+        }
+      } catch (error) {
+        // ignore storage errors
+      }
+    }
   };
 
   const initWorldCreator = () => {
