@@ -1756,6 +1756,15 @@ svg {
   flex: 1 1 180px;
 }
 
+.cache-section {
+  margin-top: 14px;
+}
+
+.cache-section-title {
+  display: block;
+  margin-bottom: 8px;
+}
+
 .cache-item {
   display: flex;
   justify-content: space-between;

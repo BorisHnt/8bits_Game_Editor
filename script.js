@@ -193,9 +193,16 @@
       'map.cacheClose': 'Close',
       'map.cacheCount': 'Items',
       'map.cacheSize': 'Estimated size',
+      'map.cacheMaps': 'Maps',
+      'map.cacheWorlds': 'Worlds',
       'map.cacheImported': 'First import',
       'map.cacheDelete': 'Delete',
       'map.cacheEmpty': 'Cache is empty.',
+      'map.cacheAssetsTitle': 'Asset cache',
+      'map.cacheMapsTitle': 'Map cache',
+      'map.cacheMapsEmpty': 'No cached maps.',
+      'map.cacheWorldsTitle': 'World cache',
+      'map.cacheWorldsEmpty': 'No cached worlds.',
       'map.cachePurge': 'Purge cache',
       'map.cachePurgeAssets': 'Purge Assets',
       'map.cachePurgeMaps': 'Purge Maps',
@@ -606,9 +613,16 @@
       'map.cacheClose': 'Fermer',
       'map.cacheCount': 'Elements',
       'map.cacheSize': 'Taille estimee',
+      'map.cacheMaps': 'Maps',
+      'map.cacheWorlds': 'Worlds',
       'map.cacheImported': 'Premier import',
       'map.cacheDelete': 'Supprimer',
       'map.cacheEmpty': 'Cache vide.',
+      'map.cacheAssetsTitle': 'Cache assets',
+      'map.cacheMapsTitle': 'Cache maps',
+      'map.cacheMapsEmpty': 'Aucune map en cache.',
+      'map.cacheWorldsTitle': 'Cache world',
+      'map.cacheWorldsEmpty': 'Aucun world en cache.',
       'map.cachePurge': 'Purger le cache',
       'map.cachePurgeAssets': 'Purger les assets',
       'map.cachePurgeMaps': 'Purger les maps',
@@ -5010,6 +5024,12 @@
     const cacheCount = qs('#map-cache-count');
     const cacheSize = qs('#map-cache-size');
     const cacheEmpty = qs('#map-cache-empty');
+    const projectList = qs('#map-project-list');
+    const projectCount = qs('#map-project-count');
+    const projectEmpty = qs('#map-project-empty');
+    const worldList = qs('#map-world-list');
+    const worldCount = qs('#map-world-count');
+    const worldEmpty = qs('#map-world-empty');
     const mapNewModal = qs('#map-new-modal');
     const mapNewYesButton = qs('#map-new-yes');
     const mapNewNoButton = qs('#map-new-no');
@@ -5178,6 +5198,20 @@
     const updateCacheModal = async () => {
       if (!cacheList || !cacheCount || !cacheSize || !cacheEmpty) return;
       hideCachePreview();
+      const formatImportedAt = (value) => {
+        if (!value) return '—';
+        try {
+          return new Intl.DateTimeFormat(currentLanguage === 'fr' ? 'fr-FR' : 'en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          }).format(new Date(value));
+        } catch (error) {
+          return '—';
+        }
+      };
       try {
         const entries = await cacheListAll();
         const totalBytes = entries.reduce((sum, entry) => sum + (entry.size || 0), 0);
@@ -5186,61 +5220,104 @@
         cacheList.innerHTML = '';
         if (!entries.length) {
           cacheEmpty.classList.remove('is-hidden');
-          return;
-        }
-        cacheEmpty.classList.add('is-hidden');
-        const formatImportedAt = (value) => {
-          if (!value) return '—';
-          try {
-            return new Intl.DateTimeFormat(currentLanguage === 'fr' ? 'fr-FR' : 'en-US', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit'
-            }).format(new Date(value));
-          } catch (error) {
-            return '—';
-          }
+        } else {
+          cacheEmpty.classList.add('is-hidden');
+          entries
+            .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+            .forEach((entry) => {
+              const item = document.createElement('div');
+              item.className = 'cache-item';
+              item.addEventListener('mouseenter', (event) => {
+                showCachePreview(entry, event.clientX, event.clientY);
+              });
+              item.addEventListener('mousemove', (event) => {
+                moveCachePreview(event.clientX, event.clientY);
+              });
+              item.addEventListener('mouseleave', hideCachePreview);
+              const meta = document.createElement('div');
+              meta.className = 'cache-item-meta';
+              const name = document.createElement('strong');
+              name.textContent = entry.name || entry.key;
+              const details = document.createElement('span');
+              details.textContent = `${formatBytes(entry.size || 0)} • ${getText('map.cacheImported', 'First import')}: ${formatImportedAt(entry.createdAt)}`;
+              const deleteButton = document.createElement('button');
+              deleteButton.type = 'button';
+              deleteButton.className = 'button-secondary';
+              deleteButton.textContent = getText('map.cacheDelete', 'Delete');
+              deleteButton.addEventListener('click', async () => {
+                await cacheDelete(entry.key);
+                await updateCacheModal();
+              });
+              meta.appendChild(name);
+              meta.appendChild(details);
+              item.appendChild(meta);
+              item.appendChild(deleteButton);
+              cacheList.appendChild(item);
+            });
         };
-        entries
-          .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
-          .forEach((entry) => {
-            const item = document.createElement('div');
-            item.className = 'cache-item';
-            item.addEventListener('mouseenter', (event) => {
-              showCachePreview(entry, event.clientX, event.clientY);
+        if (projectList && projectCount && projectEmpty) {
+          const mapDocs = projectManager?.listStageDocuments?.('mapCreator') || [];
+          projectCount.textContent = String(mapDocs.length);
+          projectList.innerHTML = '';
+          if (!mapDocs.length) {
+            projectEmpty.classList.remove('is-hidden');
+          } else {
+            projectEmpty.classList.add('is-hidden');
+            mapDocs.forEach((doc) => {
+              const item = document.createElement('div');
+              item.className = 'cache-item';
+              const meta = document.createElement('div');
+              meta.className = 'cache-item-meta';
+              const name = document.createElement('strong');
+              name.textContent = doc.displayName || doc.lookupName || 'Map';
+              const details = document.createElement('span');
+              const width = Number.parseInt(doc.payload?.map?.width, 10) || 0;
+              const height = Number.parseInt(doc.payload?.map?.height, 10) || 0;
+              details.textContent = `${width}x${height} • ${getText('map.cacheImported', 'First import')}: ${formatImportedAt(doc.updatedAt)}`;
+              meta.appendChild(name);
+              meta.appendChild(details);
+              item.appendChild(meta);
+              projectList.appendChild(item);
             });
-            item.addEventListener('mousemove', (event) => {
-              moveCachePreview(event.clientX, event.clientY);
+          }
+        }
+        if (worldList && worldCount && worldEmpty) {
+          const worldDocs = projectManager?.listStageDocuments?.('worldCreator') || [];
+          worldCount.textContent = String(worldDocs.length);
+          worldList.innerHTML = '';
+          if (!worldDocs.length) {
+            worldEmpty.classList.remove('is-hidden');
+          } else {
+            worldEmpty.classList.add('is-hidden');
+            worldDocs.forEach((doc) => {
+              const item = document.createElement('div');
+              item.className = 'cache-item';
+              const meta = document.createElement('div');
+              meta.className = 'cache-item-meta';
+              const name = document.createElement('strong');
+              name.textContent = doc.displayName || doc.lookupName || 'World';
+              const details = document.createElement('span');
+              const maps = Array.isArray(doc.payload?.maps) ? doc.payload.maps.length : 0;
+              details.textContent = `${maps} maps • ${getText('map.cacheImported', 'First import')}: ${formatImportedAt(doc.updatedAt)}`;
+              meta.appendChild(name);
+              meta.appendChild(details);
+              item.appendChild(meta);
+              worldList.appendChild(item);
             });
-            item.addEventListener('mouseleave', hideCachePreview);
-            const meta = document.createElement('div');
-            meta.className = 'cache-item-meta';
-            const name = document.createElement('strong');
-            name.textContent = entry.name || entry.key;
-            const details = document.createElement('span');
-            details.textContent = `${formatBytes(entry.size || 0)} • ${getText('map.cacheImported', 'First import')}: ${formatImportedAt(entry.createdAt)}`;
-            const deleteButton = document.createElement('button');
-            deleteButton.type = 'button';
-            deleteButton.className = 'button-secondary';
-            deleteButton.textContent = getText('map.cacheDelete', 'Delete');
-            deleteButton.addEventListener('click', async () => {
-              await cacheDelete(entry.key);
-              await updateCacheModal();
-            });
-            meta.appendChild(name);
-            meta.appendChild(details);
-            item.appendChild(meta);
-            item.appendChild(deleteButton);
-            cacheList.appendChild(item);
-          });
+          }
+        }
       } catch (error) {
         hideCachePreview();
         cacheCount.textContent = '0';
         cacheSize.textContent = '0 KB';
         cacheList.innerHTML = '';
         cacheEmpty.classList.remove('is-hidden');
+        if (projectCount) projectCount.textContent = '0';
+        if (worldCount) worldCount.textContent = '0';
+        if (projectList) projectList.innerHTML = '';
+        if (worldList) worldList.innerHTML = '';
+        projectEmpty?.classList.remove('is-hidden');
+        worldEmpty?.classList.remove('is-hidden');
       }
     };
 

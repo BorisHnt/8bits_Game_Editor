@@ -340,9 +340,30 @@
             <span class="panel-label" data-i18n="map.cacheSize">Estimated size</span>
             <span class="panel-value" id="map-cache-size">0 KB</span>
           </div>
+          <div class="cache-stat">
+            <span class="panel-label" data-i18n="map.cacheMaps">Maps</span>
+            <span class="panel-value" id="map-project-count">0</span>
+          </div>
+          <div class="cache-stat">
+            <span class="panel-label" data-i18n="map.cacheWorlds">Worlds</span>
+            <span class="panel-value" id="map-world-count">0</span>
+          </div>
         </div>
-        <div class="cache-list" id="map-cache-list"></div>
-        <p class="panel-subtitle is-hidden" id="map-cache-empty" data-i18n="map.cacheEmpty">Cache is empty.</p>
+        <div class="cache-section">
+          <h3 class="panel-label cache-section-title" data-i18n="map.cacheAssetsTitle">Asset cache</h3>
+          <div class="cache-list" id="map-cache-list"></div>
+          <p class="panel-subtitle is-hidden" id="map-cache-empty" data-i18n="map.cacheEmpty">Cache is empty.</p>
+        </div>
+        <div class="cache-section">
+          <h3 class="panel-label cache-section-title" data-i18n="map.cacheMapsTitle">Map cache</h3>
+          <div class="cache-list" id="map-project-list"></div>
+          <p class="panel-subtitle is-hidden" id="map-project-empty" data-i18n="map.cacheMapsEmpty">No cached maps.</p>
+        </div>
+        <div class="cache-section">
+          <h3 class="panel-label cache-section-title" data-i18n="map.cacheWorldsTitle">World cache</h3>
+          <div class="cache-list" id="map-world-list"></div>
+          <p class="panel-subtitle is-hidden" id="map-world-empty" data-i18n="map.cacheWorldsEmpty">No cached worlds.</p>
+        </div>
       </div>
       <div class="modal-footer">
         <div class="cache-actions">
