@@ -300,6 +300,7 @@
     let redoStack = [];
     let historyBatchActive = false;
     let currentProjectDocKey = null;
+    let currentProjectSelection = '';
     let maskEditorAssetId = null;
     let maskBrush = 'blocking';
     let maskPainting = false;
@@ -322,6 +323,42 @@
     const getEffectiveTool = () => itemTemporaryTool || state.tool;
     const refreshTemporaryTool = () => {
       itemTemporaryTool = itemSpaceEyedropperActive ? 'eyedropper' : itemAltEraserActive ? 'eraser' : null;
+    };
+    const currentStageName = 'itemDropper';
+    const upstreamStageName = 'propDropper';
+    const getPayloadMapId = (payload) => String(payload?.map?.id || '').trim();
+    const getPayloadLookupName = (payload) => String(payload?.map?.name || payload?.name || '').trim();
+    const buildProjectOptionValue = (stage, docKey) => `${stage}::${docKey}`;
+    const parseProjectOptionValue = (value) => {
+      const [stage, ...rest] = String(value || '').split('::');
+      return {
+        stage,
+        docKey: rest.join('::')
+      };
+    };
+    const getProjectMapOptions = () => {
+      if (!projectManager) return [];
+      const merged = new Map();
+      const registerDocs = (stage, docs) => {
+        docs.forEach((doc) => {
+          const payload = doc?.payload || null;
+          if (!payload?.map) return;
+          const mapId = getPayloadMapId(payload);
+          const lookupName = (doc.displayName || doc.lookupName || getPayloadLookupName(payload) || 'Map').trim();
+          const key = mapId || lookupName.toLowerCase();
+          if (!merged.has(key) || stage === currentStageName) {
+            merged.set(key, {
+              stage,
+              docKey: doc.docKey,
+              payload,
+              label: lookupName
+            });
+          }
+        });
+      };
+      registerDocs(upstreamStageName, projectManager.listStageDocuments(upstreamStageName) || []);
+      registerDocs(currentStageName, projectManager.listStageDocuments(currentStageName) || []);
+      return Array.from(merged.values()).sort((a, b) => a.label.localeCompare(b.label));
     };
 
     const formatBytes = (bytes) => {
@@ -2143,9 +2180,10 @@
     };
     const loadProjectState = async () => {
       const doc = projectManager?.getStageActiveDocument('itemDropper');
-      const payload = doc?.payload || projectManager?.getStageActiveCache('itemDropper');
+      const payload = doc?.payload || projectManager?.getStageActiveCache('itemDropper') || projectManager?.getUpstreamPayload('itemDropper');
       if (!payload) return false;
       currentProjectDocKey = doc?.docKey || currentProjectDocKey;
+      currentProjectSelection = doc?.docKey ? buildProjectOptionValue(currentStageName, doc.docKey) : '';
       if (payload?.gameItemLayer && Array.isArray(payload?.gameItemAssets) && payload?.map && Array.isArray(payload?.assets)) {
         await applyItemPayload(payload, payload?.sourceFile || '');
         return true;
@@ -2158,7 +2196,7 @@
     };
     const refreshProjectMapOptions = () => {
       if (!mapSelect || !projectManager) return;
-      const docs = projectManager.listStageDocuments('itemDropper');
+      const docs = getProjectMapOptions();
       const previousValue = mapSelect.value;
       mapSelect.innerHTML = '';
       if (!docs.length) {
@@ -2170,21 +2208,37 @@
       }
       docs.forEach((doc) => {
         const option = document.createElement('option');
-        option.value = doc.docKey;
-        option.textContent = doc.displayName || doc.lookupName || 'Map';
-        if (doc.docKey === currentProjectDocKey || (!currentProjectDocKey && doc.docKey === previousValue)) {
+        option.value = buildProjectOptionValue(doc.stage, doc.docKey);
+        option.textContent = doc.label || 'Map';
+        const currentMapId = state.baseMap.map.id || '';
+        const shouldSelect = (
+          option.value === currentProjectSelection
+          || (!currentProjectSelection && doc.stage === currentStageName && doc.docKey === currentProjectDocKey)
+          || (!currentProjectSelection && currentMapId && getPayloadMapId(doc.payload) === currentMapId)
+          || (!currentProjectSelection && option.value === previousValue)
+        );
+        if (shouldSelect) {
           option.selected = true;
         }
         mapSelect.appendChild(option);
       });
     };
-    const loadProjectDocument = async (docKey) => {
-      if (!projectManager || !docKey) return false;
-      const doc = projectManager.getStageDocumentByKey('itemDropper', docKey);
+    const loadProjectDocument = async (selectionValue) => {
+      if (!projectManager || !selectionValue) return false;
+      const { stage, docKey } = parseProjectOptionValue(selectionValue);
+      const doc = projectManager.getStageDocumentByKey(stage, docKey);
       if (!doc?.payload) return false;
-      currentProjectDocKey = doc.docKey;
-      projectManager.setStageActiveDocument('itemDropper', docKey);
-      if (doc.payload?.gameItemLayer && Array.isArray(doc.payload?.gameItemAssets) && doc.payload?.map && Array.isArray(doc.payload?.assets)) {
+      currentProjectSelection = selectionValue;
+      if (stage === currentStageName) {
+        currentProjectDocKey = doc.docKey;
+        projectManager.setStageActiveDocument(currentStageName, docKey);
+      } else {
+        const matchingDoc = (projectManager.listStageDocuments(currentStageName) || []).find((entry) => (
+          getPayloadMapId(entry.payload) && getPayloadMapId(entry.payload) === getPayloadMapId(doc.payload)
+        ));
+        currentProjectDocKey = matchingDoc?.docKey || null;
+      }
+      if (stage === currentStageName && doc.payload?.gameItemLayer && Array.isArray(doc.payload?.gameItemAssets) && doc.payload?.map && Array.isArray(doc.payload?.assets)) {
         await applyItemPayload(doc.payload, doc.payload?.sourceFile || '');
         return true;
       }

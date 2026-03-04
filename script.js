@@ -3123,6 +3123,7 @@
     worldCreator: { storageKey: '8bits-world-cache-state', upstreamStage: 'npcDropper' },
     mapTester: { storageKey: '8bits-tester-cache-state', upstreamStage: 'worldCreator' }
   };
+  const sharedMapStages = ['mapCreator', 'propDropper', 'itemDropper', 'npcDropper'];
 
   const normalizeProjectLookupName = (value) => sanitizeFilename(String(value || 'untitled').trim()).toLowerCase();
   const getPayloadMapId = (payload) => {
@@ -3271,6 +3272,58 @@
     return Object.values(project.stages[stage].documents || {})
       .filter((entry) => entry?.payload)
       .sort((a, b) => String(a.displayName || a.lookupName || '').localeCompare(String(b.displayName || b.lookupName || '')));
+  };
+  const listUnifiedProjectMaps = () => {
+    const project = readSharedProject();
+    const groups = new Map();
+    const stagePriority = { mapCreator: 0, propDropper: 1, itemDropper: 2, npcDropper: 3 };
+    sharedMapStages.forEach((stage) => {
+      Object.values(project.stages?.[stage]?.documents || {}).forEach((entry) => {
+        if (!entry?.payload?.map) return;
+        const mapId = String(entry.mapId || entry.payload?.map?.id || '').trim();
+        const label = String(entry.displayName || entry.lookupName || entry.payload?.map?.name || entry.payload?.name || 'Map').trim();
+        const key = mapId || normalizeProjectLookupName(label);
+        if (!groups.has(key)) {
+          groups.set(key, {
+            key,
+            mapId: mapId || null,
+            displayName: label || 'Map',
+            lookupName: String(entry.lookupName || entry.payload?.map?.name || entry.payload?.name || label || 'Map').trim(),
+            updatedAt: entry.updatedAt || new Date().toISOString(),
+            docsByStage: {},
+            preferredStage: stage,
+            preferredDocKey: entry.docKey,
+            preferredPayload: cloneProjectPayload(entry.payload)
+          });
+        }
+        const group = groups.get(key);
+        group.docsByStage[stage] = {
+          stage,
+          docKey: entry.docKey,
+          mapId: mapId || null,
+          displayName: label || 'Map',
+          lookupName: String(entry.lookupName || entry.payload?.map?.name || entry.payload?.name || label || 'Map').trim(),
+          updatedAt: entry.updatedAt || new Date().toISOString(),
+          payload: cloneProjectPayload(entry.payload)
+        };
+        const currentPriority = stagePriority[group.preferredStage] ?? 99;
+        const nextPriority = stagePriority[stage] ?? 99;
+        if (
+          nextPriority < currentPriority
+          || (!group.mapId && mapId)
+          || (Date.parse(entry.updatedAt || '') || 0) > (Date.parse(group.updatedAt || '') || 0)
+        ) {
+          group.mapId = group.mapId || mapId || null;
+          group.displayName = label || group.displayName;
+          group.lookupName = String(entry.lookupName || group.lookupName || label || 'Map').trim();
+          group.updatedAt = entry.updatedAt || group.updatedAt;
+          group.preferredStage = stage;
+          group.preferredDocKey = entry.docKey;
+          group.preferredPayload = cloneProjectPayload(entry.payload);
+        }
+      });
+    });
+    return Array.from(groups.values()).sort((a, b) => String(a.displayName || a.lookupName || '').localeCompare(String(b.displayName || b.lookupName || '')));
   };
   const getSharedProjectDocument = (stage, lookupName = '') => {
     if (!sharedProjectStages[stage]) return null;
@@ -4277,6 +4330,7 @@
     importBundleFile: importSharedProjectBundleFile,
     mergeMatchingMaps: mergeMatchingMapDocuments,
     mergeSelectedMaps: mergeSelectedMapDocuments,
+    listUnifiedMaps: listUnifiedProjectMaps,
     isLegacyMapPayload: isLegacyProjectMapPayload,
     convertLegacyMap: convertLegacyStageDocument,
     purgeAssets: clearSharedProjectImages,
@@ -5830,7 +5884,7 @@
             });
         };
         if (projectList && projectCount && projectEmpty) {
-          const mapDocs = projectManager?.listStageDocuments?.('mapCreator') || [];
+          const mapDocs = projectManager?.listUnifiedMaps?.() || [];
           projectCount.textContent = String(mapDocs.length);
           projectList.innerHTML = '';
           if (!mapDocs.length) {
@@ -5845,19 +5899,20 @@
               const name = document.createElement('strong');
               name.textContent = doc.displayName || doc.lookupName || 'Map';
               const details = document.createElement('span');
-              const width = Number.parseInt(doc.payload?.map?.width, 10) || 0;
-              const height = Number.parseInt(doc.payload?.map?.height, 10) || 0;
-              details.textContent = `${width}x${height} • ${getText('map.cacheImported', 'First import')}: ${formatImportedAt(doc.updatedAt)}`;
+              const width = Number.parseInt(doc.preferredPayload?.map?.width, 10) || 0;
+              const height = Number.parseInt(doc.preferredPayload?.map?.height, 10) || 0;
+              const stages = Object.keys(doc.docsByStage || {}).length;
+              details.textContent = `${width}x${height} • ${stages} tool(s) • ${getText('map.cacheImported', 'First import')}: ${formatImportedAt(doc.updatedAt)}`;
               meta.appendChild(name);
               meta.appendChild(details);
               item.appendChild(meta);
-              if (projectManager?.isLegacyMapPayload?.(doc.payload)) {
+              if (projectManager?.isLegacyMapPayload?.(doc.preferredPayload) && doc.preferredStage && doc.preferredDocKey) {
                 const convertButton = document.createElement('button');
                 convertButton.type = 'button';
                 convertButton.className = 'button-secondary';
                 convertButton.textContent = getText('map.convert', 'Convert');
                 convertButton.addEventListener('click', async () => {
-                  projectManager?.convertLegacyMap?.('mapCreator', doc.docKey);
+                  projectManager?.convertLegacyMap?.(doc.preferredStage, doc.preferredDocKey);
                   refreshProjectMapOptions();
                   await updateCacheModal();
                 });
@@ -5908,9 +5963,7 @@
               itemDropper: 'Item Dropper',
               npcDropper: 'NPC Dropper'
             };
-          const mergeDocs = mapMergeStages.flatMap((stage) => (
-            (projectManager?.listStageDocuments?.(stage) || []).map((doc) => ({ ...doc, stage }))
-          ));
+          const mergeDocs = projectManager?.listUnifiedMaps?.() || [];
           const fillSelect = (select, currentValue) => {
             select.innerHTML = '';
             if (!mergeDocs.length) {
@@ -5922,8 +5975,8 @@
             }
             mergeDocs.forEach((doc) => {
               const option = document.createElement('option');
-              option.value = `${doc.stage}::${doc.docKey}`;
-              option.textContent = `${stageLabels[doc.stage] || doc.stage} · ${doc.displayName || doc.lookupName || 'Map'} · ${formatImportedAt(doc.updatedAt)}`;
+              option.value = `${doc.preferredStage}::${doc.preferredDocKey}`;
+              option.textContent = `${doc.displayName || doc.lookupName || 'Map'} · ${formatImportedAt(doc.updatedAt)}`;
               if (option.value === currentValue) {
                 option.selected = true;
               }
