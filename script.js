@@ -200,6 +200,8 @@
       'map.cacheWorlds': 'Worlds',
       'map.cacheImported': 'First import',
       'map.cacheDelete': 'Delete',
+      'map.convert': 'Convert',
+      'map.convertDone': 'Converted.',
       'map.cacheEmpty': 'Cache is empty.',
       'map.cacheAssetsTitle': 'Asset cache',
       'map.cacheMapsTitle': 'Map cache',
@@ -643,6 +645,8 @@
       'map.cacheWorlds': 'Worlds',
       'map.cacheImported': 'Premier import',
       'map.cacheDelete': 'Supprimer',
+      'map.convert': 'Convertir',
+      'map.convertDone': 'Convertie.',
       'map.cacheEmpty': 'Cache vide.',
       'map.cacheAssetsTitle': 'Cache assets',
       'map.cacheMapsTitle': 'Cache maps',
@@ -3405,7 +3409,7 @@
     });
 
     return {
-      project,
+      project: rebuildProjectDocumentsFromSources(project, stageCaches),
       stageCaches
     };
   };
@@ -3898,6 +3902,121 @@
     };
     return compactMapPayload(merged);
   };
+  const isLegacyProjectMapPayload = (payload) => {
+    if (!payload?.map) return false;
+    if (!payload.map.id) return true;
+    if (Number.parseInt(payload.version, 10) < compactMapVersion) return true;
+    if (payload.map.cellEncoding !== 'rle') return true;
+    if (payload.map.markerEncoding !== 'sparse') return true;
+    if (payload.itemLayer && payload.itemLayer.cellEncoding !== 'sparse') return true;
+    if (payload.gameItemLayer && payload.gameItemLayer.cellEncoding !== 'sparse') return true;
+    if (payload.npcLayer && payload.npcLayer.cellEncoding !== 'sparse') return true;
+    return false;
+  };
+  const upsertProjectStageDocument = (project, stage, payload, options = {}) => {
+    if (!sharedProjectStages[stage] || !payload?.map) return null;
+    const stageData = project.stages[stage];
+    const names = resolveProjectDocNames(payload, options);
+    const mapId = String(options.mapId || getPayloadMapId(payload) || '').trim();
+    const existingEntry = Object.values(stageData.documents).find((entry) => (
+      (mapId && String(entry?.mapId || '') === mapId)
+      || entry?.normalizedLookupName === names.normalizedLookupName
+    ));
+    const docKey = options.docKey || existingEntry?.docKey || (mapId ? `${stage}:map:${mapId}` : `${stage}:${names.normalizedLookupName}`);
+    stageData.documents[docKey] = {
+      ...(stageData.documents[docKey] || {}),
+      docKey,
+      mapId: mapId || null,
+      lookupName: names.lookupName,
+      displayName: names.displayName,
+      normalizedLookupName: names.normalizedLookupName,
+      updatedAt: options.updatedAt || new Date().toISOString(),
+      payload: cloneProjectPayload(payload)
+    };
+    if (!stageData.activeDocKey && options.setActive !== false) {
+      stageData.activeDocKey = docKey;
+    }
+    return stageData.documents[docKey];
+  };
+  const rebuildProjectDocumentsFromSources = (rawProject, rawStageCaches = {}) => {
+    const project = ensureSharedProjectShape(rawProject);
+    const stageCaches = cloneProjectPayload(rawStageCaches) || {};
+    const sources = [];
+    const registerSource = (payload, meta = {}) => {
+      if (!payload?.map) return;
+      sources.push({
+        payload,
+        lookupName: meta.lookupName || payload?.map?.name || payload?.name || '',
+        updatedAt: meta.updatedAt || new Date().toISOString()
+      });
+    };
+
+    mapMergeStages.forEach((stage) => {
+      registerSource(stageCaches?.[stage], { updatedAt: new Date().toISOString() });
+      registerSource(project.activeCaches?.[stage], { updatedAt: new Date().toISOString() });
+      Object.values(project.stages?.[stage]?.documents || {}).forEach((entry) => {
+        registerSource(entry?.payload, {
+          lookupName: entry?.lookupName || entry?.displayName || entry?.payload?.map?.name || '',
+          updatedAt: entry?.updatedAt || new Date().toISOString()
+        });
+      });
+    });
+
+    const collectWorldMaps = (payload) => {
+      const maps = Array.isArray(payload?.maps) ? payload.maps : [];
+      maps.forEach((entry) => {
+        const mapPayload = entry?.payload?.map ? entry.payload : entry?.map ? entry : null;
+        registerSource(mapPayload, {
+          lookupName: entry?.name || mapPayload?.map?.name || mapPayload?.name || '',
+          updatedAt: payload?.updatedAt || new Date().toISOString()
+        });
+      });
+    };
+
+    collectWorldMaps(stageCaches?.worldCreator);
+    collectWorldMaps(stageCaches?.mapTester);
+    collectWorldMaps(project.activeCaches?.worldCreator);
+    collectWorldMaps(project.activeCaches?.mapTester);
+    Object.values(project.stages?.worldCreator?.documents || {}).forEach((entry) => collectWorldMaps(entry?.payload));
+
+    sources.forEach((source) => {
+      const canonicalMapId = chooseExistingMapId(source.payload);
+      const basePayload = buildCanonicalBaseMapPayload(source.payload, source.lookupName || '', canonicalMapId);
+      if (!basePayload) return;
+      upsertProjectStageDocument(project, 'mapCreator', basePayload, {
+        mapId: canonicalMapId,
+        lookupName: source.lookupName || '',
+        displayName: source.lookupName || basePayload.map.name || 'Map',
+        updatedAt: source.updatedAt
+      });
+      if (source.payload?.itemLayer && Array.isArray(source.payload?.itemAssets)) {
+        upsertProjectStageDocument(project, 'propDropper', mergeBaseMapIntoStagePayload(basePayload, source.payload, source.lookupName || ''), {
+          mapId: canonicalMapId,
+          lookupName: source.lookupName || '',
+          displayName: source.lookupName || source.payload?.name || basePayload.map.name || 'Map',
+          updatedAt: source.updatedAt
+        });
+      }
+      if (source.payload?.gameItemLayer && Array.isArray(source.payload?.gameItemAssets)) {
+        upsertProjectStageDocument(project, 'itemDropper', mergeBaseMapIntoStagePayload(basePayload, source.payload, source.lookupName || ''), {
+          mapId: canonicalMapId,
+          lookupName: source.lookupName || '',
+          displayName: source.lookupName || source.payload?.name || basePayload.map.name || 'Map',
+          updatedAt: source.updatedAt
+        });
+      }
+      if (source.payload?.npcLayer && Array.isArray(source.payload?.npcAssets)) {
+        upsertProjectStageDocument(project, 'npcDropper', mergeBaseMapIntoStagePayload(basePayload, source.payload, source.lookupName || ''), {
+          mapId: canonicalMapId,
+          lookupName: source.lookupName || '',
+          displayName: source.lookupName || source.payload?.name || basePayload.map.name || 'Map',
+          updatedAt: source.updatedAt
+        });
+      }
+    });
+
+    return project;
+  };
   const mapMergeStages = ['mapCreator', 'propDropper', 'itemDropper', 'npcDropper'];
   const buildComparableMapSignature = (payload) => {
     const normalized = normalizeCompactMapPayload(payload);
@@ -4090,6 +4209,36 @@
       winnerDocKey: winner.docKey
     };
   };
+  const convertLegacyStageDocument = (stage, docKey) => {
+    if (!mapMergeStages.includes(stage) || !docKey) return false;
+    const project = readSharedProject();
+    const entry = project.stages?.[stage]?.documents?.[docKey];
+    if (!entry?.payload?.map) return false;
+    const mapId = chooseExistingMapId(entry.payload);
+    const canonicalBase = buildCanonicalBaseMapPayload(entry.payload, entry.lookupName || entry.displayName || '', mapId);
+    if (!canonicalBase) return false;
+    const nextPayload = stage === 'mapCreator'
+      ? compactMapPayload(canonicalBase)
+      : mergeBaseMapIntoStagePayload(canonicalBase, entry.payload, entry.lookupName || entry.displayName || '');
+    project.stages[stage].documents[docKey] = {
+      ...project.stages[stage].documents[docKey],
+      mapId,
+      payload: nextPayload,
+      updatedAt: new Date().toISOString()
+    };
+    if (project.stages[stage].activeDocKey === docKey) {
+      project.activeCaches[stage] = cloneProjectPayload(nextPayload);
+      if (window.localStorage) {
+        try {
+          localStorage.setItem(sharedProjectStages[stage].storageKey, JSON.stringify(nextPayload));
+        } catch (error) {
+          // ignore storage errors
+        }
+      }
+    }
+    writeSharedProject(project);
+    return true;
+  };
   const getProjectButtonLabels = () => (document.documentElement.lang === 'fr'
     ? {
       exportProject: 'Exporter projet',
@@ -4124,6 +4273,8 @@
     importBundleFile: importSharedProjectBundleFile,
     mergeMatchingMaps: mergeMatchingMapDocuments,
     mergeSelectedMaps: mergeSelectedMapDocuments,
+    isLegacyMapPayload: isLegacyProjectMapPayload,
+    convertLegacyMap: convertLegacyStageDocument,
     purgeAssets: clearSharedProjectImages,
     purgeStages: clearSharedProjectStagesData,
     purgePipeline: purgeSharedProjectPipeline,
@@ -5696,6 +5847,18 @@
               meta.appendChild(name);
               meta.appendChild(details);
               item.appendChild(meta);
+              if (projectManager?.isLegacyMapPayload?.(doc.payload)) {
+                const convertButton = document.createElement('button');
+                convertButton.type = 'button';
+                convertButton.className = 'button-secondary';
+                convertButton.textContent = getText('map.convert', 'Convert');
+                convertButton.addEventListener('click', async () => {
+                  projectManager?.convertLegacyMap?.('mapCreator', doc.docKey);
+                  refreshProjectMapOptions();
+                  await updateCacheModal();
+                });
+                item.appendChild(convertButton);
+              }
               projectList.appendChild(item);
             });
           }
@@ -9180,9 +9343,22 @@
       }];
       payload.maps.forEach((entry, index) => {
         const mapName = sanitizeFilename(entry.name || entry.fileName || `map_${index + 1}`);
+        const mapPayload = window.EightBitsMapSchema.normalizePayload(entry.payload);
+        const mapPortals = buildPortalList(mapPayload);
+        const mapConnections = payload.connections.filter((connection) => (
+          connection?.fromMapId === entry.id || connection?.toMapId === entry.id
+        ));
+        const mapExportPayload = {
+          ...window.EightBitsMapSchema.compactPayload(mapPayload),
+          worldMapId: entry.id,
+          worldMapName: entry.name || '',
+          worldName: worldState.name || '',
+          portals: mapPortals,
+          worldConnections: mapConnections
+        };
         zipFiles.push({
           name: `map/${mapName}.json`,
-          data: zipTextEncoder.encode(JSON.stringify(entry.payload, null, 2)),
+          data: zipTextEncoder.encode(JSON.stringify(mapExportPayload, null, 2)),
           lastModified: Date.now()
         });
       });
@@ -9349,6 +9525,20 @@
       }
       return syncWorldFromProject();
     };
+    const resetWorldState = async () => {
+      worldState.maps = [];
+      worldState.connections = [];
+      worldState.assets = [];
+      worldState.drag = null;
+      worldState.name = '';
+      if (worldNameInput) {
+        worldNameInput.value = '';
+      }
+      renderMapList();
+      refreshSelects();
+      renderConnections();
+      await rebuildAssets();
+    };
 
     const importMap = async (file) => {
       if (!file) return;
@@ -9477,6 +9667,11 @@
         worldProjectExportButton.textContent = labels.exportProject;
         worldProjectImportButton.textContent = labels.importProject;
       }
+    });
+    window.addEventListener('8bits-project-purged', async (event) => {
+      const purgedStages = new Set(event?.detail?.stages || []);
+      if (!purgedStages.has('worldCreator') && !purgedStages.has('mapTester')) return;
+      await resetWorldState();
     });
   };
 
@@ -10178,6 +10373,30 @@
       }
       return false;
     };
+    const resetTesterState = () => {
+      mapState.maps = [];
+      mapState.connections = [];
+      mapState.currentIndex = -1;
+      state.mapPayload = null;
+      state.mapCanvas = null;
+      state.mapFrontCanvas = null;
+      state.mapCoverCanvas = null;
+      state.collision = [];
+      state.collisionMasks = [];
+      state.mapWidth = 0;
+      state.mapHeight = 0;
+      state.portalLockKey = null;
+      state.isTransitioningMap = false;
+      state.isLoadingMap = false;
+      if (mapSelect) {
+        mapSelect.innerHTML = '';
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = '—';
+        mapSelect.appendChild(option);
+      }
+      setLoadedLabel('');
+    };
 
     const importPayload = (file) => {
       if (!file) return;
@@ -10570,6 +10789,11 @@
         testerProjectExportButton.textContent = labels.exportProject;
         testerProjectImportButton.textContent = labels.importProject;
       }
+    });
+    window.addEventListener('8bits-project-purged', (event) => {
+      const purgedStages = new Set(event?.detail?.stages || []);
+      if (!purgedStages.has('worldCreator') && !purgedStages.has('mapTester')) return;
+      resetTesterState();
     });
 
     try {
