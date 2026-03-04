@@ -1745,6 +1745,17 @@ svg {
   background: var(--color-panel);
 }
 
+.cache-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.cache-actions .button-secondary {
+  flex: 1 1 180px;
+}
+
 .cache-item {
   display: flex;
   justify-content: space-between;

@@ -197,6 +197,9 @@
       'map.cacheDelete': 'Delete',
       'map.cacheEmpty': 'Cache is empty.',
       'map.cachePurge': 'Purge cache',
+      'map.cachePurgeAssets': 'Purge Assets',
+      'map.cachePurgeMaps': 'Purge Maps',
+      'map.cachePurgeAll': 'Purge All',
       'world.title': 'World Creator',
       'world.subtitle': 'Import maps and connect portals to build a world graph.',
       'world.maps': 'Maps',
@@ -607,6 +610,9 @@
       'map.cacheDelete': 'Supprimer',
       'map.cacheEmpty': 'Cache vide.',
       'map.cachePurge': 'Purger le cache',
+      'map.cachePurgeAssets': 'Purger les assets',
+      'map.cachePurgeMaps': 'Purger les maps',
+      'map.cachePurgeAll': 'Tout purger',
       'world.title': 'Créateur de monde',
       'world.subtitle': 'Importer des maps et connecter les portails.',
       'world.maps': 'Maps',
@@ -3269,6 +3275,173 @@
     const response = await fetch(dataUrl);
     return response.blob();
   };
+  const zipTextEncoder = new TextEncoder();
+  const zipTextDecoder = new TextDecoder();
+  const concatUint8Arrays = (chunks) => {
+    const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const result = new Uint8Array(total);
+    let offset = 0;
+    chunks.forEach((chunk) => {
+      result.set(chunk, offset);
+      offset += chunk.length;
+    });
+    return result;
+  };
+  const crc32Table = (() => {
+    const table = new Uint32Array(256);
+    for (let index = 0; index < 256; index += 1) {
+      let value = index;
+      for (let bit = 0; bit < 8; bit += 1) {
+        value = (value & 1) ? (0xEDB88320 ^ (value >>> 1)) : (value >>> 1);
+      }
+      table[index] = value >>> 0;
+    }
+    return table;
+  })();
+  const crc32 = (bytes) => {
+    let crc = 0xFFFFFFFF;
+    for (let index = 0; index < bytes.length; index += 1) {
+      crc = crc32Table[(crc ^ bytes[index]) & 0xFF] ^ (crc >>> 8);
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  };
+  const createZipHeader = (size) => new Uint8Array(size);
+  const setZipDateTime = (view, timeOffset, dateOffset, timestamp) => {
+    const date = new Date(timestamp || Date.now());
+    const dosTime = (
+      ((date.getHours() & 0x1F) << 11)
+      | ((date.getMinutes() & 0x3F) << 5)
+      | Math.floor(date.getSeconds() / 2)
+    );
+    const dosDate = (
+      ((Math.max(1980, date.getFullYear()) - 1980) << 9)
+      | ((date.getMonth() + 1) << 5)
+      | date.getDate()
+    );
+    view.setUint16(timeOffset, dosTime, true);
+    view.setUint16(dateOffset, dosDate, true);
+  };
+  const buildStoredZip = (files) => {
+    const localChunks = [];
+    const centralChunks = [];
+    let offset = 0;
+
+    files.forEach((file) => {
+      const nameBytes = zipTextEncoder.encode(String(file.name || '').replace(/\\/g, '/'));
+      const data = file.data instanceof Uint8Array ? file.data : new Uint8Array(file.data || []);
+      const localHeader = createZipHeader(30);
+      const localView = new DataView(localHeader.buffer);
+      localView.setUint32(0, 0x04034B50, true);
+      localView.setUint16(4, 20, true);
+      localView.setUint16(6, 0, true);
+      localView.setUint16(8, 0, true);
+      setZipDateTime(localView, 10, 12, file.lastModified);
+      localView.setUint32(14, crc32(data), true);
+      localView.setUint32(18, data.length, true);
+      localView.setUint32(22, data.length, true);
+      localView.setUint16(26, nameBytes.length, true);
+      localView.setUint16(28, 0, true);
+      localChunks.push(localHeader, nameBytes, data);
+
+      const centralHeader = createZipHeader(46);
+      const centralView = new DataView(centralHeader.buffer);
+      centralView.setUint32(0, 0x02014B50, true);
+      centralView.setUint16(4, 20, true);
+      centralView.setUint16(6, 20, true);
+      centralView.setUint16(8, 0, true);
+      centralView.setUint16(10, 0, true);
+      setZipDateTime(centralView, 12, 14, file.lastModified);
+      centralView.setUint32(16, crc32(data), true);
+      centralView.setUint32(20, data.length, true);
+      centralView.setUint32(24, data.length, true);
+      centralView.setUint16(28, nameBytes.length, true);
+      centralView.setUint16(30, 0, true);
+      centralView.setUint16(32, 0, true);
+      centralView.setUint16(34, 0, true);
+      centralView.setUint16(36, 0, true);
+      centralView.setUint32(38, 0, true);
+      centralView.setUint32(42, offset, true);
+      centralChunks.push(centralHeader, nameBytes);
+
+      offset += localHeader.length + nameBytes.length + data.length;
+    });
+
+    const centralStart = offset;
+    const centralData = concatUint8Arrays(centralChunks);
+    offset += centralData.length;
+
+    const endRecord = createZipHeader(22);
+    const endView = new DataView(endRecord.buffer);
+    endView.setUint32(0, 0x06054B50, true);
+    endView.setUint16(4, 0, true);
+    endView.setUint16(6, 0, true);
+    endView.setUint16(8, files.length, true);
+    endView.setUint16(10, files.length, true);
+    endView.setUint32(12, centralData.length, true);
+    endView.setUint32(16, centralStart, true);
+    endView.setUint16(20, 0, true);
+
+    return new Blob([...localChunks, centralData, endRecord], { type: 'application/zip' });
+  };
+  const unzipEntryData = async (bytes, method) => {
+    if (method === 0) return bytes;
+    if (method === 8 && typeof DecompressionStream !== 'undefined') {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+    throw new Error('Unsupported ZIP compression method');
+  };
+  const parseZipArchive = async (file) => {
+    const buffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    const view = new DataView(buffer);
+    let eocdOffset = -1;
+    const minOffset = Math.max(0, bytes.length - 65557);
+    for (let offset = bytes.length - 22; offset >= minOffset; offset -= 1) {
+      if (view.getUint32(offset, true) === 0x06054B50) {
+        eocdOffset = offset;
+        break;
+      }
+    }
+    if (eocdOffset < 0) {
+      throw new Error('Invalid ZIP archive');
+    }
+    const entryCount = view.getUint16(eocdOffset + 10, true);
+    const centralOffset = view.getUint32(eocdOffset + 16, true);
+    const entries = new Map();
+    let offset = centralOffset;
+    for (let index = 0; index < entryCount; index += 1) {
+      if (view.getUint32(offset, true) !== 0x02014B50) {
+        throw new Error('Invalid ZIP central directory');
+      }
+      const method = view.getUint16(offset + 10, true);
+      const compressedSize = view.getUint32(offset + 20, true);
+      const fileNameLength = view.getUint16(offset + 28, true);
+      const extraLength = view.getUint16(offset + 30, true);
+      const commentLength = view.getUint16(offset + 32, true);
+      const localOffset = view.getUint32(offset + 42, true);
+      const nameStart = offset + 46;
+      const fileName = zipTextDecoder.decode(bytes.slice(nameStart, nameStart + fileNameLength));
+
+      if (view.getUint32(localOffset, true) !== 0x04034B50) {
+        throw new Error('Invalid ZIP local header');
+      }
+      const localNameLength = view.getUint16(localOffset + 26, true);
+      const localExtraLength = view.getUint16(localOffset + 28, true);
+      const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+      const compressed = bytes.slice(dataStart, dataStart + compressedSize);
+      const data = await unzipEntryData(compressed, method);
+      entries.set(fileName, data);
+      offset += 46 + fileNameLength + extraLength + commentLength;
+    }
+    return entries;
+  };
+  const getZipImagePath = (entry, index) => {
+    const safeName = sanitizeFilename(entry.name || `image_${index + 1}`);
+    const extensionMatch = String(entry.name || '').match(/(\.[a-z0-9]+)$/i);
+    const extension = extensionMatch ? extensionMatch[1].toLowerCase() : '';
+    return `images/${String(index + 1).padStart(4, '0')}_${safeName}${extension}`;
+  };
   const exportSharedProjectBundle = async () => {
     const project = readSharedProject();
     const stageCaches = {};
@@ -3300,6 +3473,53 @@
       stageCaches,
       images
     };
+  };
+  const exportSharedProjectZipBundle = async () => {
+    const project = readSharedProject();
+    const stageCaches = {};
+    if (window.localStorage) {
+      Object.entries(sharedProjectStages).forEach(([stage, config]) => {
+        try {
+          const raw = localStorage.getItem(config.storageKey);
+          stageCaches[stage] = raw ? JSON.parse(raw) : null;
+        } catch (error) {
+          stageCaches[stage] = null;
+        }
+      });
+    }
+    const imageEntries = (await listSharedProjectImages().catch(() => [])).filter((entry) => entry?.blob);
+    const images = imageEntries.map((entry, index) => ({
+      key: entry.key,
+      name: entry.name || '',
+      size: entry.size || (entry.blob?.size || 0),
+      type: entry.type || entry.blob?.type || 'application/octet-stream',
+      lastModified: entry.lastModified || 0,
+      createdAt: entry.createdAt || null,
+      path: getZipImagePath(entry, index)
+    }));
+    const bundle = {
+      type: sharedProjectBundleType,
+      version: 2,
+      format: 'zip',
+      exportedAt: new Date().toISOString(),
+      project,
+      stageCaches,
+      images
+    };
+    const zipFiles = [{
+      name: 'project.json',
+      data: zipTextEncoder.encode(JSON.stringify(bundle, null, 2)),
+      lastModified: Date.now()
+    }];
+    for (let index = 0; index < imageEntries.length; index += 1) {
+      const imageEntry = imageEntries[index];
+      zipFiles.push({
+        name: images[index].path,
+        data: new Uint8Array(await imageEntry.blob.arrayBuffer()),
+        lastModified: imageEntry.lastModified || Date.now()
+      });
+    }
+    return buildStoredZip(zipFiles);
   };
   const importSharedProjectBundle = async (bundlePayload) => {
     if (!bundlePayload || bundlePayload.type !== sharedProjectBundleType) {
@@ -3338,21 +3558,130 @@
     return true;
   };
   const downloadSharedProjectBundle = async (name = '8bits_project') => {
-    const bundle = await exportSharedProjectBundle();
-    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+    const blob = await exportSharedProjectZipBundle();
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${sanitizeFilename(name)}.json`;
+    link.download = `${sanitizeFilename(name)}.zip`;
     link.click();
     URL.revokeObjectURL(url);
     return true;
   };
+  const importSharedProjectZipBundle = async (file) => {
+    const entries = await parseZipArchive(file);
+    const projectEntry = entries.get('project.json');
+    if (!projectEntry) {
+      throw new Error('Missing project.json in ZIP bundle');
+    }
+    const bundlePayload = JSON.parse(zipTextDecoder.decode(projectEntry));
+    if (!bundlePayload || bundlePayload.type !== sharedProjectBundleType) {
+      throw new Error('Invalid project bundle');
+    }
+    const project = ensureSharedProjectShape(bundlePayload.project);
+    writeSharedProject(project);
+    if (window.localStorage) {
+      Object.entries(sharedProjectStages).forEach(([stage, config]) => {
+        const payload = bundlePayload.stageCaches?.[stage] ?? project.activeCaches?.[stage] ?? null;
+        if (payload == null) return;
+        try {
+          localStorage.setItem(config.storageKey, JSON.stringify(payload));
+        } catch (error) {
+          // ignore storage errors
+        }
+      });
+    }
+    const images = Array.isArray(bundlePayload.images) ? bundlePayload.images : [];
+    for (let index = 0; index < images.length; index += 1) {
+      const imageEntry = images[index];
+      if (!imageEntry?.key || !imageEntry?.path) continue;
+      const bytes = entries.get(imageEntry.path);
+      if (!bytes) continue;
+      const blob = new Blob([bytes], { type: imageEntry.type || 'application/octet-stream' });
+      await putSharedProjectImage({
+        key: imageEntry.key,
+        name: imageEntry.name || '',
+        size: imageEntry.size || blob.size,
+        type: imageEntry.type || blob.type || 'application/octet-stream',
+        lastModified: imageEntry.lastModified || 0,
+        createdAt: imageEntry.createdAt || null,
+        blob
+      }).catch(() => null);
+    }
+    window.dispatchEvent(new CustomEvent('8bits-project-namechange', { detail: { name: project.name || '' } }));
+    window.dispatchEvent(new CustomEvent('8bits-project-imported'));
+    return true;
+  };
   const importSharedProjectBundleFile = async (file) => {
     if (!file) return false;
+    if (/\.zip$/i.test(file.name) || file.type === 'application/zip' || file.type === 'application/x-zip-compressed') {
+      await importSharedProjectZipBundle(file);
+      return true;
+    }
     const text = await file.text();
     const payload = JSON.parse(text);
     await importSharedProjectBundle(payload);
+    return true;
+  };
+  const clearSharedProjectImages = () => openSharedProjectImageDb().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(sharedProjectImageStoreName, 'readwrite');
+    const store = tx.objectStore(sharedProjectImageStoreName);
+    const req = store.clear();
+    req.onsuccess = () => resolve(true);
+    req.onerror = () => reject(req.error);
+  }));
+  const clearSharedProjectStagesData = (stageNames = Object.keys(sharedProjectStages), options = {}) => {
+    const {
+      resetProjectName = false
+    } = options;
+    const stageSet = new Set(Array.isArray(stageNames) ? stageNames : Object.keys(sharedProjectStages));
+    const project = resetProjectName ? getDefaultSharedProject() : readSharedProject();
+    Object.keys(sharedProjectStages).forEach((stage) => {
+      if (!stageSet.has(stage)) return;
+      project.stages[stage] = {
+        activeDocKey: null,
+        documents: {}
+      };
+      project.activeCaches[stage] = null;
+      if (window.localStorage) {
+        try {
+          localStorage.removeItem(sharedProjectStages[stage].storageKey);
+        } catch (error) {
+          // ignore storage errors
+        }
+      }
+    });
+    if (resetProjectName) {
+      project.name = '';
+    }
+    writeSharedProject(project);
+    window.dispatchEvent(new CustomEvent('8bits-project-namechange', { detail: { name: project.name || '' } }));
+    window.dispatchEvent(new CustomEvent('8bits-project-purged', {
+      detail: {
+        stages: Array.from(stageSet),
+        resetProjectName
+      }
+    }));
+    return true;
+  };
+  const purgeSharedProjectPipeline = async (options = {}) => {
+    const {
+      clearAssets = false,
+      clearStages = true,
+      resetProjectName = false
+    } = options;
+    if (clearStages) {
+      clearSharedProjectStagesData(Object.keys(sharedProjectStages), { resetProjectName });
+    }
+    if (clearAssets) {
+      await clearSharedProjectImages().catch(() => null);
+    }
+    window.dispatchEvent(new CustomEvent('8bits-project-purged', {
+      detail: {
+        stages: clearStages ? Object.keys(sharedProjectStages) : [],
+        clearAssets,
+        resetProjectName
+      }
+    }));
     return true;
   };
   const getProjectButtonLabels = () => (document.documentElement.lang === 'fr'
@@ -3387,6 +3716,9 @@
     importBundle: importSharedProjectBundle,
     downloadBundle: downloadSharedProjectBundle,
     importBundleFile: importSharedProjectBundleFile,
+    purgeAssets: clearSharedProjectImages,
+    purgeStages: clearSharedProjectStagesData,
+    purgePipeline: purgeSharedProjectPipeline,
     getLabels: getProjectButtonLabels
   };
 
@@ -4671,7 +5003,9 @@
     const mapOptionsButton = qs('#map-options');
     const cacheModal = qs('#map-cache-modal');
     const cacheCloseButton = qs('#map-cache-close');
-    const cachePurgeButton = qs('#map-cache-purge');
+    const cachePurgeAssetsButton = qs('#map-cache-purge-assets');
+    const cachePurgeMapsButton = qs('#map-cache-purge-maps');
+    const cachePurgeAllButton = qs('#map-cache-purge-all');
     const cacheList = qs('#map-cache-list');
     const cacheCount = qs('#map-cache-count');
     const cacheSize = qs('#map-cache-size');
@@ -4691,7 +5025,7 @@
     const mapProjectImportFile = document.createElement('input');
     mapProjectImportFile.className = 'map-file-input';
     mapProjectImportFile.type = 'file';
-    mapProjectImportFile.accept = '.json';
+    mapProjectImportFile.accept = '.json,.zip';
     const mapProjectExportButton = document.createElement('button');
     mapProjectExportButton.className = 'button-secondary';
     mapProjectExportButton.type = 'button';
@@ -4922,6 +5256,41 @@
       hideCachePreview();
       cacheModal.classList.add('is-hidden');
       cacheModal.setAttribute('aria-hidden', 'true');
+    };
+    const confirmCacheAction = (messageEn, messageFr) => window.confirm(
+      currentLanguage === 'fr' ? messageFr : messageEn
+    );
+    const purgeAssetCache = async () => {
+      if (!confirmCacheAction(
+        'Purge all cached asset PNG files?',
+        'Purger tous les PNG d assets du cache ?'
+      )) return;
+      await projectManager?.purgeAssets?.().catch(() => null);
+      await updateCacheModal();
+    };
+    const purgeProjectMaps = async () => {
+      if (!confirmCacheAction(
+        'Purge all saved map/project data from Map Creator to Map Tester, while keeping cached assets?',
+        'Purger toutes les donnees map/projet de Map Creator a Map Tester, en gardant les assets en cache ?'
+      )) return;
+      currentMapProjectDocKey = null;
+      projectManager?.purgeStages?.(Object.keys(projectManager?.stages || {}), { resetProjectName: false });
+      refreshProjectMapOptions();
+      await updateCacheModal();
+    };
+    const purgeEntirePipeline = async () => {
+      if (!confirmCacheAction(
+        'Purge the entire pipeline cache from Map Creator to Map Tester, including cached assets and project name?',
+        'Tout purger de Map Creator a Map Tester, y compris les assets en cache et le nom du projet ?'
+      )) return;
+      currentMapProjectDocKey = null;
+      await projectManager?.purgePipeline?.({
+        clearStages: true,
+        clearAssets: true,
+        resetProjectName: true
+      }).catch(() => null);
+      refreshProjectMapOptions();
+      await updateCacheModal();
     };
 
     const openNewMapModal = () => {
@@ -6816,9 +7185,9 @@
         closeNewMapModal();
       }
     });
-    cachePurgeButton?.addEventListener('click', () => {
-      cacheClear().then(updateCacheModal);
-    });
+    cachePurgeAssetsButton?.addEventListener('click', purgeAssetCache);
+    cachePurgeMapsButton?.addEventListener('click', purgeProjectMaps);
+    cachePurgeAllButton?.addEventListener('click', purgeEntirePipeline);
   };
 
   const initWorldCreator = () => {
@@ -6872,7 +7241,7 @@
     const worldProjectImportFile = document.createElement('input');
     worldProjectImportFile.className = 'world-file-input';
     worldProjectImportFile.type = 'file';
-    worldProjectImportFile.accept = '.json';
+    worldProjectImportFile.accept = '.json,.zip';
     if (importControls && projectManager) {
       importControls.appendChild(worldProjectSyncButton);
     }
@@ -8418,7 +8787,7 @@
     const testerProjectImportFile = document.createElement('input');
     testerProjectImportFile.className = 'map-file-input';
     testerProjectImportFile.type = 'file';
-    testerProjectImportFile.accept = '.json';
+    testerProjectImportFile.accept = '.json,.zip';
     if (testerControls && projectManager) {
       testerControls.appendChild(testerLoadProjectButton);
       testerControls.appendChild(testerProjectExportButton);

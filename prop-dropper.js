@@ -149,7 +149,7 @@
     const projectImportFile = document.createElement('input');
     projectImportFile.className = 'map-file-input';
     projectImportFile.type = 'file';
-    projectImportFile.accept = '.json';
+    projectImportFile.accept = '.json,.zip';
     if (projectControls && projectManager) {
       projectControls.appendChild(projectExportButton);
       projectControls.appendChild(projectImportButton);
