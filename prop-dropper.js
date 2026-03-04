@@ -2294,7 +2294,9 @@
         if (!file) return;
         try {
           await projectManager?.importBundleFile(file);
-          await loadProjectState();
+          projectImportFile.value = '';
+          window.location.reload();
+          return;
         } catch (error) {
           // ignore invalid project bundles
         }

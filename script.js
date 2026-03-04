@@ -3808,6 +3808,7 @@
     }
     window.dispatchEvent(new CustomEvent('8bits-project-namechange', { detail: { name: project.name || '' } }));
     window.dispatchEvent(new CustomEvent('8bits-project-imported'));
+    broadcastSharedProjectReload('import-project');
     return true;
   };
   const downloadSharedProjectBundle = async (name = '8bits_project') => {
@@ -3864,6 +3865,7 @@
     }
     window.dispatchEvent(new CustomEvent('8bits-project-namechange', { detail: { name: project.name || '' } }));
     window.dispatchEvent(new CustomEvent('8bits-project-imported'));
+    broadcastSharedProjectReload('import-project');
     return true;
   };
   const importSharedProjectBundleFile = async (file) => {
@@ -8096,7 +8098,9 @@
       if (!file) return;
       try {
         await projectManager?.importBundleFile(file);
-        loadProjectMapState();
+        mapProjectImportFile.value = '';
+        window.location.reload();
+        return;
       } catch (error) {
         // ignore invalid project bundle
       }
@@ -9701,7 +9705,9 @@
       if (!file) return;
       try {
         await projectManager?.importBundleFile(file);
-        await loadProjectWorldState();
+        worldProjectImportFile.value = '';
+        window.location.reload();
+        return;
       } catch (error) {
         // ignore invalid project bundles
       }
@@ -10601,7 +10607,9 @@
       if (!file) return;
       try {
         await projectManager?.importBundleFile(file);
-        await loadProjectTesterState();
+        testerProjectImportFile.value = '';
+        window.location.reload();
+        return;
       } catch (error) {
         // ignore invalid project bundles
       }
