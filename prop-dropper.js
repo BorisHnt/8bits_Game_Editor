@@ -2072,6 +2072,7 @@
         mapNameInput.value = state.layout.name || '';
       }
       flushSave();
+      projectManager?.triggerReload?.('update-cache');
       updateBaseMapLabel();
     };
 

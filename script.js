@@ -4355,6 +4355,7 @@
     importBundle: importSharedProjectBundle,
     downloadBundle: downloadSharedProjectBundle,
     importBundleFile: importSharedProjectBundleFile,
+    triggerReload: broadcastSharedProjectReload,
     mergeMatchingMaps: mergeMatchingMapDocuments,
     mergeSelectedMaps: mergeSelectedMapDocuments,
     listUnifiedMaps: listUnifiedProjectMaps,
@@ -6684,6 +6685,7 @@
         mapNameInput.value = mapState.map.name || '';
       }
       flushMapSave();
+      projectManager?.triggerReload?.('update-cache');
       renderMapGrid();
     };
 
