@@ -3283,7 +3283,8 @@
   const getSharedProjectUpstreamPayload = (stage, lookupName = '') => {
     const upstreamStage = sharedProjectStages[stage]?.upstreamStage;
     if (!upstreamStage) return null;
-    return getSharedProjectDocument(upstreamStage, lookupName) || getSharedProjectActiveCache(upstreamStage);
+    const matchedDocument = getSharedProjectDocument(upstreamStage, lookupName);
+    return cloneProjectPayload(matchedDocument?.payload || matchedDocument) || getSharedProjectActiveCache(upstreamStage);
   };
   const openSharedProjectImageDb = () => new Promise((resolve, reject) => {
     if (!window.indexedDB) {
