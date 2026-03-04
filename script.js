@@ -9744,6 +9744,26 @@
       await resetWorldState();
       showWorldFlashMessage('world.cachePurged', 'Cache purged.');
     });
+    window.addEventListener('storage', async (event) => {
+      if (!event.key || !window.localStorage) return;
+      if (
+        event.key !== sharedProjectStorageKey
+        && event.key !== worldCacheKey
+        && event.key !== sharedProjectStages.worldCreator.storageKey
+        && event.key !== sharedProjectStages.mapTester.storageKey
+      ) {
+        return;
+      }
+      const hasWorldCache = Boolean(localStorage.getItem(worldCacheKey));
+      const hasWorldProjectState = Boolean(projectManager?.getStageActiveCache?.('worldCreator'));
+      const hasWorldDocs = Boolean((projectManager?.listStageDocuments?.('worldCreator') || []).length);
+      if (!hasWorldCache && !hasWorldProjectState && !hasWorldDocs) {
+        await resetWorldState();
+        showWorldFlashMessage('world.cachePurged', 'Cache purged.');
+        return;
+      }
+      await loadProjectWorldState();
+    });
   };
 
   const initTester = () => {
@@ -10879,6 +10899,29 @@
       if (!purgedStages.has('worldCreator') && !purgedStages.has('mapTester')) return;
       resetTesterState();
       showTesterFlashMessage('tester.cachePurged', 'Cache purged.');
+    });
+    window.addEventListener('storage', async (event) => {
+      if (!event.key || !window.localStorage) return;
+      if (
+        event.key !== sharedProjectStorageKey
+        && event.key !== testerCacheKey
+        && event.key !== sharedProjectStages.worldCreator.storageKey
+        && event.key !== sharedProjectStages.mapTester.storageKey
+      ) {
+        return;
+      }
+      const hasTesterCache = Boolean(localStorage.getItem(testerCacheKey));
+      const hasTesterProjectState = Boolean(projectManager?.getStageActiveCache?.('mapTester'));
+      const hasWorldProjectState = Boolean(projectManager?.getStageActiveCache?.('worldCreator'));
+      if (!hasTesterCache && !hasTesterProjectState && !hasWorldProjectState) {
+        resetTesterState();
+        showTesterFlashMessage('tester.cachePurged', 'Cache purged.');
+        return;
+      }
+      const loaded = await loadProjectTesterState();
+      if (!loaded) {
+        resetTesterState();
+      }
     });
 
     try {
