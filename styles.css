@@ -582,6 +582,12 @@ svg {
   color: #7fcf9a;
 }
 
+.tool-flash-message {
+  margin-top: 6px;
+  color: #7fcf9a;
+  font-size: 0.82rem;
+}
+
 
 .workspace-layout {
   display: grid;

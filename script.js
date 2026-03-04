@@ -246,6 +246,7 @@
       'world.previewEmpty': 'Import maps or worlds to see the world preview.',
       'world.mapName': 'Map name',
       'world.portals': 'Portals',
+      'world.cachePurged': 'Cache purged.',
       'world.file': 'File',
       'world.mapUp': 'Up',
       'world.mapDown': 'Down',
@@ -264,6 +265,7 @@
       'tester.mapLabel': 'Map',
       'tester.loaded': 'Loaded',
       'tester.loadedNone': 'None',
+      'tester.cachePurged': 'Cache purged.',
       'tester.zoom': 'Zoom',
       'tester.dirUp': 'Up',
       'tester.dirDown': 'Down',
@@ -691,6 +693,7 @@
       'world.previewEmpty': "Importez des maps ou des mondes pour voir l'apercu du monde.",
       'world.mapName': 'Nom de map',
       'world.portals': 'Portails',
+      'world.cachePurged': 'Cache purge.',
       'world.file': 'Fichier',
       'world.mapUp': 'Monter',
       'world.mapDown': 'Descendre',
@@ -709,6 +712,7 @@
       'tester.mapLabel': 'Map',
       'tester.loaded': 'Charge',
       'tester.loadedNone': 'Aucune',
+      'tester.cachePurged': 'Cache purge.',
       'tester.zoom': 'Zoom',
       'tester.dirUp': 'Haut',
       'tester.dirDown': 'Bas',
@@ -8078,6 +8082,7 @@
     const exportButton = qs('#world-export');
     const worldNameInput = qs('#world-name');
     const previewEmpty = qs('#world-preview-empty');
+    const worldFlashMessage = qs('#world-flash-message');
     const zoomRange = qs('#world-zoom');
     const zoomValue = qs('#world-zoom-value');
     const zoomReset = qs('#world-zoom-reset');
@@ -8134,8 +8139,20 @@
     };
     const worldCacheKey = '8bits-world-cache-state';
     let worldSaveTimer = null;
+    let worldFlashTimer = null;
 
     const getText = (key, fallback = '') => translations[currentLanguage]?.[key] ?? fallback;
+    const showWorldFlashMessage = (key, fallback) => {
+      if (!worldFlashMessage) return;
+      worldFlashMessage.textContent = getText(key, fallback);
+      worldFlashMessage.classList.remove('is-hidden');
+      if (worldFlashTimer) {
+        clearTimeout(worldFlashTimer);
+      }
+      worldFlashTimer = window.setTimeout(() => {
+        worldFlashMessage.classList.add('is-hidden');
+      }, 2200);
+    };
     const getMapName = (map) => map.name || map.fileName || `Map ${map.id}`;
     const sandboxConfig = {
       minWidth: 2800,
@@ -9672,6 +9689,7 @@
       const purgedStages = new Set(event?.detail?.stages || []);
       if (!purgedStages.has('worldCreator') && !purgedStages.has('mapTester')) return;
       await resetWorldState();
+      showWorldFlashMessage('world.cachePurged', 'Cache purged.');
     });
   };
 
@@ -9680,6 +9698,7 @@
     const positionValue = qs('#tester-position');
     const directionValue = qs('#tester-direction');
     const loadedValue = qs('#tester-loaded');
+    const testerFlashMessage = qs('#tester-flash-message');
     const resetButton = qs('#tester-reset');
     const importMapButton = qs('#tester-import-map');
     const importWorldButton = qs('#tester-import-world');
@@ -9784,6 +9803,7 @@
       currentIndex: -1
     };
     const testerCacheKey = '8bits-tester-cache-state';
+    let testerFlashTimer = null;
     const buildTesterCachePayload = () => ({
       version: 1,
       maps: mapState.maps.map((entry) => ({
@@ -9806,6 +9826,17 @@
         lookupName: payload.maps[payload.currentIndex]?.name || 'tester',
         displayName: 'Map Tester'
       });
+    };
+    const showTesterFlashMessage = (key, fallback) => {
+      if (!testerFlashMessage) return;
+      testerFlashMessage.textContent = translations[currentLanguage]?.[key] ?? fallback;
+      testerFlashMessage.classList.remove('is-hidden');
+      if (testerFlashTimer) {
+        clearTimeout(testerFlashTimer);
+      }
+      testerFlashTimer = window.setTimeout(() => {
+        testerFlashMessage.classList.add('is-hidden');
+      }, 2200);
     };
 
     const autoTileOrder = [
@@ -10794,6 +10825,7 @@
       const purgedStages = new Set(event?.detail?.stages || []);
       if (!purgedStages.has('worldCreator') && !purgedStages.has('mapTester')) return;
       resetTesterState();
+      showTesterFlashMessage('tester.cachePurged', 'Cache purged.');
     });
 
     try {
