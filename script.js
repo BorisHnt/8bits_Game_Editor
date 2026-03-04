@@ -53,6 +53,14 @@
       'philosophy.studio.body': 'Less pitch deck, more workbench. Open a tool, test a mechanic, place a tile, and see where it goes.',
       'philosophy.bilingual.title': 'Bilingual by Design',
       'philosophy.bilingual.body': 'Two voices, one workshop. English and French stay side by side so the project stays easy to share.',
+      'home.pixelTools.kicker': 'Pixel Art Playground',
+      'home.pixelTools.title': 'Sketch pixels, test loops, and iterate fast',
+      'home.pixelTools.body': 'Use the graphic tools like a toybox: try tiles, sprites, walls, and floors quickly, keep what works, throw away the rest.',
+      'home.pixelTools.openAll': 'Open all 4 pixel art tools',
+      'home.pipeline.kicker': 'Prototype Chain',
+      'home.pipeline.title': 'Build a map step by step, then test it',
+      'home.pipeline.body': 'Follow the full chain from raw layout to playable test map. Each tool adds one layer so experimentation stays organized.',
+      'home.pipeline.openAll': 'Open the full production chain',
       'callout.title': 'Start Small, Test Fast',
       'callout.text': 'Open a tool, make a rough asset, mock a map, and prototype a game idea just for the fun of it.',
       'callout.button': 'Open Graphic Assets Design',
@@ -502,6 +510,14 @@
       'philosophy.studio.body': "Moins de marketing, plus d'établi. Ouvre un outil, teste une mécanique, pose une tile, vois ce que ça donne.",
       'philosophy.bilingual.title': 'Bilingue par design',
       'philosophy.bilingual.body': "Deux voix, un seul atelier. L'anglais et le français restent côte à côte pour partager le projet facilement.",
+      'home.pixelTools.kicker': 'Terrain de jeu pixel art',
+      'home.pixelTools.title': 'Esquisser, boucler, tester vite',
+      'home.pixelTools.body': "Utilise les outils graphiques comme une toybox : teste tiles, sprites, murs et sols rapidement, garde ce qui marche, jette le reste.",
+      'home.pixelTools.openAll': 'Ouvrir les 4 outils pixel art',
+      'home.pipeline.kicker': 'Chaîne de prototype',
+      'home.pipeline.title': 'Construire une map étape par étape puis la tester',
+      'home.pipeline.body': "Suis toute la chaîne, du layout brut jusqu'à la map jouable. Chaque outil ajoute sa couche pour garder l'expérimentation propre.",
+      'home.pipeline.openAll': 'Ouvrir toute la chaîne de production',
       'callout.title': 'Commencer petit, tester vite',
       'callout.text': "Ouvre un outil, fais un asset brut, pose une map, et prototype une idée de jeu juste pour voir jusqu'où elle va.",
       'callout.button': "Ouvrir Design d'assets graphiques",
@@ -1778,6 +1794,36 @@
         pixelsContainer.appendChild(pixel);
       }
     }
+  };
+
+  const bindHomeQuickLaunch = () => {
+    const groups = {
+      'pixel-art': [
+        'graphic-assets-tiles.html',
+        'graphic-assets-sprite.html',
+        'graphic-assets-walls.html',
+        'graphic-assets-floor.html'
+      ],
+      'production-chain': [
+        'map-creator.html',
+        'prop-dropper.html',
+        'item-dropper.html',
+        'npc-dropper.html',
+        'world-creator.html',
+        'tester.html'
+      ]
+    };
+
+    qsa('[data-open-group]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const groupName = button.dataset.openGroup;
+        const urls = groups[groupName];
+        if (!Array.isArray(urls) || !urls.length) return;
+        urls.forEach((url) => {
+          window.open(url, '_blank', 'noopener');
+        });
+      });
+    });
   };
 
   const setActiveColor = (color) => {
@@ -11831,6 +11877,7 @@
 
     if (isHomePage) {
       createHeroAmbient();
+      bindHomeQuickLaunch();
     }
 
     if (isEditorPage) {

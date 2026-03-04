@@ -226,37 +226,6 @@
 
     <section class="content-section">
       <div class="section-heading">
-        <h2 class="section-title" data-i18n="section.toolchain.title">Toolchain / Chaîne de production</h2>
-        <p class="section-subtitle" data-i18n="section.toolchain.subtitle">A playful toolchain for testing ideas, building tiny worlds, and experimenting without pressure.</p>
-      </div>
-      <div class="modules-grid">
-        <article class="module-card">
-          <h3 class="module-title" data-i18n="module.pixel.title">Pixel Editor</h3>
-          <p data-i18n="module.pixel.body">Build sprites and tiles on a true 16x16 grid with controlled zoom, clean outlines, and instant previews.</p>
-          <span class="module-tag" data-i18n="module.pixel.tag">Core Editor</span>
-        </article>
-        <article class="module-card">
-          <h3 class="module-title" data-i18n="module.palette.title">Palette Engine</h3>
-          <p data-i18n="module.palette.body">Limited but powerful palettes. Fast swaps, active color focus, and export-ready color sheets.</p>
-          <span class="module-tag" data-i18n="module.palette.tag">Color Lab</span>
-        </article>
-        <article class="module-card">
-          <h3 class="module-title" data-i18n="module.tile.title">Tile Intelligence</h3>
-          <p data-i18n="module.tile.body">See how your textures repeat in real time. Build floors, walls, and world layers with clarity.</p>
-          <span class="module-tag" data-i18n="module.tile.tag">Preview Grid</span>
-        </article>
-        <article class="module-card">
-          <h3 class="module-title" data-i18n="module.future.title">Future Labs</h3>
-          <p data-i18n="module.future.body">Architecture prepared for new tools: animation frames, lighting passes, procedural brushes.</p>
-          <span class="module-tag" data-i18n="module.future.tag">In Progress</span>
-        </article>
-      </div>
-    </section>
-
-    <div class="separator-glitch" aria-hidden="true"></div>
-
-    <section class="content-section">
-      <div class="section-heading">
         <h2 class="section-title" data-i18n="section.philosophy.title">Workshop Philosophy</h2>
         <p class="section-subtitle" data-i18n="section.philosophy.subtitle">Built for fun, iteration, and low-pressure experimentation rather than polished production pipelines.</p>
       </div>
@@ -274,10 +243,51 @@
           <p data-i18n="philosophy.bilingual.body">Two voices, one lab. English and French coexist across the platform, tuned for global teams.</p>
         </div>
       </div>
-      <div class="callout-panel">
-        <p class="callout-title" data-i18n="callout.title">Next Surface: Graphic Assets Design</p>
-        <p class="callout-text" data-i18n="callout.text">Open the editor to build sprite systems, refine tile loops, and export ready PNGs.</p>
-        <a class="button-primary" href="graphic-assets-tiles.html" data-i18n="callout.button">Open Graphic Assets Design</a>
+      <div class="home-workflow-stack">
+        <section class="home-workflow-card">
+          <div class="home-workflow-header">
+            <div>
+              <p class="home-workflow-kicker" data-i18n="home.pixelTools.kicker">Pixel Art Playground</p>
+              <h3 class="home-workflow-title" data-i18n="home.pixelTools.title">Sketch pixels, test loops, and iterate fast</h3>
+            </div>
+            <p class="home-workflow-text" data-i18n="home.pixelTools.body">Use the graphic tools like a toybox: try tiles, sprites, walls, and floors quickly, keep what works, throw away the rest.</p>
+          </div>
+          <div class="home-workflow-links">
+            <a class="home-workflow-link" href="graphic-assets-tiles.html" data-i18n="nav.tiles">Tiles Designer</a>
+            <a class="home-workflow-link" href="graphic-assets-sprite.html" data-i18n="nav.sprite">Sprite Designer</a>
+            <a class="home-workflow-link" href="graphic-assets-walls.html" data-i18n="nav.walls">Walls Designer</a>
+            <a class="home-workflow-link" href="graphic-assets-floor.html" data-i18n="nav.floor">Floor Designer</a>
+          </div>
+          <div class="home-workflow-actions">
+            <button class="button-primary" type="button" data-open-group="pixel-art" data-i18n="home.pixelTools.openAll">Open all 4 pixel art tools</button>
+          </div>
+        </section>
+
+        <section class="home-workflow-card">
+          <div class="home-workflow-header">
+            <div>
+              <p class="home-workflow-kicker" data-i18n="home.pipeline.kicker">Prototype Chain</p>
+              <h3 class="home-workflow-title" data-i18n="home.pipeline.title">Build a map step by step, then test it</h3>
+            </div>
+            <p class="home-workflow-text" data-i18n="home.pipeline.body">Follow the full chain from raw layout to playable test map. Each tool adds one layer so experimentation stays organized.</p>
+          </div>
+          <div class="home-workflow-links home-workflow-links-chain">
+            <a class="home-workflow-link" href="map-creator.html" data-i18n="nav.map">Map Creator</a>
+            <span class="home-workflow-arrow" aria-hidden="true">→</span>
+            <a class="home-workflow-link" href="prop-dropper.html" data-i18n="nav.items">Prop Dropper</a>
+            <span class="home-workflow-arrow" aria-hidden="true">→</span>
+            <a class="home-workflow-link" href="item-dropper.html" data-i18n="nav.itemdropper">Item Dropper</a>
+            <span class="home-workflow-arrow" aria-hidden="true">→</span>
+            <a class="home-workflow-link" href="npc-dropper.html" data-i18n="nav.npcdropper">NPC Dropper</a>
+            <span class="home-workflow-arrow" aria-hidden="true">→</span>
+            <a class="home-workflow-link" href="world-creator.html" data-i18n="nav.world">World Creator</a>
+            <span class="home-workflow-arrow" aria-hidden="true">→</span>
+            <a class="home-workflow-link" href="tester.html" data-i18n="nav.tester">Map Tester</a>
+          </div>
+          <div class="home-workflow-actions">
+            <button class="button-primary" type="button" data-open-group="production-chain" data-i18n="home.pipeline.openAll">Open the full production chain</button>
+          </div>
+        </section>
       </div>
     </section>
   </main>
