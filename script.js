@@ -9685,6 +9685,41 @@
       const currentByLookup = new Map(
         worldState.maps.map((entry) => [normalizeProjectLookupName(entry.payload?.map?.name || entry.name || ''), entry])
       );
+      const resolveWorldProjectPayload = (doc) => {
+        const docsByStage = doc?.docsByStage || {};
+        const baseCandidates = ['propDropper', 'mapCreator']
+          .map((stage) => docsByStage[stage])
+          .filter((entry) => entry?.payload?.map);
+        const visualCandidates = ['npcDropper', 'itemDropper', 'propDropper', 'mapCreator']
+          .map((stage) => docsByStage[stage])
+          .filter((entry) => entry?.payload?.map);
+        const sortByUpdatedAtDesc = (left, right) => (
+          (Date.parse(right?.updatedAt || '') || 0) - (Date.parse(left?.updatedAt || '') || 0)
+        );
+        const baseSource = [...baseCandidates].sort(sortByUpdatedAtDesc)[0]
+          || visualCandidates[0]
+          || null;
+        const visualSource = visualCandidates[0] || baseSource;
+        if (!baseSource?.payload?.map) {
+          return cloneProjectPayload(doc?.preferredPayload || null);
+        }
+        const canonicalBase = buildCanonicalBaseMapPayload(
+          baseSource.payload,
+          baseSource.lookupName || baseSource.displayName || doc?.lookupName || doc?.displayName || '',
+          doc?.mapId || getPayloadMapId(baseSource.payload) || ''
+        );
+        if (!canonicalBase) {
+          return cloneProjectPayload(visualSource?.payload || doc?.preferredPayload || null);
+        }
+        if (!visualSource?.payload?.map) {
+          return canonicalBase;
+        }
+        return mergeBaseMapIntoStagePayload(
+          canonicalBase,
+          visualSource.payload,
+          visualSource.lookupName || visualSource.displayName || doc?.lookupName || doc?.displayName || ''
+        );
+      };
       const payload = {
         version: 1,
         name: worldState.name || 'world',
@@ -9693,11 +9728,12 @@
         maps: maps.map((doc, index) => {
           const lookupName = doc.lookupName || doc.displayName || `Map ${index + 1}`;
           const previous = currentByLookup.get(normalizeProjectLookupName(lookupName));
+          const mergedPayload = resolveWorldProjectPayload(doc);
           return {
             id: doc.preferredDocKey || doc.mapId || `project-map-${index + 1}`,
             name: doc.displayName || lookupName,
             fileName: previous?.fileName || '',
-            payload: doc.preferredPayload,
+            payload: mergedPayload,
             position: previous?.position
           };
         }),
