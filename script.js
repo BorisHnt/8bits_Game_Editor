@@ -1819,9 +1819,16 @@
         const groupName = button.dataset.openGroup;
         const urls = groups[groupName];
         if (!Array.isArray(urls) || !urls.length) return;
-        urls.forEach((url) => {
-          window.open(url, '_blank', 'noopener');
-        });
+        let index = 0;
+        const openNext = () => {
+          if (index >= urls.length) return;
+          window.open(urls[index], '_blank', 'noopener');
+          index += 1;
+          if (index < urls.length) {
+            window.setTimeout(openNext, 140);
+          }
+        };
+        openNext();
       });
     });
   };

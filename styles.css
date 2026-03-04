@@ -512,7 +512,9 @@ svg {
 
 .home-workflow-stack {
   display: grid;
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
   gap: 20px;
+  align-items: stretch;
 }
 
 .home-workflow-card {
@@ -584,6 +586,17 @@ svg {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.home-workflow-tool-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.home-workflow-tool-button {
+  text-decoration: none;
+  justify-content: center;
 }
 
 .separator-glitch {
@@ -2905,12 +2918,20 @@ svg {
     padding: 20px;
   }
 
+  .home-workflow-stack {
+    grid-template-columns: 1fr;
+  }
+
   .home-workflow-links-chain {
     align-items: flex-start;
   }
 
   .home-workflow-arrow {
     display: none;
+  }
+
+  .home-workflow-tool-buttons {
+    grid-template-columns: 1fr;
   }
 
   .map-name-edit-row {
