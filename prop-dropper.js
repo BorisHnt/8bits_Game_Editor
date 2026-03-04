@@ -583,6 +583,19 @@
       }
       return resized;
     };
+    const remapMarkerCells = (sourceMarkers, sourceWidth, sourceHeight, targetWidth, targetHeight) => {
+      const resized = Array.from({ length: targetWidth * targetHeight }, () => null);
+      const copyWidth = Math.min(sourceWidth, targetWidth);
+      const copyHeight = Math.min(sourceHeight, targetHeight);
+      for (let row = 0; row < copyHeight; row += 1) {
+        for (let col = 0; col < copyWidth; col += 1) {
+          const prevIndex = row * sourceWidth + col;
+          const nextIndex = row * targetWidth + col;
+          resized[nextIndex] = sourceMarkers[prevIndex] || null;
+        }
+      }
+      return resized;
+    };
 
     const buildSnapshot = () => ({
       assets: state.assets.map(cloneItemAsset),
@@ -1856,6 +1869,7 @@
       const previousWidth = state.layout.width;
       const previousHeight = state.layout.height;
       const previousCells = state.layout.cells.map(cloneItemCell);
+      const previousMarkers = state.baseMap.map.markers.slice();
       const normalized = normalizeImportedBaseMap(payload, fileName);
       state.baseMap = normalized;
       state.layout.width = normalized.map.width;
@@ -1865,6 +1879,14 @@
         state.layout.cells = Array.from({ length: state.layout.width * state.layout.height }, () => null);
       } else {
         state.layout.cells = remapLayoutCells(previousCells, previousWidth, previousHeight, state.layout.width, state.layout.height);
+        const remappedMarkers = remapMarkerCells(
+          previousMarkers,
+          previousWidth,
+          previousHeight,
+          state.layout.width,
+          state.layout.height
+        );
+        state.baseMap.map.markers = state.baseMap.map.markers.map((marker, index) => remappedMarkers[index] || marker || null);
       }
       ensureCells();
       if (!state.layout.name) {

@@ -4037,6 +4037,24 @@
     const normalizedBase = normalizeCompactMapPayload(basePayload);
     const normalizedStage = normalizeCompactMapPayload(stagePayload);
     if (!normalizedBase?.map || !normalizedStage?.map) return normalizedStage || stagePayload;
+    const baseWidth = clamp(Number.parseInt(normalizedBase.map.width, 10) || 0, 0, 9999);
+    const baseHeight = clamp(Number.parseInt(normalizedBase.map.height, 10) || 0, 0, 9999);
+    const stageWidth = clamp(Number.parseInt(normalizedStage.map.width, 10) || 0, 0, 9999);
+    const stageHeight = clamp(Number.parseInt(normalizedStage.map.height, 10) || 0, 0, 9999);
+    const mergedMarkers = Array.from({ length: baseWidth * baseHeight }, (_, index) => (
+      isPortalMarkerValue(normalizedBase.map.markers?.[index]) ? 'portal' : null
+    ));
+    const copyWidth = Math.min(baseWidth, stageWidth);
+    const copyHeight = Math.min(baseHeight, stageHeight);
+    for (let row = 0; row < copyHeight; row += 1) {
+      for (let col = 0; col < copyWidth; col += 1) {
+        const stageIndex = row * stageWidth + col;
+        const baseIndex = row * baseWidth + col;
+        if (isPortalMarkerValue(normalizedStage.map.markers?.[stageIndex])) {
+          mergedMarkers[baseIndex] = 'portal';
+        }
+      }
+    }
     const merged = {
       ...cloneProjectPayload(normalizedStage),
       version: Math.max(Number.parseInt(normalizedBase.version, 10) || 1, Number.parseInt(normalizedStage.version, 10) || 1),
@@ -4044,6 +4062,7 @@
       assets: cloneProjectPayload(normalizedBase.assets) || [],
       map: {
         ...cloneProjectPayload(normalizedBase.map),
+        markers: mergedMarkers,
         name: normalizedBase.map.name || normalizedStage.map.name || normalizedStage.name || fallbackName || ''
       }
     };
