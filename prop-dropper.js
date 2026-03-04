@@ -130,6 +130,29 @@
     const maskSubtitle = qs('#item-mask-subtitle');
 
     if (!assetList || !assetGrid || !mapGrid) return;
+    const projectManager = window.EightBitsProjectManager || null;
+    const projectLabels = projectManager?.getLabels?.() || {
+      exportProject: 'Export Project',
+      importProject: 'Import Project'
+    };
+    const projectControls = exportButton?.parentElement || null;
+    const projectExportButton = document.createElement('button');
+    projectExportButton.type = 'button';
+    projectExportButton.className = 'button-secondary';
+    projectExportButton.textContent = projectLabels.exportProject;
+    const projectImportButton = document.createElement('button');
+    projectImportButton.type = 'button';
+    projectImportButton.className = 'button-secondary';
+    projectImportButton.textContent = projectLabels.importProject;
+    const projectImportFile = document.createElement('input');
+    projectImportFile.className = 'map-file-input';
+    projectImportFile.type = 'file';
+    projectImportFile.accept = '.json';
+    if (projectControls && projectManager) {
+      projectControls.appendChild(projectExportButton);
+      projectControls.appendChild(projectImportButton);
+      projectControls.appendChild(projectImportFile);
+    }
 
     const itemCacheKey = '8bits-item-cache-state';
     const cacheDbName = '8bits-map-cache';
@@ -624,11 +647,16 @@
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = window.setTimeout(() => {
         saveTimer = null;
+        const payload = buildExportPayload();
         try {
-          localStorage.setItem(itemCacheKey, JSON.stringify(buildExportPayload()));
+          localStorage.setItem(itemCacheKey, JSON.stringify(payload));
         } catch (error) {
           // ignore storage errors
         }
+        projectManager?.publishStageDocument('propDropper', payload, {
+          lookupName: payload?.map?.name || payload?.name || 'prop_map',
+          displayName: payload?.name || payload?.map?.name || 'Prop Dropper'
+        });
       }, 200);
     };
 
@@ -1774,6 +1802,13 @@
       };
       reader.readAsText(file);
     };
+    const refreshBaseMapFromProject = async () => {
+      const payload = projectManager?.getUpstreamPayload('propDropper', state.baseMap.map.name || state.layout.name || '');
+      if (!payload?.map || !Array.isArray(payload?.assets)) return false;
+      pushHistorySnapshot();
+      await applyBaseMapPayload(payload, payload?.sourceFile || '', { clearItems: false });
+      return true;
+    };
 
     const applyItemPayload = async (payload, fileName = '') => {
       await applyBaseMapPayload(payload, fileName || payload?.sourceFile || '', { clearItems: true });
@@ -1859,6 +1894,19 @@
       } catch (error) {
         return false;
       }
+    };
+    const loadProjectState = async () => {
+      const payload = projectManager?.getStageActiveCache('propDropper');
+      if (!payload) return false;
+      if (payload?.itemLayer && Array.isArray(payload?.itemAssets) && payload?.map && Array.isArray(payload?.assets)) {
+        await applyItemPayload(payload, payload?.sourceFile || '');
+        return true;
+      }
+      if (payload?.map && Array.isArray(payload?.assets)) {
+        await applyBaseMapPayload(payload, payload?.sourceFile || '', { clearItems: true });
+        return true;
+      }
+      return false;
     };
 
     const exportJson = () => {
@@ -2059,13 +2107,31 @@
       undoButton?.addEventListener('click', undoHistory);
       redoButton?.addEventListener('click', redoHistory);
       exportButton?.addEventListener('click', exportJson);
+      projectExportButton?.addEventListener('click', () => {
+        projectManager?.downloadBundle(state.layout.name || state.baseMap.map.name || '8bits_project');
+      });
+      projectImportButton?.addEventListener('click', () => projectImportFile.click());
+      projectImportFile.addEventListener('change', async () => {
+        const file = projectImportFile.files?.[0];
+        if (!file) return;
+        try {
+          await projectManager?.importBundleFile(file);
+          await loadProjectState();
+        } catch (error) {
+          // ignore invalid project bundles
+        }
+        projectImportFile.value = '';
+      });
       importButton?.addEventListener('click', () => importFile?.click());
       importFile?.addEventListener('change', () => {
         const file = importFile.files?.[0];
         if (file) importJson(file);
         importFile.value = '';
       });
-      refreshBaseMapButton?.addEventListener('click', () => refreshBaseMapFile?.click());
+      refreshBaseMapButton?.addEventListener('click', async () => {
+        const refreshed = await refreshBaseMapFromProject();
+        if (!refreshed) refreshBaseMapFile?.click();
+      });
       refreshBaseMapFile?.addEventListener('change', () => {
         const file = refreshBaseMapFile.files?.[0];
         if (file) refreshBaseMap(file);
@@ -2201,6 +2267,11 @@
       renderAssetList();
       renderAssetGrid();
       renderMaskEditor();
+      if (projectManager) {
+        const labels = projectManager.getLabels();
+        projectExportButton.textContent = labels.exportProject;
+        projectImportButton.textContent = labels.importProject;
+      }
     });
 
     bindGrid();
@@ -2213,8 +2284,9 @@
     updateInteractionControls();
     updateUndoRedoButtons();
 
-    loadCachedState().then((loaded) => {
-      if (!loaded && !state.assets.length) {
+    loadCachedState().then(async (loaded) => {
+      const resolved = loaded || await loadProjectState();
+      if (!resolved && !state.assets.length) {
         createAsset();
         renderAssetList();
         renderAssetGrid();

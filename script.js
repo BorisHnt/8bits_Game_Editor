@@ -3036,6 +3036,315 @@
   const getExportName = () => (qs('#export-name')?.value || '').trim() || 'export';
   const getExportFilename = (extension) => `${sanitizeFilename(getExportName())}.${extension}`;
 
+  const sharedProjectStorageKey = '8bits-shared-project-v1';
+  const sharedProjectBundleType = '8bits-project-bundle';
+  const sharedProjectImageDbName = '8bits-map-cache';
+  const sharedProjectImageStoreName = 'images';
+  const sharedProjectStages = {
+    mapCreator: { storageKey: '8bits-map-cache-state', upstreamStage: null },
+    propDropper: { storageKey: '8bits-item-cache-state', upstreamStage: 'mapCreator' },
+    itemDropper: { storageKey: '8bits-game-item-cache-state', upstreamStage: 'propDropper' },
+    npcDropper: { storageKey: '8bits-npc-cache-state', upstreamStage: 'itemDropper' },
+    worldCreator: { storageKey: '8bits-world-cache-state', upstreamStage: 'npcDropper' },
+    mapTester: { storageKey: '8bits-tester-cache-state', upstreamStage: 'worldCreator' }
+  };
+
+  const normalizeProjectLookupName = (value) => sanitizeFilename(String(value || 'untitled').trim()).toLowerCase();
+  const cloneProjectPayload = (payload) => {
+    if (payload == null) return null;
+    try {
+      return JSON.parse(JSON.stringify(payload));
+    } catch (error) {
+      return null;
+    }
+  };
+  const getDefaultSharedProject = () => ({
+    type: sharedProjectBundleType,
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    stages: {},
+    activeCaches: {}
+  });
+  const ensureSharedProjectShape = (rawProject) => {
+    const project = rawProject && typeof rawProject === 'object'
+      ? {
+        type: rawProject.type || sharedProjectBundleType,
+        version: Number.parseInt(rawProject.version, 10) || 1,
+        updatedAt: rawProject.updatedAt || new Date().toISOString(),
+        stages: rawProject.stages && typeof rawProject.stages === 'object' ? rawProject.stages : {},
+        activeCaches: rawProject.activeCaches && typeof rawProject.activeCaches === 'object' ? rawProject.activeCaches : {}
+      }
+      : getDefaultSharedProject();
+    Object.keys(sharedProjectStages).forEach((stage) => {
+      const stageData = project.stages[stage];
+      project.stages[stage] = {
+        activeDocKey: stageData?.activeDocKey || null,
+        documents: stageData?.documents && typeof stageData.documents === 'object' ? stageData.documents : {}
+      };
+      if (!(stage in project.activeCaches)) {
+        project.activeCaches[stage] = null;
+      }
+    });
+    return project;
+  };
+  const readSharedProject = () => {
+    if (!window.localStorage) return ensureSharedProjectShape(null);
+    try {
+      const raw = localStorage.getItem(sharedProjectStorageKey);
+      if (!raw) return ensureSharedProjectShape(null);
+      return ensureSharedProjectShape(JSON.parse(raw));
+    } catch (error) {
+      return ensureSharedProjectShape(null);
+    }
+  };
+  const writeSharedProject = (project) => {
+    if (!window.localStorage) return;
+    const normalized = ensureSharedProjectShape(project);
+    normalized.updatedAt = new Date().toISOString();
+    try {
+      localStorage.setItem(sharedProjectStorageKey, JSON.stringify(normalized));
+    } catch (error) {
+      // ignore storage errors
+    }
+  };
+  const resolveProjectDocNames = (payload, options = {}) => {
+    const lookupCandidates = [
+      options.lookupName,
+      payload?.map?.name,
+      payload?.world?.name,
+      payload?.itemLayer?.name,
+      payload?.npcLayer?.name,
+      payload?.name
+    ];
+    const displayCandidates = [
+      options.displayName,
+      payload?.name,
+      payload?.itemLayer?.name,
+      payload?.npcLayer?.name,
+      payload?.map?.name,
+      payload?.world?.name,
+      options.lookupName
+    ];
+    const lookupName = String(lookupCandidates.find((value) => String(value || '').trim()) || 'untitled').trim();
+    const displayName = String(displayCandidates.find((value) => String(value || '').trim()) || lookupName).trim();
+    return {
+      lookupName,
+      displayName,
+      normalizedLookupName: normalizeProjectLookupName(lookupName)
+    };
+  };
+  const publishSharedProjectDocument = (stage, payload, options = {}) => {
+    if (!sharedProjectStages[stage] || !payload) return null;
+    const project = readSharedProject();
+    const stageData = project.stages[stage];
+    const names = resolveProjectDocNames(payload, options);
+    const existingEntry = Object.values(stageData.documents).find((entry) => entry?.normalizedLookupName === names.normalizedLookupName);
+    const docKey = options.docKey || existingEntry?.docKey || `${stage}:${names.normalizedLookupName}`;
+    stageData.documents[docKey] = {
+      docKey,
+      lookupName: names.lookupName,
+      displayName: names.displayName,
+      normalizedLookupName: names.normalizedLookupName,
+      updatedAt: new Date().toISOString(),
+      payload: cloneProjectPayload(payload)
+    };
+    if (options.setActive !== false) {
+      stageData.activeDocKey = docKey;
+      project.activeCaches[stage] = cloneProjectPayload(payload);
+    }
+    writeSharedProject(project);
+    return cloneProjectPayload(stageData.documents[docKey]);
+  };
+  const listSharedProjectDocuments = (stage) => {
+    if (!sharedProjectStages[stage]) return [];
+    const project = readSharedProject();
+    return Object.values(project.stages[stage].documents || {})
+      .filter((entry) => entry?.payload)
+      .sort((a, b) => String(a.displayName || a.lookupName || '').localeCompare(String(b.displayName || b.lookupName || '')));
+  };
+  const getSharedProjectDocument = (stage, lookupName = '') => {
+    if (!sharedProjectStages[stage]) return null;
+    const project = readSharedProject();
+    const stageData = project.stages[stage];
+    if (!lookupName) {
+      const active = stageData.activeDocKey ? stageData.documents[stageData.activeDocKey] : null;
+      return active?.payload ? cloneProjectPayload(active) : null;
+    }
+    const normalizedLookupName = normalizeProjectLookupName(lookupName);
+    const exact = Object.values(stageData.documents || {}).find((entry) => entry?.normalizedLookupName === normalizedLookupName);
+    return exact?.payload ? cloneProjectPayload(exact) : null;
+  };
+  const getSharedProjectActiveCache = (stage) => {
+    if (!sharedProjectStages[stage]) return null;
+    const project = readSharedProject();
+    return cloneProjectPayload(project.activeCaches?.[stage] || null);
+  };
+  const setSharedProjectActiveCache = (stage, payload) => {
+    if (!sharedProjectStages[stage]) return;
+    const project = readSharedProject();
+    project.activeCaches[stage] = cloneProjectPayload(payload);
+    writeSharedProject(project);
+  };
+  const getSharedProjectUpstreamPayload = (stage, lookupName = '') => {
+    const upstreamStage = sharedProjectStages[stage]?.upstreamStage;
+    if (!upstreamStage) return null;
+    return getSharedProjectDocument(upstreamStage, lookupName) || getSharedProjectActiveCache(upstreamStage);
+  };
+  const openSharedProjectImageDb = () => new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error('IndexedDB not supported'));
+      return;
+    }
+    const request = indexedDB.open(sharedProjectImageDbName, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(sharedProjectImageStoreName)) {
+        const store = db.createObjectStore(sharedProjectImageStoreName, { keyPath: 'key' });
+        store.createIndex('name', 'name', { unique: false });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+  const listSharedProjectImages = () => openSharedProjectImageDb().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(sharedProjectImageStoreName, 'readonly');
+    const store = tx.objectStore(sharedProjectImageStoreName);
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  }));
+  const putSharedProjectImage = (entry) => openSharedProjectImageDb().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(sharedProjectImageStoreName, 'readwrite');
+    const store = tx.objectStore(sharedProjectImageStoreName);
+    const req = store.put(entry);
+    req.onsuccess = () => resolve(true);
+    req.onerror = () => reject(req.error);
+  }));
+  const blobToDataUrl = (blob) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+  const dataUrlToBlob = async (dataUrl) => {
+    const response = await fetch(dataUrl);
+    return response.blob();
+  };
+  const exportSharedProjectBundle = async () => {
+    const project = readSharedProject();
+    const stageCaches = {};
+    if (window.localStorage) {
+      Object.entries(sharedProjectStages).forEach(([stage, config]) => {
+        try {
+          const raw = localStorage.getItem(config.storageKey);
+          stageCaches[stage] = raw ? JSON.parse(raw) : null;
+        } catch (error) {
+          stageCaches[stage] = null;
+        }
+      });
+    }
+    const imageEntries = await listSharedProjectImages().catch(() => []);
+    const images = await Promise.all(imageEntries.map(async (entry) => ({
+      key: entry.key,
+      name: entry.name || '',
+      size: entry.size || (entry.blob?.size || 0),
+      type: entry.type || entry.blob?.type || 'application/octet-stream',
+      lastModified: entry.lastModified || 0,
+      createdAt: entry.createdAt || null,
+      dataUrl: entry.blob ? await blobToDataUrl(entry.blob) : ''
+    })));
+    return {
+      type: sharedProjectBundleType,
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      project,
+      stageCaches,
+      images
+    };
+  };
+  const importSharedProjectBundle = async (bundlePayload) => {
+    if (!bundlePayload || bundlePayload.type !== sharedProjectBundleType) {
+      throw new Error('Invalid project bundle');
+    }
+    const project = ensureSharedProjectShape(bundlePayload.project);
+    writeSharedProject(project);
+    if (window.localStorage) {
+      Object.entries(sharedProjectStages).forEach(([stage, config]) => {
+        const payload = bundlePayload.stageCaches?.[stage] ?? project.activeCaches?.[stage] ?? null;
+        if (payload == null) return;
+        try {
+          localStorage.setItem(config.storageKey, JSON.stringify(payload));
+        } catch (error) {
+          // ignore storage errors
+        }
+      });
+    }
+    const images = Array.isArray(bundlePayload.images) ? bundlePayload.images : [];
+    for (let index = 0; index < images.length; index += 1) {
+      const imageEntry = images[index];
+      if (!imageEntry?.key || !imageEntry?.dataUrl) continue;
+      const blob = await dataUrlToBlob(imageEntry.dataUrl);
+      await putSharedProjectImage({
+        key: imageEntry.key,
+        name: imageEntry.name || '',
+        size: imageEntry.size || blob.size,
+        type: imageEntry.type || blob.type || 'application/octet-stream',
+        lastModified: imageEntry.lastModified || 0,
+        createdAt: imageEntry.createdAt || null,
+        blob
+      }).catch(() => null);
+    }
+    window.dispatchEvent(new CustomEvent('8bits-project-imported'));
+    return true;
+  };
+  const downloadSharedProjectBundle = async (name = '8bits_project') => {
+    const bundle = await exportSharedProjectBundle();
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${sanitizeFilename(name)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    return true;
+  };
+  const importSharedProjectBundleFile = async (file) => {
+    if (!file) return false;
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    await importSharedProjectBundle(payload);
+    return true;
+  };
+  const getProjectButtonLabels = () => (document.documentElement.lang === 'fr'
+    ? {
+      exportProject: 'Exporter projet',
+      importProject: 'Importer projet',
+      syncProject: 'Projet',
+      loadProject: 'Charger projet'
+    }
+    : {
+      exportProject: 'Export Project',
+      importProject: 'Import Project',
+      syncProject: 'Project',
+      loadProject: 'Load Project'
+    });
+  window.EightBitsProjectManager = {
+    stages: sharedProjectStages,
+    readProject: readSharedProject,
+    writeProject: writeSharedProject,
+    publishStageDocument: publishSharedProjectDocument,
+    listStageDocuments: listSharedProjectDocuments,
+    getStageDocument: getSharedProjectDocument,
+    getStageActiveCache: getSharedProjectActiveCache,
+    setStageActiveCache: setSharedProjectActiveCache,
+    getUpstreamPayload: getSharedProjectUpstreamPayload,
+    exportBundle: exportSharedProjectBundle,
+    importBundle: importSharedProjectBundle,
+    downloadBundle: downloadSharedProjectBundle,
+    importBundleFile: importSharedProjectBundleFile,
+    getLabels: getProjectButtonLabels
+  };
+
   const normalizePixels = (pixels, width, height) => {
     const size = width * height;
     if (!Array.isArray(pixels)) {
@@ -3963,6 +4272,29 @@
     const mapNewExportButton = qs('#map-new-export');
 
     if (!assetList || !assetGrid || !mapGrid) return;
+    const projectManager = window.EightBitsProjectManager || null;
+    const projectLabels = projectManager?.getLabels?.() || {
+      exportProject: 'Export Project',
+      importProject: 'Import Project'
+    };
+    const mapDataControls = mapExportButton?.parentElement || null;
+    const mapProjectImportFile = document.createElement('input');
+    mapProjectImportFile.className = 'map-file-input';
+    mapProjectImportFile.type = 'file';
+    mapProjectImportFile.accept = '.json';
+    const mapProjectExportButton = document.createElement('button');
+    mapProjectExportButton.className = 'button-secondary';
+    mapProjectExportButton.type = 'button';
+    mapProjectExportButton.textContent = projectLabels.exportProject;
+    const mapProjectImportButton = document.createElement('button');
+    mapProjectImportButton.className = 'button-secondary';
+    mapProjectImportButton.type = 'button';
+    mapProjectImportButton.textContent = projectLabels.importProject;
+    if (mapDataControls && projectManager) {
+      mapDataControls.appendChild(mapProjectExportButton);
+      mapDataControls.appendChild(mapProjectImportButton);
+      mapDataControls.appendChild(mapProjectImportFile);
+    }
 
     const mapState = {
       assets: [],
@@ -4582,11 +4914,16 @@
         clearTimeout(mapSaveTimer);
       }
       mapSaveTimer = setTimeout(() => {
+        const payload = buildMapPayload();
         try {
-          localStorage.setItem(mapCacheKey, JSON.stringify(buildMapPayload()));
+          localStorage.setItem(mapCacheKey, JSON.stringify(payload));
         } catch (error) {
           // ignore storage errors
         }
+        projectManager?.publishStageDocument('mapCreator', payload, {
+          lookupName: payload?.map?.name || payload?.name || 'map',
+          displayName: payload?.map?.name || payload?.name || 'Map'
+        });
       }, 200);
     };
 
@@ -4601,6 +4938,12 @@
       } catch (error) {
         return false;
       }
+    };
+    const loadProjectMapState = () => {
+      const payload = projectManager?.getStageActiveCache('mapCreator');
+      if (!payload) return false;
+      applyMapPayload(payload);
+      return true;
     };
 
     const shiftMap = (dx, dy) => {
@@ -5849,9 +6192,14 @@
       if (cacheModal && !cacheModal.classList.contains('is-hidden')) {
         updateCacheModal();
       }
+      if (projectManager) {
+        const labels = projectManager.getLabels();
+        mapProjectExportButton.textContent = labels.exportProject;
+        mapProjectImportButton.textContent = labels.importProject;
+      }
     });
 
-    const cacheLoaded = loadCachedMapState();
+    const cacheLoaded = loadCachedMapState() || loadProjectMapState();
     if (!cacheLoaded && !mapState.assets.length) {
       createAsset();
       scheduleMapSave();
@@ -5941,6 +6289,23 @@
     });
 
     mapExportButton?.addEventListener('click', exportMapJson);
+    mapProjectExportButton?.addEventListener('click', () => {
+      projectManager?.downloadBundle(mapState.map.name || '8bits_project');
+    });
+    mapProjectImportButton?.addEventListener('click', () => {
+      mapProjectImportFile.click();
+    });
+    mapProjectImportFile.addEventListener('change', async () => {
+      const file = mapProjectImportFile.files?.[0];
+      if (!file) return;
+      try {
+        await projectManager?.importBundleFile(file);
+        loadProjectMapState();
+      } catch (error) {
+        // ignore invalid project bundle
+      }
+      mapProjectImportFile.value = '';
+    });
     mapImportButton?.addEventListener('click', () => mapImportFile?.click());
     mapNewButton?.addEventListener('click', openNewMapModal);
     mapImportFile?.addEventListener('change', () => {
@@ -6004,6 +6369,38 @@
     const sandboxViewport = qs('#world-sandbox-viewport');
 
     if (!mapList || !fromMapSelect || !fromPortalSelect || !toMapSelect || !toPortalSelect || !connectionList || !assetList || !previewEmpty || !sandbox || !sandboxContent || !sandboxLinks || !sandboxNodes || !sandboxViewport) return;
+    const projectManager = window.EightBitsProjectManager || null;
+    const projectLabels = projectManager?.getLabels?.() || {
+      exportProject: 'Export Project',
+      importProject: 'Import Project',
+      syncProject: 'Project'
+    };
+    const importControls = importButton?.parentElement || null;
+    const exportControls = exportButton?.parentElement || null;
+    const worldProjectSyncButton = document.createElement('button');
+    worldProjectSyncButton.type = 'button';
+    worldProjectSyncButton.className = 'button-secondary';
+    worldProjectSyncButton.textContent = projectLabels.syncProject;
+    const worldProjectExportButton = document.createElement('button');
+    worldProjectExportButton.type = 'button';
+    worldProjectExportButton.className = 'button-secondary';
+    worldProjectExportButton.textContent = projectLabels.exportProject;
+    const worldProjectImportButton = document.createElement('button');
+    worldProjectImportButton.type = 'button';
+    worldProjectImportButton.className = 'button-secondary';
+    worldProjectImportButton.textContent = projectLabels.importProject;
+    const worldProjectImportFile = document.createElement('input');
+    worldProjectImportFile.className = 'world-file-input';
+    worldProjectImportFile.type = 'file';
+    worldProjectImportFile.accept = '.json';
+    if (importControls && projectManager) {
+      importControls.appendChild(worldProjectSyncButton);
+    }
+    if (exportControls && projectManager) {
+      exportControls.appendChild(worldProjectExportButton);
+      exportControls.appendChild(worldProjectImportButton);
+      exportControls.appendChild(worldProjectImportFile);
+    }
 
     const worldState = {
       maps: [],
@@ -6100,11 +6497,16 @@
 
     const persistWorldCache = () => {
       if (!window.localStorage) return;
+      const payload = buildWorldCachePayload();
       try {
-        localStorage.setItem(worldCacheKey, JSON.stringify(buildWorldCachePayload()));
+        localStorage.setItem(worldCacheKey, JSON.stringify(payload));
       } catch (error) {
         // ignore storage errors
       }
+      projectManager?.publishStageDocument('worldCreator', payload, {
+        lookupName: payload.name || 'world',
+        displayName: payload.name || 'World Creator'
+      });
     };
 
     const scheduleWorldSave = () => {
@@ -7333,6 +7735,46 @@
         return false;
       }
     };
+    const syncWorldFromProject = async () => {
+      const docs = projectManager?.listStageDocuments('npcDropper') || [];
+      if (!docs.length) return false;
+      const currentByLookup = new Map(
+        worldState.maps.map((entry) => [normalizeProjectLookupName(entry.payload?.map?.name || entry.name || ''), entry])
+      );
+      const payload = {
+        version: 1,
+        name: worldState.name || 'world',
+        zoom: worldState.zoom,
+        opacity: worldState.opacity,
+        maps: docs.map((doc, index) => {
+          const lookupName = doc.lookupName || doc.displayName || `Map ${index + 1}`;
+          const previous = currentByLookup.get(normalizeProjectLookupName(lookupName));
+          return {
+            id: doc.docKey || `project-map-${index + 1}`,
+            name: doc.displayName || lookupName,
+            fileName: previous?.fileName || '',
+            payload: doc.payload,
+            position: previous?.position
+          };
+        }),
+        connections: worldState.connections
+      };
+      return importWorldPayload(payload, '', { persist: true });
+    };
+    const loadProjectWorldState = async () => {
+      const payload = projectManager?.getStageActiveCache('worldCreator');
+      if (payload) {
+        const loaded = await importWorldPayload(payload, '', { persist: false });
+        if (loaded) {
+          const zoom = Number.parseFloat(payload.zoom);
+          const opacity = Number.parseFloat(payload.opacity);
+          if (Number.isFinite(zoom)) setZoom(zoom);
+          if (Number.isFinite(opacity)) setOpacity(opacity);
+          return true;
+        }
+      }
+      return syncWorldFromProject();
+    };
 
     const importMap = (file) => {
       if (!file) return;
@@ -7357,6 +7799,26 @@
     };
 
     importButton?.addEventListener('click', () => importFile?.click());
+    worldProjectSyncButton?.addEventListener('click', () => {
+      syncWorldFromProject();
+    });
+    worldProjectExportButton?.addEventListener('click', () => {
+      projectManager?.downloadBundle(worldState.name || '8bits_project');
+    });
+    worldProjectImportButton?.addEventListener('click', () => {
+      worldProjectImportFile.click();
+    });
+    worldProjectImportFile.addEventListener('change', async () => {
+      const file = worldProjectImportFile.files?.[0];
+      if (!file) return;
+      try {
+        await projectManager?.importBundleFile(file);
+        await loadProjectWorldState();
+      } catch (error) {
+        // ignore invalid project bundles
+      }
+      worldProjectImportFile.value = '';
+    });
     importFile?.addEventListener('change', () => {
       const file = importFile.files?.[0];
       if (file) importMap(file);
@@ -7408,7 +7870,11 @@
 
     setZoom(worldState.zoom);
     setOpacity(worldState.opacity);
-    loadCachedWorldState();
+    loadCachedWorldState().then((loaded) => {
+      if (!loaded) {
+        loadProjectWorldState();
+      }
+    });
 
     window.addEventListener('resize', () => {
       renderWorldPreview();
@@ -7427,6 +7893,12 @@
       renderConnections();
       renderAssetList();
       renderWorldPreview();
+      if (projectManager) {
+        const labels = projectManager.getLabels();
+        worldProjectSyncButton.textContent = labels.syncProject;
+        worldProjectExportButton.textContent = labels.exportProject;
+        worldProjectImportButton.textContent = labels.importProject;
+      }
     });
   };
 
@@ -7442,6 +7914,35 @@
     const worldFileInput = qs('#tester-world-file');
     const mapSelect = qs('#tester-map-select');
     if (!canvas) return;
+    const projectManager = window.EightBitsProjectManager || null;
+    const projectLabels = projectManager?.getLabels?.() || {
+      exportProject: 'Export Project',
+      importProject: 'Import Project',
+      loadProject: 'Load Project'
+    };
+    const testerControls = importMapButton?.parentElement || null;
+    const testerLoadProjectButton = document.createElement('button');
+    testerLoadProjectButton.type = 'button';
+    testerLoadProjectButton.className = 'button-secondary';
+    testerLoadProjectButton.textContent = projectLabels.loadProject;
+    const testerProjectExportButton = document.createElement('button');
+    testerProjectExportButton.type = 'button';
+    testerProjectExportButton.className = 'button-secondary';
+    testerProjectExportButton.textContent = projectLabels.exportProject;
+    const testerProjectImportButton = document.createElement('button');
+    testerProjectImportButton.type = 'button';
+    testerProjectImportButton.className = 'button-secondary';
+    testerProjectImportButton.textContent = projectLabels.importProject;
+    const testerProjectImportFile = document.createElement('input');
+    testerProjectImportFile.className = 'map-file-input';
+    testerProjectImportFile.type = 'file';
+    testerProjectImportFile.accept = '.json';
+    if (testerControls && projectManager) {
+      testerControls.appendChild(testerLoadProjectButton);
+      testerControls.appendChild(testerProjectExportButton);
+      testerControls.appendChild(testerProjectImportButton);
+      testerControls.appendChild(testerProjectImportFile);
+    }
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -7508,6 +8009,30 @@
       maps: [],
       connections: [],
       currentIndex: -1
+    };
+    const testerCacheKey = '8bits-tester-cache-state';
+    const buildTesterCachePayload = () => ({
+      version: 1,
+      maps: mapState.maps.map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        payload: entry.payload
+      })),
+      connections: mapState.connections,
+      currentIndex: mapState.currentIndex,
+      zoom: state.zoom
+    });
+    const persistTesterCache = () => {
+      const payload = buildTesterCachePayload();
+      try {
+        localStorage.setItem(testerCacheKey, JSON.stringify(payload));
+      } catch (error) {
+        // ignore storage errors
+      }
+      projectManager?.publishStageDocument('mapTester', payload, {
+        lookupName: payload.maps[payload.currentIndex]?.name || 'tester',
+        displayName: 'Map Tester'
+      });
     };
 
     const autoTileOrder = [
@@ -8039,6 +8564,38 @@
         state.mapHeight = 0;
         setLoadedLabel('');
       }
+      persistTesterCache();
+    };
+    const setTesterZoom = (zoom) => {
+      state.zoom = clamp(Number.parseInt(zoom, 10) || 1, 1, 4);
+      qsa('[data-tester-zoom]').forEach((button) => {
+        button.classList.toggle('is-active', Number.parseInt(button.dataset.testerZoom, 10) === state.zoom);
+      });
+      persistTesterCache();
+    };
+    const loadProjectTesterState = async () => {
+      const testerPayload = projectManager?.getStageActiveCache('mapTester');
+      if (testerPayload?.maps?.length) {
+        const normalized = normalizeMapPayloads(testerPayload, 'Map');
+        if (normalized.maps.length) {
+          setMapList(normalized.maps, normalized.connections);
+          const targetIndex = clamp(Number.parseInt(testerPayload.currentIndex, 10) || 0, 0, normalized.maps.length - 1);
+          mapState.currentIndex = targetIndex;
+          if (mapSelect) mapSelect.value = String(targetIndex);
+          applyMapPayload(normalized.maps[targetIndex].payload, normalized.maps[targetIndex].name);
+          setTesterZoom(testerPayload.zoom || 1);
+          return true;
+        }
+      }
+      const worldPayload = projectManager?.getStageActiveCache('worldCreator');
+      if (worldPayload?.maps?.length) {
+        const normalized = normalizeMapPayloads(worldPayload, worldPayload.name || 'World');
+        if (normalized.maps.length) {
+          setMapList(normalized.maps, normalized.connections);
+          return true;
+        }
+      }
+      return false;
     };
 
     const importPayload = (file) => {
@@ -8064,18 +8621,38 @@
       state.portalLockKey = null;
       state.isTransitioningMap = false;
       applyMapPayload(mapState.maps[idx].payload, mapState.maps[idx].name);
+      persistTesterCache();
     });
 
     qsa('[data-tester-zoom]').forEach((button) => {
       button.addEventListener('click', () => {
         const zoom = Number.parseInt(button.dataset.testerZoom, 10) || 1;
-        state.zoom = zoom;
-        qsa('[data-tester-zoom]').forEach((btn) => btn.classList.toggle('is-active', btn === button));
+        setTesterZoom(zoom);
       });
     });
 
     importMapButton?.addEventListener('click', () => mapFileInput?.click());
     importWorldButton?.addEventListener('click', () => worldFileInput?.click());
+    testerLoadProjectButton?.addEventListener('click', () => {
+      loadProjectTesterState();
+    });
+    testerProjectExportButton?.addEventListener('click', () => {
+      projectManager?.downloadBundle(mapState.maps[mapState.currentIndex]?.name || '8bits_project');
+    });
+    testerProjectImportButton?.addEventListener('click', () => {
+      testerProjectImportFile.click();
+    });
+    testerProjectImportFile.addEventListener('change', async () => {
+      const file = testerProjectImportFile.files?.[0];
+      if (!file) return;
+      try {
+        await projectManager?.importBundleFile(file);
+        await loadProjectTesterState();
+      } catch (error) {
+        // ignore invalid project bundles
+      }
+      testerProjectImportFile.value = '';
+    });
     mapFileInput?.addEventListener('change', () => {
       const file = mapFileInput.files?.[0];
       if (file) importPayload(file);
@@ -8180,6 +8757,7 @@
         { spawnPortalIndex: target.portalIndex }
       );
       state.portalLockKey = `${String(target.mapId)}:${Number.parseInt(target.portalIndex, 10)}`;
+      persistTesterCache();
     };
 
     const resolveCurrentPortalIndex = () => {
@@ -8405,7 +8983,35 @@
     document.addEventListener('languagechange', () => {
       if (directionValue) directionValue.textContent = getDirLabel(state.dir);
       setLoadedLabel(mapState.maps[mapState.currentIndex]?.name || '');
+      if (projectManager) {
+        const labels = projectManager.getLabels();
+        testerLoadProjectButton.textContent = labels.loadProject;
+        testerProjectExportButton.textContent = labels.exportProject;
+        testerProjectImportButton.textContent = labels.importProject;
+      }
     });
+
+    try {
+      const testerRaw = localStorage.getItem(testerCacheKey);
+      if (testerRaw) {
+        const testerPayload = JSON.parse(testerRaw);
+        const normalized = normalizeMapPayloads(testerPayload, 'Map');
+        if (normalized.maps.length) {
+          setMapList(normalized.maps, normalized.connections);
+          const targetIndex = clamp(Number.parseInt(testerPayload.currentIndex, 10) || 0, 0, normalized.maps.length - 1);
+          mapState.currentIndex = targetIndex;
+          if (mapSelect) mapSelect.value = String(targetIndex);
+          applyMapPayload(normalized.maps[targetIndex].payload, normalized.maps[targetIndex].name);
+          setTesterZoom(testerPayload.zoom || 1);
+        } else {
+          loadProjectTesterState();
+        }
+      } else {
+        loadProjectTesterState();
+      }
+    } catch (error) {
+      loadProjectTesterState();
+    }
 
     setLoadedLabel('');
   };
