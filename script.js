@@ -3284,6 +3284,10 @@
       stageData.activeDocKey = docKey;
       project.activeCaches[stage] = cloneProjectPayload(payload);
     }
+    synchronizeProjectMapMarkers(project, {
+      mapId: mapId || null,
+      normalizedLookupName: names.normalizedLookupName
+    });
     writeSharedProject(project);
     return cloneProjectPayload(stageData.documents[docKey]);
   };
@@ -4032,6 +4036,90 @@
       }
     };
     return compactMapPayload(basePayload);
+  };
+  const remapProjectMarkers = (markers, sourceWidth, sourceHeight, targetWidth, targetHeight) => {
+    const resized = Array.from({ length: Math.max(0, targetWidth * targetHeight) }, () => null);
+    const copyWidth = Math.min(sourceWidth, targetWidth);
+    const copyHeight = Math.min(sourceHeight, targetHeight);
+    for (let row = 0; row < copyHeight; row += 1) {
+      for (let col = 0; col < copyWidth; col += 1) {
+        const sourceIndex = row * sourceWidth + col;
+        const targetIndex = row * targetWidth + col;
+        if (isPortalMarkerValue(markers?.[sourceIndex])) {
+          resized[targetIndex] = 'portal';
+        }
+      }
+    }
+    return resized;
+  };
+  const synchronizeProjectMapMarkers = (project, selector = {}) => {
+    const targetMapId = String(selector.mapId || '').trim();
+    const targetNormalizedLookupName = String(selector.normalizedLookupName || '').trim();
+    const matchedEntries = [];
+    sharedMapStages.forEach((stage) => {
+      Object.values(project.stages?.[stage]?.documents || {}).forEach((entry) => {
+        if (!entry?.payload?.map) return;
+        const entryMapId = String(entry.mapId || entry.payload?.map?.id || '').trim();
+        const entryLookup = String(
+          entry.normalizedLookupName
+          || normalizeProjectLookupName(entry.lookupName || entry.displayName || entry.payload?.map?.name || '')
+        ).trim();
+        if (
+          (targetMapId && entryMapId === targetMapId)
+          || (targetNormalizedLookupName && entryLookup === targetNormalizedLookupName)
+        ) {
+          matchedEntries.push({ stage, entry });
+        }
+      });
+    });
+    if (matchedEntries.length < 2) return;
+    matchedEntries.forEach(({ stage, entry }) => {
+      const payload = normalizeCompactMapPayload(entry.payload);
+      if (!payload?.map) return;
+      const width = clamp(Number.parseInt(payload.map.width, 10) || 0, 0, 9999);
+      const height = clamp(Number.parseInt(payload.map.height, 10) || 0, 0, 9999);
+      const mergedMarkers = Array.from({ length: width * height }, () => null);
+      matchedEntries.forEach(({ entry: sourceEntry }) => {
+        const sourcePayload = normalizeCompactMapPayload(sourceEntry.payload);
+        if (!sourcePayload?.map) return;
+        const sourceWidth = clamp(Number.parseInt(sourcePayload.map.width, 10) || 0, 0, 9999);
+        const sourceHeight = clamp(Number.parseInt(sourcePayload.map.height, 10) || 0, 0, 9999);
+        const remapped = remapProjectMarkers(
+          Array.isArray(sourcePayload.map.markers) ? sourcePayload.map.markers : [],
+          sourceWidth,
+          sourceHeight,
+          width,
+          height
+        );
+        for (let index = 0; index < mergedMarkers.length; index += 1) {
+          if (isPortalMarkerValue(remapped[index])) {
+            mergedMarkers[index] = 'portal';
+          }
+        }
+      });
+      const nextPayload = compactMapPayload({
+        ...cloneProjectPayload(payload),
+        map: {
+          ...cloneProjectPayload(payload.map),
+          markers: mergedMarkers
+        }
+      });
+      project.stages[stage].documents[entry.docKey] = {
+        ...project.stages[stage].documents[entry.docKey],
+        payload: nextPayload,
+        updatedAt: new Date().toISOString()
+      };
+      if (project.stages[stage].activeDocKey === entry.docKey) {
+        project.activeCaches[stage] = cloneProjectPayload(nextPayload);
+        if (window.localStorage) {
+          try {
+            localStorage.setItem(sharedProjectStages[stage].storageKey, JSON.stringify(nextPayload));
+          } catch (error) {
+            // ignore storage errors
+          }
+        }
+      }
+    });
   };
   const mergeBaseMapIntoStagePayload = (basePayload, stagePayload, fallbackName = '') => {
     const normalizedBase = normalizeCompactMapPayload(basePayload);
