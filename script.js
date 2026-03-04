@@ -3660,7 +3660,8 @@
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${sanitizeFilename(name)}.zip`;
+    const projectName = getSharedProjectName();
+    link.download = `${sanitizeFilename(projectName || name || '8bits_project')}.zip`;
     link.click();
     URL.revokeObjectURL(url);
     return true;
@@ -9088,12 +9089,26 @@
         })),
         connections: worldState.connections
       };
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const zipFiles = [{
+        name: 'world.json',
+        data: zipTextEncoder.encode(JSON.stringify(payload, null, 2)),
+        lastModified: Date.now()
+      }];
+      payload.maps.forEach((entry, index) => {
+        const mapName = sanitizeFilename(entry.name || entry.fileName || `map_${index + 1}`);
+        zipFiles.push({
+          name: `map/${mapName}.json`,
+          data: zipTextEncoder.encode(JSON.stringify(entry.payload, null, 2)),
+          lastModified: Date.now()
+        });
+      });
+      const blob = buildStoredZip(zipFiles);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      const fileName = sanitizeFilename(worldState.name || 'world');
-      link.download = `${fileName}.json`;
+      const projectName = projectManager?.getProjectName?.() || '';
+      const fileName = sanitizeFilename(projectName || worldState.name || 'world');
+      link.download = `${fileName}.zip`;
       link.click();
       URL.revokeObjectURL(url);
     };
@@ -9251,26 +9266,30 @@
       return syncWorldFromProject();
     };
 
-    const importMap = (file) => {
+    const importMap = async (file) => {
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const payload = JSON.parse(String(reader.result || '{}'));
-          const importedWorld = await importWorldPayload(payload, file.name);
-          if (importedWorld) return;
-          if (!payload?.map) return;
-          createMapEntry(payload, file.name);
-          renderMapList();
-          refreshSelects();
-          renderConnections();
-          await rebuildAssets();
-          scheduleWorldSave();
-        } catch (error) {
-          // Ignore invalid JSON.
+      try {
+        let payload = null;
+        if (/\.zip$/i.test(file.name) || file.type === 'application/zip' || file.type === 'application/x-zip-compressed') {
+          const entries = await parseZipArchive(file);
+          const worldEntry = entries.get('world.json');
+          if (!worldEntry) return;
+          payload = JSON.parse(zipTextDecoder.decode(worldEntry));
+        } else {
+          payload = JSON.parse(await file.text());
         }
-      };
-      reader.readAsText(file);
+        const importedWorld = await importWorldPayload(payload, file.name);
+        if (importedWorld) return;
+        if (!payload?.map) return;
+        createMapEntry(payload, file.name);
+        renderMapList();
+        refreshSelects();
+        renderConnections();
+        await rebuildAssets();
+        scheduleWorldSave();
+      } catch (error) {
+        // Ignore invalid import payloads.
+      }
     };
 
     importButton?.addEventListener('click', () => importFile?.click());
