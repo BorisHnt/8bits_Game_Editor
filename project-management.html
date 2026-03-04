@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8bits Game Editor — Project Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="page-management">
+  <header class="navigation-bar-sticky">
+    <div class="navigation-bar-inner">
+      <a class="brand-lockup" href="index.html" aria-label="8bits Game Editor home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter">
+            <rect x="2" y="2" width="8" height="8"></rect>
+            <rect x="14" y="2" width="8" height="8"></rect>
+            <rect x="2" y="14" width="8" height="8"></rect>
+            <rect x="14" y="14" width="8" height="8"></rect>
+          </svg>
+        </span>
+        <span class="brand-text">8bits Game Editor</span>
+      </a>
+      <div class="navigation-right">
+        <nav class="navigation-links">
+          <details class="navigation-group">
+            <summary class="navigation-link navigation-link-toggle">
+              <span class="navigation-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="3" width="7" height="7"></rect>
+                  <rect x="3" y="14" width="7" height="7"></rect>
+                  <rect x="14" y="14" width="7" height="7"></rect>
+                </svg>
+              </span>
+              <span class="navigation-text" data-i18n="nav.graphicConception">Graphic Conception</span>
+              <span class="navigation-link-caret" aria-hidden="true"></span>
+            </summary>
+            <div class="navigation-menu">
+              <a class="navigation-menu-link" href="graphic-assets-tiles.html"><span class="navigation-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg></span><span class="navigation-text" data-i18n="nav.tiles">Tiles Designer</span></a>
+              <a class="navigation-menu-link" href="graphic-assets-sprite.html"><span class="navigation-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 5v14a1 1 0 0 0 1.504 .864l12 -7a1 1 0 0 0 0 -1.728l-12 -7a1 1 0 0 0 -1.504 .864z" /><path d="M20 4a1 1 0 0 1 .993 .883l.007 .117v14a1 1 0 0 1 -1.993 .117l-.007 -.117v-14a1 1 0 0 1 1 -1z" /></svg></span><span class="navigation-text" data-i18n="nav.sprite">Sprite Designer</span></a>
+              <a class="navigation-menu-link" href="graphic-assets-walls.html"><span class="navigation-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4m0 2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z" /><path d="M4 8h16" /><path d="M20 12h-16" /><path d="M4 16h16" /></svg></span><span class="navigation-text" data-i18n="nav.walls">Walls Designer</span></a>
+              <a class="navigation-menu-link" href="graphic-assets-floor.html"><span class="navigation-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16h16" /><path d="M4 12h16" /><path d="M4 8h16" /></svg></span><span class="navigation-text" data-i18n="nav.floor">Floor Designer</span></a>
+            </div>
+          </details>
+          <details class="navigation-group">
+            <summary class="navigation-link navigation-link-toggle">
+              <span class="navigation-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z" />
+                  <path d="M9 3v15" />
+                  <path d="M15 6v15" />
+                </svg>
+              </span>
+              <span class="navigation-text" data-i18n="nav.mapConception">Map Conception</span>
+              <span class="navigation-link-caret" aria-hidden="true"></span>
+            </summary>
+            <div class="navigation-menu">
+              <a class="navigation-menu-link" href="map-creator.html"><span class="navigation-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z" /><path d="M9 3v15" /><path d="M15 6v15" /></svg></span><span class="navigation-text" data-i18n="nav.map">Map Creator</span></a>
+              <a class="navigation-menu-link" href="prop-dropper.html"><span class="navigation-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z" /><path d="M8 5v14" /><path d="M12 9h4" /><path d="M12 13h4" /><path d="M12 17h4" /></svg></span><span class="navigation-text" data-i18n="nav.items">Prop Dropper</span></a>
+              <a class="navigation-menu-link" href="item-dropper.html"><span class="navigation-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14v12H5z" /><path d="M9 7V5h6v2" /><path d="M9 11h6" /></svg></span><span class="navigation-text" data-i18n="nav.itemdropper">Item Dropper</span></a>
+              <a class="navigation-menu-link" href="npc-dropper.html"><span class="navigation-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3" /><path d="M6 19c0-3.2 2.7-5 6-5s6 1.8 6 5" /></svg></span><span class="navigation-text" data-i18n="nav.npcdropper">NPC Dropper</span></a>
+            </div>
+          </details>
+          <details class="navigation-group">
+            <summary class="navigation-link navigation-link-toggle">
+              <span class="navigation-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M3 12h18" />
+                  <path d="M12 3a12 12 0 0 1 0 18" />
+                  <path d="M12 3a12 12 0 0 0 0 18" />
+                </svg>
+              </span>
+              <span class="navigation-text" data-i18n="nav.worldConception">World Conception</span>
+              <span class="navigation-link-caret" aria-hidden="true"></span>
+            </summary>
+            <div class="navigation-menu">
+              <a class="navigation-menu-link" href="world-creator.html"><span class="navigation-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a12 12 0 0 1 0 18" /><path d="M12 3a12 12 0 0 0 0 18" /></svg></span><span class="navigation-text" data-i18n="nav.world">World Creator</span></a>
+              <a class="navigation-menu-link" href="tester.html"><span class="navigation-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="2" /><path d="M7 12h4" /><path d="M9 10v4" /><circle cx="16.5" cy="12" r="1.2" /></svg></span><span class="navigation-text" data-i18n="nav.tester">Map Tester</span></a>
+              <a class="navigation-menu-link" href="project-management.html"><span class="navigation-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h10" /><path d="M18 18h2" /></svg></span><span class="navigation-text" data-i18n="nav.management">Project Management</span></a>
+            </div>
+          </details>
+        </nav>
+        <div class="language-toggle" role="group" aria-label="Language switcher">
+          <button class="language-toggle-button is-active" type="button" data-lang="en" aria-pressed="true">EN</button>
+          <button class="language-toggle-button" type="button" data-lang="fr" aria-pressed="false">FR</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="workspace-page management-page">
+    <section class="workspace-header">
+      <div>
+        <h1 class="workspace-title">Project Management</h1>
+        <p class="workspace-subtitle">Global project view for maps, worlds, assets, exports, merges, purge and recovery.</p>
+      </div>
+    </section>
+
+    <section class="management-shell">
+      <section class="management-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Project Overview</h2>
+            <p class="panel-subtitle">Manage the whole pipeline without leaving a single page.</p>
+          </div>
+        </div>
+        <div class="management-summary-grid">
+          <article class="management-stat-card"><span class="panel-label">Maps</span><strong class="management-stat-value" id="management-stats-maps">0</strong></article>
+          <article class="management-stat-card"><span class="panel-label">Worlds</span><strong class="management-stat-value" id="management-stats-worlds">0</strong></article>
+          <article class="management-stat-card"><span class="panel-label">Assets</span><strong class="management-stat-value" id="management-stats-assets">0</strong></article>
+          <article class="management-stat-card"><span class="panel-label">Cache Size</span><strong class="management-stat-value" id="management-stats-size">0 KB</strong></article>
+          <article class="management-stat-card"><span class="panel-label">Documents</span><strong class="management-stat-value" id="management-stats-docs">0</strong></article>
+          <article class="management-stat-card"><span class="panel-label">Updated</span><strong class="management-stat-value" id="management-project-updated">—</strong></article>
+        </div>
+        <div class="management-form-grid">
+          <div class="map-control-group">
+            <label class="panel-label" for="management-project-name">Project Name</label>
+            <input class="asset-input" type="text" id="management-project-name" placeholder="Project name" />
+          </div>
+        </div>
+        <div class="management-actions-row">
+          <button class="button-secondary" type="button" id="management-export-project-zip">Export Project ZIP</button>
+          <button class="button-secondary" type="button" id="management-export-project-json">Export Project JSON</button>
+          <button class="button-secondary" type="button" id="management-import-project">Import Project</button>
+          <input class="map-file-input" type="file" id="management-import-project-file" accept=".json,.zip" />
+          <button class="button-secondary" type="button" id="management-purge-assets">Purge Assets</button>
+          <button class="button-secondary" type="button" id="management-purge-maps">Purge Maps</button>
+          <button class="button-secondary" type="button" id="management-purge-all">Purge All</button>
+        </div>
+      </section>
+
+      <section class="management-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Maps</h2>
+            <p class="panel-subtitle">Unified view of all maps across Map Creator, Prop Dropper, Item Dropper and NPC Dropper.</p>
+          </div>
+        </div>
+        <div class="management-list" id="management-maps-list"></div>
+        <p class="panel-subtitle is-hidden" id="management-maps-empty">No maps in project.</p>
+      </section>
+
+      <section class="management-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Merge Tools</h2>
+            <p class="panel-subtitle">Keep current merge features available outside Map Creator Options.</p>
+          </div>
+        </div>
+        <div class="management-form-grid management-form-grid-2">
+          <div class="map-control-group">
+            <label class="panel-label" for="management-merge-source">Map A</label>
+            <select class="asset-select" id="management-merge-source"></select>
+          </div>
+          <div class="map-control-group">
+            <label class="panel-label" for="management-merge-target">Map B</label>
+            <select class="asset-select" id="management-merge-target"></select>
+          </div>
+        </div>
+        <div class="management-actions-row">
+          <button class="button-secondary" type="button" id="management-merge-matching">Merge Matching Maps</button>
+          <button class="button-secondary" type="button" id="management-merge-selected">Merge Selected Maps</button>
+        </div>
+      </section>
+
+      <section class="management-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Worlds</h2>
+            <p class="panel-subtitle">Saved world documents available in the shared project cache.</p>
+          </div>
+        </div>
+        <div class="management-list" id="management-worlds-list"></div>
+        <p class="panel-subtitle is-hidden" id="management-worlds-empty">No worlds in project.</p>
+      </section>
+
+      <section class="management-panel">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Assets Cache</h2>
+            <p class="panel-subtitle">PNG assets currently stored in the shared IndexedDB cache.</p>
+          </div>
+        </div>
+        <div class="management-list" id="management-assets-list"></div>
+        <p class="panel-subtitle is-hidden" id="management-assets-empty">No cached assets.</p>
+      </section>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

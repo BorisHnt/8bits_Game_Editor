@@ -555,6 +555,113 @@ svg {
   min-width: 240px;
 }
 
+.management-shell {
+  display: grid;
+  gap: 14px;
+}
+
+.management-panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(10, 12, 16, 0.84);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.18);
+}
+
+.management-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.management-stat-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  display: grid;
+  gap: 6px;
+}
+
+.management-stat-value {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.management-form-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.management-form-grid-2 {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.management-list {
+  display: grid;
+  gap: 10px;
+}
+
+.management-row {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 12px 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.management-row-title {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.management-row-meta {
+  margin: 4px 0 0;
+  color: var(--muted-text, rgba(255, 255, 255, 0.72));
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.management-badges,
+.management-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.management-badge,
+.management-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.management-badge {
+  cursor: pointer;
+}
+
+.management-status.is-legacy {
+  background: rgba(191, 114, 26, 0.16);
+  border-color: rgba(191, 114, 26, 0.4);
+}
+
+.management-status.is-current {
+  background: rgba(32, 138, 81, 0.16);
+  border-color: rgba(32, 138, 81, 0.4);
+}
+
 .map-name-edit-row {
   display: flex;
   gap: 8px;

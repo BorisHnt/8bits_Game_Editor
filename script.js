@@ -13,6 +13,7 @@
       'title.npcdropper': '8bits Game Editor — NPC Dropper',
       'title.world': '8bits Game Editor — World Creator',
       'title.tester': '8bits Game Editor — Map Tester',
+      'title.management': '8bits Game Editor — Project Management',
       'nav.home': 'Home',
       'nav.graphicConception': 'Graphic Conception',
       'nav.mapConception': 'Map Conception',
@@ -27,6 +28,7 @@
       'nav.npcdropper': 'NPC Dropper',
       'nav.world': 'World Creator',
       'nav.tester': 'Map Tester',
+      'nav.management': 'Project Management',
       'hero.kicker': 'Experimental Studio / Creative Workshop',
       'hero.subtitle': 'A professional digital workshop for pixel makers, indie developers, and sound architects.',
       'section.toolchain.title': 'Toolchain',
@@ -460,6 +462,7 @@
       'title.npcdropper': "8bits Game Editor — NPC Dropper",
       'title.world': "8bits Game Editor — Créateur de monde",
       'title.tester': "8bits Game Editor — Map Tester",
+      'title.management': "8bits Game Editor — Gestion de projet",
       'nav.home': 'Accueil',
       'nav.graphicConception': 'Conception graphique',
       'nav.mapConception': 'Conception de map',
@@ -474,6 +477,7 @@
       'nav.npcdropper': 'NPC Dropper',
       'nav.world': 'Créateur de monde',
       'nav.tester': 'Map Tester',
+      'nav.management': 'Gestion de projet',
       'hero.kicker': 'Atelier expérimental / Studio de création',
       'hero.subtitle': 'Un atelier numérique professionnel pour pixel artists, développeurs indés et designers sonores.',
       'section.toolchain.title': 'Chaîne de production',
@@ -3886,6 +3890,65 @@
     req.onsuccess = () => resolve(true);
     req.onerror = () => reject(req.error);
   }));
+  const deleteSharedProjectImage = (key) => openSharedProjectImageDb().then((db) => new Promise((resolve, reject) => {
+    const tx = db.transaction(sharedProjectImageStoreName, 'readwrite');
+    const store = tx.objectStore(sharedProjectImageStoreName);
+    const req = store.delete(key);
+    req.onsuccess = () => resolve(true);
+    req.onerror = () => reject(req.error);
+  }));
+  const applyStageDocumentRemoval = (project, stage, docKey) => {
+    if (!sharedProjectStages[stage] || !docKey) return false;
+    const stageData = project?.stages?.[stage];
+    if (!stageData?.documents?.[docKey]) return false;
+    delete stageData.documents[docKey];
+    const remainingEntries = Object.values(stageData.documents || {});
+    if (stageData.activeDocKey === docKey) {
+      const nextActive = remainingEntries[0] || null;
+      stageData.activeDocKey = nextActive?.docKey || null;
+      project.activeCaches[stage] = cloneProjectPayload(nextActive?.payload || null);
+      if (window.localStorage) {
+        try {
+          if (nextActive?.payload) {
+            localStorage.setItem(sharedProjectStages[stage].storageKey, JSON.stringify(nextActive.payload));
+          } else {
+            localStorage.removeItem(sharedProjectStages[stage].storageKey);
+          }
+        } catch (error) {
+          // ignore storage errors
+        }
+      }
+    }
+    return true;
+  };
+  const deleteSharedProjectStageDocument = (stage, docKey) => {
+    const project = readSharedProject();
+    const removed = applyStageDocumentRemoval(project, stage, docKey);
+    if (!removed) return false;
+    writeSharedProject(project);
+    return true;
+  };
+  const deleteUnifiedProjectMap = (selector) => {
+    const targetKey = String(selector?.key || '').trim();
+    const targetMapId = String(selector?.mapId || '').trim();
+    const targetDocKey = String(selector?.docKey || '').trim();
+    const target = listUnifiedProjectMaps().find((entry) => (
+      (targetMapId && String(entry.mapId || '') === targetMapId)
+      || (targetKey && String(entry.key || '') === targetKey)
+      || (targetDocKey && String(entry.preferredDocKey || '') === targetDocKey)
+    ));
+    if (!target) return false;
+    const project = readSharedProject();
+    let removed = false;
+    sharedMapStages.forEach((stage) => {
+      const doc = target.docsByStage?.[stage];
+      if (!doc?.docKey) return;
+      removed = applyStageDocumentRemoval(project, stage, doc.docKey) || removed;
+    });
+    if (!removed) return false;
+    writeSharedProject(project);
+    return true;
+  };
   const clearSharedProjectStagesData = (stageNames = Object.keys(sharedProjectStages), options = {}) => {
     const {
       resetProjectName = false,
@@ -4361,6 +4424,10 @@
     listUnifiedMaps: listUnifiedProjectMaps,
     isLegacyMapPayload: isLegacyProjectMapPayload,
     convertLegacyMap: convertLegacyStageDocument,
+    listAssets: listSharedProjectImages,
+    deleteAsset: deleteSharedProjectImage,
+    deleteStageDocument: deleteSharedProjectStageDocument,
+    deleteUnifiedMap: deleteUnifiedProjectMap,
     purgeAssets: clearSharedProjectImages,
     purgeStages: clearSharedProjectStagesData,
     purgePipeline: purgeSharedProjectPipeline,
@@ -5456,6 +5523,7 @@
     if (document.body.classList.contains('page-item')) return 'title.item';
     if (document.body.classList.contains('page-world')) return 'title.world';
     if (document.body.classList.contains('page-tester')) return 'title.tester';
+    if (document.body.classList.contains('page-management')) return 'title.management';
     const designer = document.body.dataset.designer;
     if (designer === 'tiles') return 'title.tiles';
     if (designer === 'sprite') return 'title.sprite';
@@ -5471,7 +5539,7 @@
     document.title = projectName ? `${projectName} — ${baseTitle}` : baseTitle;
   };
   const bindProjectHeaderControls = () => {
-    if (document.body.classList.contains('page-home')) return;
+    if (document.body.classList.contains('page-home') || document.body.classList.contains('page-management')) return;
     const projectManager = window.EightBitsProjectManager || null;
     const header = qs('.workspace-header');
     if (!projectManager || !header || qs('.project-header-controls', header)) return;
@@ -11009,6 +11077,378 @@
     setLoadedLabel('');
   };
 
+  const initProjectManagement = () => {
+    if (!document.body.classList.contains('page-management')) return;
+    const projectManager = window.EightBitsProjectManager || null;
+    if (!projectManager) return;
+
+    const projectNameInput = qs('#management-project-name');
+    const projectUpdatedAt = qs('#management-project-updated');
+    const statsMaps = qs('#management-stats-maps');
+    const statsWorlds = qs('#management-stats-worlds');
+    const statsAssets = qs('#management-stats-assets');
+    const statsSize = qs('#management-stats-size');
+    const statsDocs = qs('#management-stats-docs');
+    const projectExportZipButton = qs('#management-export-project-zip');
+    const projectExportJsonButton = qs('#management-export-project-json');
+    const projectImportButton = qs('#management-import-project');
+    const projectImportFile = qs('#management-import-project-file');
+    const purgeAssetsButton = qs('#management-purge-assets');
+    const purgeMapsButton = qs('#management-purge-maps');
+    const purgeAllButton = qs('#management-purge-all');
+    const mergeMatchingButton = qs('#management-merge-matching');
+    const mergeSourceSelect = qs('#management-merge-source');
+    const mergeTargetSelect = qs('#management-merge-target');
+    const mergeSelectedButton = qs('#management-merge-selected');
+    const mapsList = qs('#management-maps-list');
+    const mapsEmpty = qs('#management-maps-empty');
+    const worldsList = qs('#management-worlds-list');
+    const worldsEmpty = qs('#management-worlds-empty');
+    const assetsList = qs('#management-assets-list');
+    const assetsEmpty = qs('#management-assets-empty');
+
+    const stageMeta = {
+      mapCreator: { label: 'Map', href: 'map-creator.html' },
+      propDropper: { label: 'Prop', href: 'prop-dropper.html' },
+      itemDropper: { label: 'Item', href: 'item-dropper.html' },
+      npcDropper: { label: 'NPC', href: 'npc-dropper.html' }
+    };
+
+    const formatDate = (value) => {
+      const date = new Date(value || '');
+      if (!Number.isFinite(date.getTime())) return '—';
+      return date.toLocaleString(document.documentElement.lang === 'fr' ? 'fr-FR' : 'en-US');
+    };
+    const formatBytes = (value) => {
+      const bytes = Number(value) || 0;
+      if (bytes <= 0) return '0 KB';
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    };
+    const downloadJson = (payload, fileName) => {
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+    };
+    const confirmAction = (messageEn, messageFr) => window.confirm(
+      document.documentElement.lang === 'fr' ? messageFr : messageEn
+    );
+    const openStageDocument = (stage, docKey, href) => {
+      if (!stage || !docKey || !href) return;
+      projectManager.setStageActiveDocument?.(stage, docKey);
+      window.location.href = href;
+    };
+
+    let cachedAssets = [];
+
+    const renderMergeOptions = (maps) => {
+      if (!mergeSourceSelect || !mergeTargetSelect) return;
+      const previousSource = mergeSourceSelect.value;
+      const previousTarget = mergeTargetSelect.value;
+      const options = ['<option value="">—</option>'].concat(maps.map((entry) => {
+        const stage = entry.preferredStage || 'mapCreator';
+        const docKey = entry.preferredDocKey || '';
+        const label = entry.displayName || entry.lookupName || 'Map';
+        return `<option value="${stage}::${docKey}">${label}</option>`;
+      }));
+      mergeSourceSelect.innerHTML = options.join('');
+      mergeTargetSelect.innerHTML = options.join('');
+      if (previousSource) mergeSourceSelect.value = previousSource;
+      if (previousTarget) mergeTargetSelect.value = previousTarget;
+    };
+
+    const renderMaps = (maps) => {
+      if (!mapsList || !mapsEmpty) return;
+      mapsList.innerHTML = '';
+      if (!maps.length) {
+        mapsEmpty.classList.remove('is-hidden');
+        return;
+      }
+      mapsEmpty.classList.add('is-hidden');
+      maps.forEach((entry) => {
+        const payload = entry.preferredPayload || entry.docsByStage?.mapCreator?.payload || null;
+        const legacy = Object.values(entry.docsByStage || {}).some((doc) => projectManager.isLegacyMapPayload?.(doc.payload));
+        const row = document.createElement('article');
+        row.className = 'management-row';
+
+        const header = document.createElement('div');
+        header.className = 'management-row-main';
+        const title = document.createElement('h3');
+        title.className = 'management-row-title';
+        title.textContent = entry.displayName || entry.lookupName || 'Map';
+        const meta = document.createElement('p');
+        meta.className = 'management-row-meta';
+        meta.textContent = `ID: ${entry.mapId || '—'} · ${payload?.map?.width || 0}x${payload?.map?.height || 0} · ${formatDate(entry.updatedAt)}`;
+        header.appendChild(title);
+        header.appendChild(meta);
+
+        const badges = document.createElement('div');
+        badges.className = 'management-badges';
+        Object.entries(entry.docsByStage || {}).forEach(([stage, doc]) => {
+          if (!doc?.docKey) return;
+          const badge = document.createElement('button');
+          badge.type = 'button';
+          badge.className = 'management-badge';
+          badge.textContent = stageMeta[stage]?.label || stage;
+          badge.addEventListener('click', () => openStageDocument(stage, doc.docKey, stageMeta[stage]?.href));
+          badges.appendChild(badge);
+        });
+        const statusBadge = document.createElement('span');
+        statusBadge.className = `management-status ${legacy ? 'is-legacy' : 'is-current'}`;
+        statusBadge.textContent = legacy ? 'Legacy' : 'Current';
+        badges.appendChild(statusBadge);
+
+        const actions = document.createElement('div');
+        actions.className = 'management-actions-row';
+        const exportButton = document.createElement('button');
+        exportButton.type = 'button';
+        exportButton.className = 'button-secondary';
+        exportButton.textContent = 'Export Map';
+        exportButton.addEventListener('click', () => {
+          if (!payload) return;
+          downloadJson(payload, `${sanitizeFilename(entry.displayName || entry.lookupName || 'map')}.json`);
+        });
+        actions.appendChild(exportButton);
+
+        if (legacy) {
+          const convertButton = document.createElement('button');
+          convertButton.type = 'button';
+          convertButton.className = 'button-secondary';
+          convertButton.textContent = 'Convert';
+          convertButton.addEventListener('click', () => {
+            projectManager.convertLegacyMap?.(entry.preferredStage, entry.preferredDocKey);
+            refreshView();
+          });
+          actions.appendChild(convertButton);
+        }
+
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'button-secondary';
+        deleteButton.textContent = 'Delete';
+        deleteButton.addEventListener('click', () => {
+          if (!confirmAction(
+            `Delete map "${entry.displayName || entry.lookupName || 'Map'}" from all map tools?`,
+            `Supprimer la map "${entry.displayName || entry.lookupName || 'Map'}" de tous les outils de map ?`
+          )) return;
+          projectManager.deleteUnifiedMap?.({ mapId: entry.mapId, key: entry.key, docKey: entry.preferredDocKey });
+          refreshView();
+        });
+        actions.appendChild(deleteButton);
+
+        row.appendChild(header);
+        row.appendChild(badges);
+        row.appendChild(actions);
+        mapsList.appendChild(row);
+      });
+    };
+
+    const renderWorlds = (worldDocs) => {
+      if (!worldsList || !worldsEmpty) return;
+      worldsList.innerHTML = '';
+      if (!worldDocs.length) {
+        worldsEmpty.classList.remove('is-hidden');
+        return;
+      }
+      worldsEmpty.classList.add('is-hidden');
+      worldDocs.forEach((doc) => {
+        const payload = doc.payload || {};
+        const row = document.createElement('article');
+        row.className = 'management-row';
+        const header = document.createElement('div');
+        header.className = 'management-row-main';
+        const title = document.createElement('h3');
+        title.className = 'management-row-title';
+        title.textContent = doc.displayName || doc.lookupName || payload.name || 'World';
+        const meta = document.createElement('p');
+        meta.className = 'management-row-meta';
+        meta.textContent = `${Array.isArray(payload.maps) ? payload.maps.length : 0} maps · ${Array.isArray(payload.connections) ? payload.connections.length : 0} links · ${formatDate(doc.updatedAt)}`;
+        header.appendChild(title);
+        header.appendChild(meta);
+
+        const actions = document.createElement('div');
+        actions.className = 'management-actions-row';
+        const openButton = document.createElement('button');
+        openButton.type = 'button';
+        openButton.className = 'button-secondary';
+        openButton.textContent = 'Open';
+        openButton.addEventListener('click', () => openStageDocument('worldCreator', doc.docKey, 'world-creator.html'));
+        const exportButton = document.createElement('button');
+        exportButton.type = 'button';
+        exportButton.className = 'button-secondary';
+        exportButton.textContent = 'Export World';
+        exportButton.addEventListener('click', () => {
+          downloadJson(payload, `${sanitizeFilename(doc.displayName || doc.lookupName || 'world')}.json`);
+        });
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'button-secondary';
+        deleteButton.textContent = 'Delete';
+        deleteButton.addEventListener('click', () => {
+          if (!confirmAction(
+            `Delete world "${doc.displayName || doc.lookupName || 'World'}" from project cache?`,
+            `Supprimer le world "${doc.displayName || doc.lookupName || 'World'}" du cache projet ?`
+          )) return;
+          projectManager.deleteStageDocument?.('worldCreator', doc.docKey);
+          refreshView();
+        });
+        actions.appendChild(openButton);
+        actions.appendChild(exportButton);
+        actions.appendChild(deleteButton);
+
+        row.appendChild(header);
+        row.appendChild(actions);
+        worldsList.appendChild(row);
+      });
+    };
+
+    const renderAssets = (assets) => {
+      if (!assetsList || !assetsEmpty) return;
+      assetsList.innerHTML = '';
+      if (!assets.length) {
+        assetsEmpty.classList.remove('is-hidden');
+        return;
+      }
+      assetsEmpty.classList.add('is-hidden');
+      assets.forEach((asset) => {
+        const row = document.createElement('article');
+        row.className = 'management-row';
+        const header = document.createElement('div');
+        header.className = 'management-row-main';
+        const title = document.createElement('h3');
+        title.className = 'management-row-title';
+        title.textContent = asset.name || asset.key || 'Asset';
+        const meta = document.createElement('p');
+        meta.className = 'management-row-meta';
+        meta.textContent = `${formatBytes(asset.size || asset.blob?.size || 0)} · First import: ${formatDate(asset.createdAt)}${asset.type ? ` · ${asset.type}` : ''}`;
+        header.appendChild(title);
+        header.appendChild(meta);
+
+        const actions = document.createElement('div');
+        actions.className = 'management-actions-row';
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'button-secondary';
+        deleteButton.textContent = 'Delete';
+        deleteButton.addEventListener('click', async () => {
+          if (!confirmAction(
+            `Delete cached asset "${asset.name || asset.key || 'asset'}"?`,
+            `Supprimer l'asset en cache "${asset.name || asset.key || 'asset'}" ?`
+          )) return;
+          await projectManager.deleteAsset?.(asset.key).catch(() => null);
+          refreshView();
+        });
+        actions.appendChild(deleteButton);
+
+        row.appendChild(header);
+        row.appendChild(actions);
+        assetsList.appendChild(row);
+      });
+    };
+
+    const refreshView = async () => {
+      const project = projectManager.readProject?.() || { stages: {}, updatedAt: '' };
+      const unifiedMaps = projectManager.listUnifiedMaps?.() || [];
+      const worldDocs = projectManager.listStageDocuments?.('worldCreator') || [];
+      cachedAssets = await projectManager.listAssets?.().catch(() => []) || [];
+      if (projectNameInput && document.activeElement !== projectNameInput) {
+        projectNameInput.value = projectManager.getProjectName?.() || '';
+      }
+      if (projectUpdatedAt) projectUpdatedAt.textContent = formatDate(project.updatedAt);
+      if (statsMaps) statsMaps.textContent = String(unifiedMaps.length);
+      if (statsWorlds) statsWorlds.textContent = String(worldDocs.length);
+      if (statsAssets) statsAssets.textContent = String(cachedAssets.length);
+      if (statsSize) statsSize.textContent = formatBytes(cachedAssets.reduce((sum, asset) => sum + (asset.size || asset.blob?.size || 0), 0));
+      if (statsDocs) {
+        const docCount = Object.values(project.stages || {}).reduce((sum, stage) => sum + Object.keys(stage?.documents || {}).length, 0);
+        statsDocs.textContent = String(docCount);
+      }
+      renderMergeOptions(unifiedMaps);
+      renderMaps(unifiedMaps);
+      renderWorlds(worldDocs);
+      renderAssets(cachedAssets);
+    };
+
+    let projectNameTimer = null;
+    projectNameInput?.addEventListener('input', () => {
+      if (projectNameTimer) clearTimeout(projectNameTimer);
+      projectNameTimer = window.setTimeout(() => {
+        projectNameTimer = null;
+        projectManager.setProjectName?.(projectNameInput.value);
+        refreshView();
+      }, 150);
+    });
+
+    projectExportZipButton?.addEventListener('click', () => {
+      projectManager.downloadBundle?.(projectManager.getProjectName?.() || '8bits_project');
+    });
+    projectExportJsonButton?.addEventListener('click', async () => {
+      const payload = await projectManager.exportBundle?.();
+      if (!payload) return;
+      downloadJson(payload, `${sanitizeFilename(projectManager.getProjectName?.() || '8bits_project')}.json`);
+    });
+    projectImportButton?.addEventListener('click', () => projectImportFile?.click());
+    projectImportFile?.addEventListener('change', async () => {
+      const file = projectImportFile.files?.[0];
+      if (!file) return;
+      try {
+        await projectManager.importBundleFile?.(file);
+        projectImportFile.value = '';
+        window.location.reload();
+        return;
+      } catch (error) {
+        // ignore invalid project bundles
+      }
+      projectImportFile.value = '';
+    });
+    purgeAssetsButton?.addEventListener('click', async () => {
+      if (!confirmAction('Purge all cached asset PNG files?', 'Purger tous les PNG d assets du cache ?')) return;
+      await projectManager.purgeAssets?.().catch(() => null);
+      refreshView();
+    });
+    purgeMapsButton?.addEventListener('click', () => {
+      if (!confirmAction(
+        'Purge all saved map/project data from Map Creator to Map Tester, while keeping cached assets?',
+        'Purger toutes les donnees map/projet de Map Creator a Map Tester, en gardant les assets en cache ?'
+      )) return;
+      projectManager.purgeStages?.(Object.keys(projectManager.stages || {}), { resetProjectName: false });
+      window.location.reload();
+    });
+    purgeAllButton?.addEventListener('click', async () => {
+      if (!confirmAction(
+        'Purge the entire pipeline cache from Map Creator to Map Tester, including cached assets and project name?',
+        'Tout purger de Map Creator a Map Tester, y compris les assets en cache et le nom du projet ?'
+      )) return;
+      await projectManager.purgePipeline?.({ clearStages: true, clearAssets: true, resetProjectName: true }).catch(() => null);
+      window.location.reload();
+    });
+    mergeMatchingButton?.addEventListener('click', () => {
+      projectManager.mergeMatchingMaps?.();
+      refreshView();
+    });
+    mergeSelectedButton?.addEventListener('click', () => {
+      const [leftStage, ...leftRest] = String(mergeSourceSelect?.value || '').split('::');
+      const [rightStage, ...rightRest] = String(mergeTargetSelect?.value || '').split('::');
+      const result = projectManager.mergeSelectedMaps?.(
+        { stage: leftStage, docKey: leftRest.join('::') },
+        { stage: rightStage, docKey: rightRest.join('::') }
+      );
+      if (!result?.merged) return;
+      refreshView();
+    });
+
+    window.addEventListener('8bits-project-updated', refreshView);
+    window.addEventListener('8bits-project-namechange', refreshView);
+    window.addEventListener('8bits-project-imported', refreshView);
+    window.addEventListener('8bits-project-purged', refreshView);
+    window.addEventListener('8bits-project-merged', refreshView);
+    refreshView();
+  };
+
   const bindCacheLifecycle = () => {
     if (!document.body.classList.contains('page-graphic-assets')) return;
     window.addEventListener('pagehide', flushCache);
@@ -11121,6 +11561,7 @@
     const isMapPage = document.body.classList.contains('page-map');
     const isWorldPage = document.body.classList.contains('page-world');
     const isTesterPage = document.body.classList.contains('page-tester');
+    const isManagementPage = document.body.classList.contains('page-management');
 
     if (isHomePage) {
       createHeroAmbient();
@@ -11160,6 +11601,9 @@
     }
     if (isTesterPage) {
       initTester();
+    }
+    if (isManagementPage) {
+      initProjectManagement();
     }
 
     bindProjectHeaderControls();
