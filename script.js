@@ -3112,6 +3112,7 @@
   const getExportFilename = (extension) => `${sanitizeFilename(getExportName())}.${extension}`;
 
   const sharedProjectStorageKey = '8bits-shared-project-v1';
+  const sharedProjectReloadKey = '8bits-shared-project-reload-v1';
   const sharedProjectBundleType = '8bits-project-bundle';
   const sharedProjectImageDbName = '8bits-map-cache';
   const sharedProjectImageStoreName = 'images';
@@ -3203,6 +3204,21 @@
     }
     window.dispatchEvent(new CustomEvent('8bits-project-updated', { detail: { project: cloneProjectPayload(normalized) } }));
   };
+  const broadcastSharedProjectReload = (reason = 'purge') => {
+    if (!window.localStorage) return;
+    try {
+      localStorage.setItem(sharedProjectReloadKey, JSON.stringify({
+        reason: String(reason || 'purge'),
+        timestamp: Date.now()
+      }));
+    } catch (error) {
+      // ignore storage errors
+    }
+  };
+  window.addEventListener('storage', (event) => {
+    if (!event.key || event.key !== sharedProjectReloadKey) return;
+    window.location.reload();
+  });
   const resolveProjectDocNames = (payload, options = {}) => {
     const lookupCandidates = [
       options.lookupName,
@@ -3869,7 +3885,8 @@
   }));
   const clearSharedProjectStagesData = (stageNames = Object.keys(sharedProjectStages), options = {}) => {
     const {
-      resetProjectName = false
+      resetProjectName = false,
+      broadcastReload = true
     } = options;
     const stageSet = new Set(Array.isArray(stageNames) ? stageNames : Object.keys(sharedProjectStages));
     const project = resetProjectName ? getDefaultSharedProject() : readSharedProject();
@@ -3899,16 +3916,20 @@
         resetProjectName
       }
     }));
+    if (broadcastReload) {
+      broadcastSharedProjectReload('purge-stages');
+    }
     return true;
   };
   const purgeSharedProjectPipeline = async (options = {}) => {
     const {
       clearAssets = false,
       clearStages = true,
-      resetProjectName = false
+      resetProjectName = false,
+      broadcastReload = true
     } = options;
     if (clearStages) {
-      clearSharedProjectStagesData(Object.keys(sharedProjectStages), { resetProjectName });
+      clearSharedProjectStagesData(Object.keys(sharedProjectStages), { resetProjectName, broadcastReload: false });
     }
     if (clearAssets) {
       await clearSharedProjectImages().catch(() => null);
@@ -3920,6 +3941,9 @@
         resetProjectName
       }
     }));
+    if (broadcastReload) {
+      broadcastSharedProjectReload(clearAssets ? 'purge-all' : 'purge-pipeline');
+    }
     return true;
   };
   const buildCanonicalBaseMapPayload = (payload, fallbackName = '', preferredMapId = '') => {
