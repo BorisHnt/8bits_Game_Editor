@@ -4009,6 +4009,10 @@
     let mapUndoStack = [];
     let mapRedoStack = [];
     let mapHistoryBatchActive = false;
+    let cachePreviewTooltip = null;
+    let cachePreviewImage = null;
+    let cachePreviewLabel = null;
+    let cachePreviewUrl = null;
 
     const formatBytes = (bytes) => {
       if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
@@ -4096,6 +4100,7 @@
 
     const updateCacheModal = async () => {
       if (!cacheList || !cacheCount || !cacheSize || !cacheEmpty) return;
+      hideCachePreview();
       try {
         const entries = await cacheListAll();
         const totalBytes = entries.reduce((sum, entry) => sum + (entry.size || 0), 0);
@@ -4126,6 +4131,13 @@
           .forEach((entry) => {
             const item = document.createElement('div');
             item.className = 'cache-item';
+            item.addEventListener('mouseenter', (event) => {
+              showCachePreview(entry, event.clientX, event.clientY);
+            });
+            item.addEventListener('mousemove', (event) => {
+              moveCachePreview(event.clientX, event.clientY);
+            });
+            item.addEventListener('mouseleave', hideCachePreview);
             const meta = document.createElement('div');
             meta.className = 'cache-item-meta';
             const name = document.createElement('strong');
@@ -4147,6 +4159,7 @@
             cacheList.appendChild(item);
           });
       } catch (error) {
+        hideCachePreview();
         cacheCount.textContent = '0';
         cacheSize.textContent = '0 KB';
         cacheList.innerHTML = '';
@@ -4163,6 +4176,7 @@
 
     const closeCacheModal = () => {
       if (!cacheModal) return;
+      hideCachePreview();
       cacheModal.classList.add('is-hidden');
       cacheModal.setAttribute('aria-hidden', 'true');
     };
@@ -4197,6 +4211,57 @@
       } catch (error) {
         return null;
       }
+    };
+
+    const ensureCachePreviewTooltip = () => {
+      if (cachePreviewTooltip) return cachePreviewTooltip;
+      const tooltip = document.createElement('div');
+      tooltip.className = 'cache-preview-tooltip';
+      const image = document.createElement('img');
+      image.className = 'cache-preview-image';
+      image.alt = '';
+      const label = document.createElement('div');
+      label.className = 'cache-preview-label';
+      tooltip.appendChild(image);
+      tooltip.appendChild(label);
+      document.body.appendChild(tooltip);
+      cachePreviewTooltip = tooltip;
+      cachePreviewImage = image;
+      cachePreviewLabel = label;
+      return tooltip;
+    };
+
+    const moveCachePreview = (clientX, clientY) => {
+      if (!cachePreviewTooltip) return;
+      const offset = 18;
+      const maxLeft = Math.max(8, window.innerWidth - cachePreviewTooltip.offsetWidth - 8);
+      const maxTop = Math.max(8, window.innerHeight - cachePreviewTooltip.offsetHeight - 8);
+      cachePreviewTooltip.style.left = `${Math.min(clientX + offset, maxLeft)}px`;
+      cachePreviewTooltip.style.top = `${Math.min(clientY + offset, maxTop)}px`;
+    };
+
+    const hideCachePreview = () => {
+      if (cachePreviewTooltip) {
+        cachePreviewTooltip.classList.remove('is-visible');
+      }
+      if (cachePreviewImage) {
+        cachePreviewImage.removeAttribute('src');
+      }
+      if (cachePreviewUrl) {
+        URL.revokeObjectURL(cachePreviewUrl);
+        cachePreviewUrl = null;
+      }
+    };
+
+    const showCachePreview = (entry, clientX, clientY) => {
+      if (!entry?.blob || !String(entry.type || '').startsWith('image/')) return;
+      const tooltip = ensureCachePreviewTooltip();
+      hideCachePreview();
+      cachePreviewUrl = URL.createObjectURL(entry.blob);
+      if (cachePreviewImage) cachePreviewImage.src = cachePreviewUrl;
+      if (cachePreviewLabel) cachePreviewLabel.textContent = entry.name || entry.key || 'Asset';
+      moveCachePreview(clientX, clientY);
+      tooltip.classList.add('is-visible');
     };
 
     const loadCachedImageForAsset = async (asset) => {
@@ -5895,9 +5960,11 @@
     cacheModal?.addEventListener('click', (event) => {
       if (event.target === cacheModal) closeCacheModal();
     });
+    cacheModal?.addEventListener('mouseleave', hideCachePreview);
     mapNewModal?.addEventListener('click', (event) => {
       if (event.target === mapNewModal) closeNewMapModal();
     });
+    window.addEventListener('scroll', hideCachePreview, true);
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
         closeCacheModal();
