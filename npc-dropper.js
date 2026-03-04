@@ -267,27 +267,18 @@
     };
     const getProjectMapOptions = () => {
       if (!projectManager) return [];
-      const merged = new Map();
-      const registerDocs = (stage, docs) => {
-        docs.forEach((doc) => {
-          const payload = doc?.payload || null;
-          if (!payload?.map) return;
-          const mapId = getPayloadMapId(payload);
-          const lookupName = (doc.displayName || doc.lookupName || getPayloadLookupName(payload) || 'Map').trim();
-          const key = mapId || lookupName.toLowerCase();
-          if (!merged.has(key) || stage === currentStageName) {
-            merged.set(key, {
-              stage,
-              docKey: doc.docKey,
-              payload,
-              label: lookupName
-            });
-          }
-        });
-      };
-      registerDocs(upstreamStageName, projectManager.listStageDocuments(upstreamStageName) || []);
-      registerDocs(currentStageName, projectManager.listStageDocuments(currentStageName) || []);
-      return Array.from(merged.values()).sort((a, b) => a.label.localeCompare(b.label));
+      const stagePriority = [currentStageName, upstreamStageName, 'propDropper', 'mapCreator'];
+      const maps = projectManager.listUnifiedMaps?.() || [];
+      return maps.map((entry) => {
+        const selectedStage = stagePriority.find((stage) => entry.docsByStage?.[stage]?.docKey) || entry.preferredStage;
+        const selectedDoc = entry.docsByStage?.[selectedStage] || null;
+        return selectedDoc ? {
+          stage: selectedStage,
+          docKey: selectedDoc.docKey,
+          payload: selectedDoc.payload,
+          label: entry.displayName || entry.lookupName || getPayloadLookupName(selectedDoc.payload) || 'Map'
+        } : null;
+      }).filter(Boolean).sort((a, b) => a.label.localeCompare(b.label));
     };
 
     const formatBytes = (bytes) => {

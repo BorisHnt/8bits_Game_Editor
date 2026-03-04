@@ -9680,8 +9680,8 @@
       }
     };
     const syncWorldFromProject = async () => {
-      const docs = projectManager?.listStageDocuments('npcDropper') || [];
-      if (!docs.length) return false;
+      const maps = projectManager?.listUnifiedMaps?.() || [];
+      if (!maps.length) return false;
       const currentByLookup = new Map(
         worldState.maps.map((entry) => [normalizeProjectLookupName(entry.payload?.map?.name || entry.name || ''), entry])
       );
@@ -9690,14 +9690,14 @@
         name: worldState.name || 'world',
         zoom: worldState.zoom,
         opacity: worldState.opacity,
-        maps: docs.map((doc, index) => {
+        maps: maps.map((doc, index) => {
           const lookupName = doc.lookupName || doc.displayName || `Map ${index + 1}`;
           const previous = currentByLookup.get(normalizeProjectLookupName(lookupName));
           return {
-            id: doc.docKey || `project-map-${index + 1}`,
+            id: doc.preferredDocKey || doc.mapId || `project-map-${index + 1}`,
             name: doc.displayName || lookupName,
             fileName: previous?.fileName || '',
-            payload: doc.payload,
+            payload: doc.preferredPayload,
             position: previous?.position
           };
         }),
@@ -9714,7 +9714,8 @@
           const opacity = Number.parseFloat(payload.opacity);
           if (Number.isFinite(zoom)) setZoom(zoom);
           if (Number.isFinite(opacity)) setOpacity(opacity);
-          return true;
+          const synced = await syncWorldFromProject();
+          return synced || true;
         }
       }
       return syncWorldFromProject();
