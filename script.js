@@ -9929,8 +9929,7 @@
     window.addEventListener('storage', async (event) => {
       if (!event.key || !window.localStorage) return;
       if (
-        event.key !== sharedProjectStorageKey
-        && event.key !== worldCacheKey
+        event.key !== worldCacheKey
         && event.key !== sharedProjectStages.worldCreator.storageKey
         && event.key !== sharedProjectStages.mapTester.storageKey
       ) {
