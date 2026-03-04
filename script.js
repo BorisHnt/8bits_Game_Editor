@@ -274,8 +274,13 @@
       'map.importJson': 'Import JSON',
       'map.newMap': 'New Map',
       'map.newMapTitle': 'New Map',
-      'map.newMapWarning': 'Do you want a new empty workspace? Warning: this action will erase the current map.',
-      'map.newMapYes': 'Yes',
+      'map.newMapWarning': 'Create a new map workspace. This creates a new map ID.',
+      'map.newMapName': 'Name',
+      'map.newMapImport': 'Import JSON',
+      'map.newMapImportHint': 'Optional: start from an existing map JSON.',
+      'map.newMapChooseFile': 'Choose JSON',
+      'map.newMapNoFile': 'No file selected',
+      'map.newMapYes': "Let's go",
       'map.newMapNo': 'No',
       'map.newMapExport': 'Export JSON',
       'map.undo': 'Undo',
@@ -712,8 +717,13 @@
       'map.importJson': 'Importer JSON',
       'map.newMap': 'Nouvelle map',
       'map.newMapTitle': 'Nouvelle map',
-      'map.newMapWarning': 'voulez vous un nouvel espace de travail vide ? Attention, cette action va effacer la map en cours.',
-      'map.newMapYes': 'OUI',
+      'map.newMapWarning': "Creez un nouvel espace de travail. Un nouveau mapId sera genere.",
+      'map.newMapName': 'Nom',
+      'map.newMapImport': 'Importer JSON',
+      'map.newMapImportHint': "Optionnel : partir d'une map JSON existante.",
+      'map.newMapChooseFile': 'Choisir JSON',
+      'map.newMapNoFile': 'Aucun fichier selectionne',
+      'map.newMapYes': "Let's go",
       'map.newMapNo': 'NON',
       'map.newMapExport': 'Exporter JSON',
       'map.undo': 'Annuler',
@@ -3089,6 +3099,7 @@
   };
 
   const sanitizeFilename = (name) => name.replace(/[^a-z0-9-_]/gi, '_').replace(/_+/g, '_').trim() || 'export';
+  const createMapProjectId = () => `map-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const getExportName = () => (qs('#export-name')?.value || '').trim() || 'export';
   const getExportFilename = (extension) => `${sanitizeFilename(getExportName())}.${extension}`;
 
@@ -3106,6 +3117,23 @@
   };
 
   const normalizeProjectLookupName = (value) => sanitizeFilename(String(value || 'untitled').trim()).toLowerCase();
+  const getPayloadMapId = (payload) => {
+    const directMapId = payload?.map?.id ?? payload?.mapId ?? payload?.itemLayer?.mapId ?? payload?.gameItemLayer?.mapId ?? payload?.npcLayer?.mapId;
+    const mapId = String(directMapId || '').trim();
+    return mapId || '';
+  };
+  const parseProjectDocSelector = (selector) => {
+    if (selector && typeof selector === 'object' && !Array.isArray(selector)) {
+      return {
+        mapId: String(selector.mapId || '').trim(),
+        lookupName: String(selector.lookupName || selector.name || '').trim()
+      };
+    }
+    return {
+      mapId: '',
+      lookupName: String(selector || '').trim()
+    };
+  };
   const cloneProjectPayload = (payload) => {
     if (payload == null) return null;
     try {
@@ -3197,16 +3225,25 @@
     const project = readSharedProject();
     const stageData = project.stages[stage];
     const names = resolveProjectDocNames(payload, options);
-    const existingEntry = Object.values(stageData.documents).find((entry) => entry?.normalizedLookupName === names.normalizedLookupName);
-    const docKey = options.docKey || existingEntry?.docKey || `${stage}:${names.normalizedLookupName}`;
+    const mapId = String(options.mapId || getPayloadMapId(payload) || '').trim();
+    const existingEntry = Object.values(stageData.documents).find((entry) => (
+      (mapId && String(entry?.mapId || '') === mapId)
+      || entry?.normalizedLookupName === names.normalizedLookupName
+    ));
+    const docKey = options.docKey || existingEntry?.docKey || (mapId ? `${stage}:map:${mapId}` : `${stage}:${names.normalizedLookupName}`);
     Object.keys(stageData.documents).forEach((key) => {
       if (key === docKey) return;
-      if (stageData.documents[key]?.normalizedLookupName === names.normalizedLookupName) {
+      const entry = stageData.documents[key];
+      if (
+        (mapId && String(entry?.mapId || '') === mapId)
+        || entry?.normalizedLookupName === names.normalizedLookupName
+      ) {
         delete stageData.documents[key];
       }
     });
     stageData.documents[docKey] = {
       docKey,
+      mapId: mapId || null,
       lookupName: names.lookupName,
       displayName: names.displayName,
       normalizedLookupName: names.normalizedLookupName,
@@ -3231,12 +3268,15 @@
     if (!sharedProjectStages[stage]) return null;
     const project = readSharedProject();
     const stageData = project.stages[stage];
-    if (!lookupName) {
+    const selector = parseProjectDocSelector(lookupName);
+    if (!selector.mapId && !selector.lookupName) {
       const active = stageData.activeDocKey ? stageData.documents[stageData.activeDocKey] : null;
       return active?.payload ? cloneProjectPayload(active) : null;
     }
-    const normalizedLookupName = normalizeProjectLookupName(lookupName);
-    const exact = Object.values(stageData.documents || {}).find((entry) => entry?.normalizedLookupName === normalizedLookupName);
+    const exact = Object.values(stageData.documents || {}).find((entry) => (
+      (selector.mapId && String(entry?.mapId || entry?.payload?.map?.id || '') === selector.mapId)
+      || (selector.lookupName && entry?.normalizedLookupName === normalizeProjectLookupName(selector.lookupName))
+    ));
     return exact?.payload ? cloneProjectPayload(exact) : null;
   };
   const getSharedProjectDocumentByKey = (stage, docKey = '') => {
@@ -3283,8 +3323,15 @@
   const getSharedProjectUpstreamPayload = (stage, lookupName = '') => {
     const upstreamStage = sharedProjectStages[stage]?.upstreamStage;
     if (!upstreamStage) return null;
-    const matchedDocument = getSharedProjectDocument(upstreamStage, lookupName);
-    return cloneProjectPayload(matchedDocument?.payload || matchedDocument) || getSharedProjectActiveCache(upstreamStage);
+    const selector = parseProjectDocSelector(lookupName);
+    const matchedDocument = getSharedProjectDocument(upstreamStage, selector);
+    if (matchedDocument) {
+      return cloneProjectPayload(matchedDocument?.payload || matchedDocument);
+    }
+    if (selector.mapId || selector.lookupName) {
+      return null;
+    }
+    return getSharedProjectActiveCache(upstreamStage);
   };
   const openSharedProjectImageDb = () => new Promise((resolve, reject) => {
     if (!window.indexedDB) {
@@ -3743,6 +3790,7 @@
       assetColorPalette: normalized.assetColorPalette || normalized.map.assetColorPalette || 'studio',
       assets: cloneProjectPayload(normalized.assets) || [],
       map: {
+        id: normalized.map.id || createMapProjectId(),
         name: normalized.map.name || normalized.name || fallbackName || '',
         width: normalized.map.width,
         height: normalized.map.height,
@@ -4286,6 +4334,7 @@
     if (!payload.map) return payload;
     const next = cloneProjectPayload(payload) || {};
     next.version = Math.max(compactMapVersion, Number.parseInt(next.version, 10) || compactMapVersion);
+    next.map.id = String(next.map.id || createMapProjectId()).trim() || createMapProjectId();
     const mapWidth = clamp(Number.parseInt(next.map.width, 10) || 50, 1, 9999);
     next.map.cellEncoding = 'rle';
     next.map.cells = encodeRleEntries(payload.map.cells || [], encodeMapCellTuple);
@@ -4317,6 +4366,7 @@
   window.EightBitsMapSchema = {
     version: compactMapVersion,
     isPortalMarker: isPortalMarkerValue,
+    createMapId: createMapProjectId,
     normalizePayload: normalizeCompactMapPayload,
     compactPayload: compactMapPayload
   };
@@ -5299,7 +5349,11 @@
     const mapNewModal = qs('#map-new-modal');
     const mapNewYesButton = qs('#map-new-yes');
     const mapNewNoButton = qs('#map-new-no');
-    const mapNewExportButton = qs('#map-new-export');
+    const mapNewNameInput = qs('#map-new-name');
+    const mapNewWidthInput = qs('#map-new-width');
+    const mapNewHeightInput = qs('#map-new-height');
+    const mapNewImportFile = qs('#map-new-import-file');
+    const mapNewImportName = qs('#map-new-import-name');
 
     if (!assetList || !assetGrid || !mapGrid) return;
     const projectManager = window.EightBitsProjectManager || null;
@@ -5342,6 +5396,7 @@
       shiftPaint: false,
       shiftPaintIndex: null,
       map: {
+        id: createMapProjectId(),
         name: '',
         width: 50,
         height: 50,
@@ -5756,8 +5811,16 @@
 
     const openNewMapModal = () => {
       if (!mapNewModal) return;
+      if (mapNewNameInput) mapNewNameInput.value = '';
+      if (mapNewWidthInput) mapNewWidthInput.value = String(mapState.map.width || 50);
+      if (mapNewHeightInput) mapNewHeightInput.value = String(mapState.map.height || 50);
+      if (mapNewImportFile) mapNewImportFile.value = '';
+      if (mapNewImportName) {
+        mapNewImportName.textContent = getText('map.newMapNoFile', 'No file selected');
+      }
       mapNewModal.classList.remove('is-hidden');
       mapNewModal.setAttribute('aria-hidden', 'false');
+      mapNewNameInput?.focus();
     };
 
     const closeNewMapModal = () => {
@@ -5765,6 +5828,22 @@
       mapNewModal.classList.add('is-hidden');
       mapNewModal.setAttribute('aria-hidden', 'true');
     };
+    const readJsonFile = (file) => new Promise((resolve, reject) => {
+      if (!file) {
+        resolve(null);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          resolve(JSON.parse(String(reader.result || '{}')));
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(reader.error || new Error('Unable to read file'));
+      reader.readAsText(file);
+    });
 
     const cacheAssetImage = async (file) => {
       if (!file) return null;
@@ -6047,6 +6126,7 @@
       randomizeRange: mapState.randomizeRange,
       view: mapState.view,
       map: {
+        id: mapState.map.id || '',
         name: mapState.map.name || '',
         width: mapState.map.width,
         height: mapState.map.height,
@@ -6098,6 +6178,7 @@
       mapState.randomize = Boolean(snapshot.randomize);
       mapState.randomizeRange = String(snapshot.randomizeRange || '');
       mapState.view = snapshot.view || 'normal';
+      mapState.map.id = String(snapshot.map.id || createMapProjectId()).trim() || createMapProjectId();
       mapState.map.name = snapshot.map.name || '';
       mapState.map.width = clamp(Number.parseInt(snapshot.map.width, 10) || 50, 4, 200);
       mapState.map.height = clamp(Number.parseInt(snapshot.map.height, 10) || 50, 4, 200);
@@ -7334,6 +7415,7 @@
         type: asset.type
       })),
       map: {
+        id: mapState.map.id || createMapProjectId(),
         name: mapState.map.name || '',
         width: mapState.map.width,
         height: mapState.map.height,
@@ -7395,6 +7477,7 @@
       mapState.selectedSpriteIndex = 1;
       mapState.switchMode = false;
 
+      mapState.map.id = String(payload.map.id || payload.mapId || createMapProjectId()).trim() || createMapProjectId();
       mapState.map.name = payload.map.name || payload.name || '';
       mapState.map.width = clamp(Number.parseInt(payload.map.width, 10) || 50, 4, 200);
       mapState.map.height = clamp(Number.parseInt(payload.map.height, 10) || 50, 4, 200);
@@ -7494,16 +7577,49 @@
       reader.readAsText(file);
     };
 
-    const createNewMapWorkspace = () => {
-      const total = mapState.map.width * mapState.map.height;
+    const createNewMapWorkspace = async () => {
+      const nextName = String(mapNewNameInput?.value || '').trim();
+      const importFile = mapNewImportFile?.files?.[0] || null;
+      const width = clamp(Number.parseInt(mapNewWidthInput?.value, 10) || mapState.map.width || 50, 4, 200);
+      const height = clamp(Number.parseInt(mapNewHeightInput?.value, 10) || mapState.map.height || 50, 4, 200);
+      if (importFile) {
+        try {
+          const payload = await readJsonFile(importFile);
+          if (!payload?.map || !Array.isArray(payload?.assets)) return;
+          const nextPayload = cloneProjectPayload(payload) || {};
+          nextPayload.map = {
+            ...(nextPayload.map || {}),
+            id: createMapProjectId(),
+            name: nextName || nextPayload.map?.name || nextPayload.name || ''
+          };
+          if (nextName) {
+            nextPayload.name = nextName;
+          }
+          applyMapPayload(nextPayload);
+          endMapHistoryBatch();
+          mapUndoStack = [];
+          mapRedoStack = [];
+          updateMapUndoRedoControls();
+          closeNewMapModal();
+        } catch (error) {
+          // ignore invalid JSON
+        }
+        return;
+      }
+      const total = width * height;
       mapState.isDrawing = false;
       mapState.shiftPaint = false;
       mapState.shiftPaintIndex = null;
       mapState.markerMode = null;
-      mapState.map.name = '';
+      mapState.map.id = createMapProjectId();
+      mapState.map.name = nextName;
+      mapState.map.width = width;
+      mapState.map.height = height;
       mapState.map.cells = Array.from({ length: total }, () => null);
       mapState.map.markers = Array.from({ length: total }, () => null);
-      if (mapNameInput) mapNameInput.value = '';
+      if (mapNameInput) mapNameInput.value = mapState.map.name;
+      if (mapWidthInput) mapWidthInput.value = String(mapState.map.width);
+      if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
       endMapHistoryBatch();
       mapUndoStack = [];
       mapRedoStack = [];
@@ -7651,8 +7767,29 @@
     });
     mapNewYesButton?.addEventListener('click', createNewMapWorkspace);
     mapNewNoButton?.addEventListener('click', closeNewMapModal);
-    mapNewExportButton?.addEventListener('click', () => {
-      exportMapJson();
+    mapNewImportFile?.addEventListener('change', () => {
+      const file = mapNewImportFile.files?.[0];
+      if (mapNewImportName) {
+        mapNewImportName.textContent = file?.name || getText('map.newMapNoFile', 'No file selected');
+      }
+    });
+    mapNewNameInput?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        createNewMapWorkspace();
+      }
+    });
+    mapNewWidthInput?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        createNewMapWorkspace();
+      }
+    });
+    mapNewHeightInput?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        createNewMapWorkspace();
+      }
     });
     mapOptionsButton?.addEventListener('click', openCacheModal);
     cacheCloseButton?.addEventListener('click', closeCacheModal);

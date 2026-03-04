@@ -400,12 +400,34 @@
         <h2 class="panel-title" id="map-new-title" data-i18n="map.newMapTitle">New Map</h2>
       </div>
       <div class="modal-body">
-        <p class="panel-subtitle" data-i18n="map.newMapWarning">Voulez vous un nouvel espace de travail vide ? Attention, cette action va effacer la map en cours.</p>
+        <p class="panel-subtitle" data-i18n="map.newMapWarning">Create a new map workspace. This creates a new map ID.</p>
+        <div class="map-new-form">
+          <div class="map-control-group">
+            <label class="panel-label" for="map-new-name" data-i18n="map.newMapName">Name</label>
+            <input class="asset-input" type="text" id="map-new-name" placeholder="beach_001" />
+          </div>
+          <div class="map-control-group">
+            <label class="panel-label" data-i18n="map.mapSize">Map Size</label>
+            <div class="grid-inputs">
+              <input class="grid-size-input" type="number" id="map-new-width" min="4" max="200" value="50" aria-label="New map width" />
+              <span class="grid-separator">x</span>
+              <input class="grid-size-input" type="number" id="map-new-height" min="4" max="200" value="50" aria-label="New map height" />
+            </div>
+          </div>
+          <div class="map-control-group">
+            <label class="panel-label" data-i18n="map.newMapImport">Import JSON</label>
+            <p class="panel-subtitle map-new-import-hint" data-i18n="map.newMapImportHint">Optional: start from an existing map JSON.</p>
+            <div class="map-new-file-row">
+              <label class="button-secondary map-new-file-button" for="map-new-import-file" data-i18n="map.newMapChooseFile">Choose JSON</label>
+              <span class="map-new-file-name" id="map-new-import-name" data-i18n="map.newMapNoFile">No file selected</span>
+            </div>
+            <input class="map-file-input" type="file" id="map-new-import-file" accept=".json" />
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
         <button class="button-secondary" type="button" id="map-new-no" data-i18n="map.newMapNo">No</button>
-        <button class="button-secondary" type="button" id="map-new-export" data-i18n="map.newMapExport">Export JSON</button>
-        <button class="button-primary" type="button" id="map-new-yes" data-i18n="map.newMapYes">Yes</button>
+        <button class="button-primary" type="button" id="map-new-yes" data-i18n="map.newMapYes">Let's go</button>
       </div>
     </div>
   </div>

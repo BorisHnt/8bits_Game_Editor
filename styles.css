@@ -1381,6 +1381,32 @@ svg {
   gap: 10px;
 }
 
+.map-new-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.map-new-import-hint {
+  margin: 0 0 8px;
+}
+
+.map-new-file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.map-new-file-button {
+  cursor: pointer;
+}
+
+.map-new-file-name {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
 .accent-outline-active {
   border-color: var(--color-accent-2);
   box-shadow: 0 0 18px rgba(0, 109, 156, 0.18);

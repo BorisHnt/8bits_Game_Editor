@@ -184,6 +184,7 @@
         assetColorPalette: 'studio',
         assets: [],
         map: {
+          id: '',
           name: '',
           width: 50,
           height: 50,
@@ -559,6 +560,7 @@
         assetColorPalette: state.baseMap.assetColorPalette,
         assets: state.baseMap.assets.map(cloneBaseAsset),
         map: {
+          id: state.baseMap.map.id || '',
           name: state.baseMap.map.name,
           width: state.baseMap.map.width,
           height: state.baseMap.map.height,
@@ -588,6 +590,7 @@
       state.baseMap.sourceFile = snapshot.baseMap.sourceFile || '';
       state.baseMap.assetColorPalette = snapshot.baseMap.assetColorPalette || 'studio';
       state.baseMap.assets = (snapshot.baseMap.assets || []).map((asset, index) => normalizeBaseAsset(asset, index + 1));
+      state.baseMap.map.id = String(snapshot.baseMap.map.id || state.baseMap.map.id || window.EightBitsMapSchema?.createMapId?.() || '').trim();
       state.baseMap.map.name = snapshot.baseMap.map.name || '';
       state.baseMap.map.width = clamp(Number.parseInt(snapshot.baseMap.map.width, 10) || 50, 4, 200);
       state.baseMap.map.height = clamp(Number.parseInt(snapshot.baseMap.map.height, 10) || 50, 4, 200);
@@ -1707,6 +1710,7 @@
         type: asset.type
       })),
       map: {
+        id: state.baseMap.map.id || window.EightBitsMapSchema?.createMapId?.() || '',
         name: state.baseMap.map.name || '',
         width: state.baseMap.map.width,
         height: state.baseMap.map.height,
@@ -1799,6 +1803,7 @@
         assetColorPalette: payload?.assetColorPalette || payload?.map?.assetColorPalette || 'studio',
         assets,
         map: {
+          id: String(payload?.map?.id || payload?.mapId || window.EightBitsMapSchema?.createMapId?.() || '').trim(),
           name: payload?.map?.name || payload?.name || (fileName ? fileName.replace(/\.[^/.]+$/, '') : ''),
           width,
           height,
@@ -1855,7 +1860,10 @@
       reader.readAsText(file);
     };
     const refreshBaseMapFromProject = async () => {
-      const payload = projectManager?.getUpstreamPayload('propDropper', state.baseMap.map.name || state.layout.name || '');
+      const payload = projectManager?.getUpstreamPayload('propDropper', {
+        mapId: state.baseMap.map.id || '',
+        lookupName: state.baseMap.map.name || state.layout.name || ''
+      });
       if (!payload?.map || !Array.isArray(payload?.assets)) return false;
       pushHistorySnapshot();
       await applyBaseMapPayload(payload, payload?.sourceFile || '', { clearItems: false });
