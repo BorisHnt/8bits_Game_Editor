@@ -1819,12 +1819,13 @@
         const groupName = button.dataset.openGroup;
         const urls = groups[groupName];
         if (!Array.isArray(urls) || !urls.length) return;
+        const openOrder = groupName === 'production-chain' ? [...urls].reverse() : urls;
         let index = 0;
         const openNext = () => {
-          if (index >= urls.length) return;
-          window.open(urls[index], '_blank', 'noopener');
+          if (index >= openOrder.length) return;
+          window.open(openOrder[index], '_blank', 'noopener');
           index += 1;
-          if (index < urls.length) {
+          if (index < openOrder.length) {
             window.setTimeout(openNext, 140);
           }
         };
