@@ -63,7 +63,10 @@
       down: 'Down',
       all: 'All',
       assetGridHint: 'Select an item sheet to preview its sprites.',
-      baseMapEmpty: 'No base map loaded.'
+      baseMapEmpty: 'No base map loaded.',
+      updateCache: 'Update Cache',
+      publishUpdated: 'Updated',
+      publishDirty: 'Not published yet'
     },
     fr: {
       addItem: 'Ajouter item',
@@ -117,7 +120,10 @@
       down: 'Down',
       all: 'Tous',
       assetGridHint: "Selectionner une sheet d'items pour voir ses sprites.",
-      baseMapEmpty: 'Aucune map de base chargee.'
+      baseMapEmpty: 'Aucune map de base chargee.',
+      updateCache: 'Mettre a jour le cache',
+      publishUpdated: 'Mis a jour',
+      publishDirty: 'Non publie'
     }
   };
 
@@ -184,6 +190,7 @@
     const mapSelect = qs('#item-map-select');
     const mapNameInput = qs('#item-map-name');
     const mapUpdateButton = qs('#item-map-update');
+    const mapPublishStatus = qs('#item-publish-status');
     const baseMapLabel = qs('#item-base-map-label');
     const refreshBaseMapButton = qs('#item-refresh-base-map');
     const refreshBaseMapFile = qs('#item-refresh-base-map-file');
@@ -287,6 +294,7 @@
     let itemSpaceEyedropperActive = false;
     let itemTemporaryTool = null;
     let saveTimer = null;
+    let publishState = 'updated';
     let undoStack = [];
     let redoStack = [];
     let historyBatchActive = false;
@@ -297,6 +305,18 @@
     let animationEditorAssetId = null;
     let animationPreviewTick = 0;
     let animationPreviewTimer = null;
+    const renderPublishStatus = () => {
+      if (!mapPublishStatus) return;
+      mapPublishStatus.dataset.status = publishState;
+      mapPublishStatus.textContent = msg(
+        publishState === 'dirty' ? 'publishDirty' : 'publishUpdated',
+        publishState === 'dirty' ? 'Not published yet' : 'Updated'
+      );
+    };
+    const setPublishState = (nextState) => {
+      publishState = nextState === 'dirty' ? 'dirty' : 'updated';
+      renderPublishStatus();
+    };
 
     const getEffectiveTool = () => itemTemporaryTool || state.tool;
     const refreshTemporaryTool = () => {
@@ -812,6 +832,7 @@
     const scheduleSave = () => {
       if (!window.localStorage) return;
       if (saveTimer) clearTimeout(saveTimer);
+      setPublishState('dirty');
       saveTimer = window.setTimeout(() => {
         saveTimer = null;
         const payload = buildExportPayload();
@@ -826,6 +847,7 @@
           displayName: payload?.name || payload?.map?.name || 'Item Dropper'
         });
         currentProjectDocKey = entry?.docKey || currentProjectDocKey;
+        setPublishState('updated');
       }, 200);
     };
     const flushSave = () => {
@@ -847,6 +869,7 @@
         displayName: payload?.name || payload?.map?.name || 'Item Dropper'
       });
       currentProjectDocKey = entry?.docKey || currentProjectDocKey;
+      setPublishState('updated');
       refreshProjectMapOptions();
       return payload;
     };
@@ -2690,6 +2713,7 @@
 
     document.addEventListener('languagechange', () => {
       updateBaseMapLabel();
+      renderPublishStatus();
       renderAssetList();
       renderAssetGrid();
       renderMaskEditor();
@@ -2710,6 +2734,7 @@
     renderAssetList();
     renderAssetGrid();
     renderMapGrid();
+    renderPublishStatus();
     refreshProjectMapOptions();
     updateBaseMapLabel();
     updateInteractionControls();

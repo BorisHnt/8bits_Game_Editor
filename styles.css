@@ -566,6 +566,22 @@ svg {
   flex: 1 1 auto;
 }
 
+.map-publish-status {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+}
+
+.map-publish-status[data-status="dirty"] {
+  color: #d9a441;
+}
+
+.map-publish-status[data-status="updated"] {
+  color: #7fcf9a;
+}
+
 
 .workspace-layout {
   display: grid;

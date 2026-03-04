@@ -183,6 +183,9 @@
       'map.viewAssets': 'Assets',
       'map.viewCollision': 'Passable/Blocking',
       'map.name': 'Map name',
+      'map.updateCache': 'Update Cache',
+      'map.publishUpdated': 'Updated',
+      'map.publishDirty': 'Not published yet',
       'map.shift': 'Shift',
       'map.shiftUp': 'Up',
       'map.shiftDown': 'Down',
@@ -306,6 +309,9 @@
       'items.options': 'Options',
       'items.name': 'Layout name',
       'items.namePlaceholder': 'Item layout name',
+      'items.updateCache': 'Update Cache',
+      'items.publishUpdated': 'Updated',
+      'items.publishDirty': 'Not published yet',
       'items.data': 'Data',
       'items.undo': 'Undo',
       'items.redo': 'Redo',
@@ -350,6 +356,9 @@
       'itemdropper.options': 'Options',
       'itemdropper.name': 'Layout name',
       'itemdropper.namePlaceholder': 'Item layout name',
+      'itemdropper.updateCache': 'Update Cache',
+      'itemdropper.publishUpdated': 'Updated',
+      'itemdropper.publishDirty': 'Not published yet',
       'itemdropper.data': 'Data',
       'itemdropper.undo': 'Undo',
       'itemdropper.redo': 'Redo',
@@ -400,6 +409,9 @@
       'npcdropper.options': 'Options',
       'npcdropper.name': 'Layout name',
       'npcdropper.namePlaceholder': 'NPC layout name',
+      'npcdropper.updateCache': 'Update Cache',
+      'npcdropper.publishUpdated': 'Updated',
+      'npcdropper.publishDirty': 'Not published yet',
       'npcdropper.data': 'Data',
       'npcdropper.undo': 'Undo',
       'npcdropper.redo': 'Redo',
@@ -609,6 +621,9 @@
       'map.viewAssets': 'Assets',
       'map.viewCollision': 'Passant/Bloquant',
       'map.name': 'Nom de map',
+      'map.updateCache': 'Mettre a jour le cache',
+      'map.publishUpdated': 'Mis a jour',
+      'map.publishDirty': 'Non publie',
       'map.shift': 'Deplacer',
       'map.shiftUp': 'Haut',
       'map.shiftDown': 'Bas',
@@ -732,6 +747,9 @@
       'items.options': 'Options',
       'items.name': 'Nom du layout',
       'items.namePlaceholder': 'Nom du layout items',
+      'items.updateCache': 'Mettre a jour le cache',
+      'items.publishUpdated': 'Mis a jour',
+      'items.publishDirty': 'Non publie',
       'items.data': 'Data',
       'items.undo': 'Undo',
       'items.redo': 'Redo',
@@ -776,6 +794,9 @@
       'itemdropper.options': 'Options',
       'itemdropper.name': 'Nom du layout',
       'itemdropper.namePlaceholder': 'Nom du layout items',
+      'itemdropper.updateCache': 'Mettre a jour le cache',
+      'itemdropper.publishUpdated': 'Mis a jour',
+      'itemdropper.publishDirty': 'Non publie',
       'itemdropper.data': 'Data',
       'itemdropper.undo': 'Undo',
       'itemdropper.redo': 'Redo',
@@ -826,6 +847,9 @@
       'npcdropper.options': 'Options',
       'npcdropper.name': 'Nom du layout',
       'npcdropper.namePlaceholder': 'Nom du layout PNJ',
+      'npcdropper.updateCache': 'Mettre a jour le cache',
+      'npcdropper.publishUpdated': 'Mis a jour',
+      'npcdropper.publishDirty': 'Non publie',
       'npcdropper.data': 'Data',
       'npcdropper.undo': 'Undo',
       'npcdropper.redo': 'Redo',
@@ -5242,6 +5266,7 @@
     const mapProjectSelect = qs('#map-project-select');
     const mapNameInput = qs('#map-name');
     const mapNameUpdateButton = qs('#map-name-update');
+    const mapPublishStatus = qs('#map-publish-status');
     const mapUndoButton = qs('#map-undo');
     const mapRedoButton = qs('#map-redo');
     const mapExportButton = qs('#map-export');
@@ -5341,6 +5366,7 @@
     const getAssetById = (id) => mapState.assets.find((asset) => asset.id === id);
     const mapCacheKey = '8bits-map-cache-state';
     let mapSaveTimer = null;
+    let mapPublishState = 'updated';
     const mapHistoryLimit = 10;
     let mapUndoStack = [];
     let mapRedoStack = [];
@@ -5350,6 +5376,18 @@
     let cachePreviewImage = null;
     let cachePreviewLabel = null;
     let cachePreviewUrl = null;
+    const renderMapPublishStatus = () => {
+      if (!mapPublishStatus) return;
+      mapPublishStatus.dataset.status = mapPublishState;
+      mapPublishStatus.textContent = getText(
+        mapPublishState === 'dirty' ? 'map.publishDirty' : 'map.publishUpdated',
+        mapPublishState === 'dirty' ? 'Not published yet' : 'Updated'
+      );
+    };
+    const setMapPublishState = (nextState) => {
+      mapPublishState = nextState === 'dirty' ? 'dirty' : 'updated';
+      renderMapPublishStatus();
+    };
 
     const formatBytes = (bytes) => {
       if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
@@ -6116,6 +6154,7 @@
       if (mapSaveTimer) {
         clearTimeout(mapSaveTimer);
       }
+      setMapPublishState('dirty');
       mapSaveTimer = setTimeout(() => {
         const payload = buildMapPayload();
         try {
@@ -6129,6 +6168,7 @@
           displayName: payload?.map?.name || payload?.name || 'Map'
         });
         currentMapProjectDocKey = entry?.docKey || currentMapProjectDocKey;
+        setMapPublishState('updated');
       }, 200);
     };
     const flushMapSave = () => {
@@ -6150,6 +6190,7 @@
         displayName: payload?.map?.name || payload?.name || 'Map'
       });
       currentMapProjectDocKey = entry?.docKey || currentMapProjectDocKey;
+      setMapPublishState('updated');
       refreshProjectMapOptions();
       return payload;
     };
@@ -7419,6 +7460,7 @@
         renderMapGrid();
         refreshProjectMapOptions();
       });
+      setMapPublishState('updated');
       scheduleMapSave();
     };
 
@@ -7474,6 +7516,7 @@
     document.addEventListener('languagechange', () => {
       renderAssetList();
       renderAssetGrid();
+      renderMapPublishStatus();
       if (cacheModal && !cacheModal.classList.contains('is-hidden')) {
         updateCacheModal();
       }
@@ -7502,6 +7545,7 @@
     renderAssetList();
     renderAssetGrid();
     renderMapGrid();
+    renderMapPublishStatus();
     refreshProjectMapOptions();
     bindMapGrid();
     bindMapControls();
