@@ -3333,6 +3333,82 @@
     }
     return getSharedProjectActiveCache(upstreamStage);
   };
+  const chooseExistingMapId = (...payloads) => {
+    for (let index = 0; index < payloads.length; index += 1) {
+      const mapId = getPayloadMapId(payloads[index]);
+      if (mapId) return mapId;
+    }
+    return createMapProjectId();
+  };
+  const assignPayloadMapId = (payload, mapId) => {
+    if (!payload?.map || !mapId) return cloneProjectPayload(payload);
+    const next = cloneProjectPayload(payload) || {};
+    next.map = {
+      ...(next.map || {}),
+      id: mapId
+    };
+    return next;
+  };
+  const upgradeLegacyProjectMapIds = (rawProject, rawStageCaches = {}) => {
+    const project = ensureSharedProjectShape(rawProject);
+    const stageCaches = cloneProjectPayload(rawStageCaches) || {};
+    const groupedRecords = new Map();
+    const appendRecord = (recordKey, record) => {
+      if (!record?.payload?.map) return;
+      const lookupName = record.lookupName || record.payload?.map?.name || record.payload?.name || '';
+      const key = normalizeProjectLookupName(lookupName);
+      if (!key) return;
+      if (!groupedRecords.has(key)) groupedRecords.set(key, []);
+      groupedRecords.get(key).push({ recordKey, ...record });
+    };
+
+    mapMergeStages.forEach((stage) => {
+      const stageData = project.stages?.[stage];
+      Object.entries(stageData?.documents || {}).forEach(([docKey, entry]) => {
+        appendRecord(`${stage}::doc::${docKey}`, {
+          kind: 'doc',
+          stage,
+          docKey,
+          lookupName: entry?.lookupName || entry?.displayName || entry?.payload?.map?.name || '',
+          payload: entry?.payload || null
+        });
+      });
+      appendRecord(`${stage}::cache`, {
+        kind: 'cache',
+        stage,
+        lookupName: stageCaches?.[stage]?.map?.name || stageCaches?.[stage]?.name || '',
+        payload: stageCaches?.[stage] || null
+      });
+    });
+
+    groupedRecords.forEach((records) => {
+      if (!records.length) return;
+      const sharedMapId = chooseExistingMapId(...records.map((record) => record.payload));
+      records.forEach((record) => {
+        const nextPayload = assignPayloadMapId(record.payload, sharedMapId);
+        if (record.kind === 'doc') {
+          const entry = project.stages?.[record.stage]?.documents?.[record.docKey];
+          if (!entry) return;
+          project.stages[record.stage].documents[record.docKey] = {
+            ...entry,
+            mapId: sharedMapId,
+            payload: nextPayload
+          };
+          if (project.stages[record.stage].activeDocKey === record.docKey) {
+            project.activeCaches[record.stage] = cloneProjectPayload(nextPayload);
+          }
+        } else if (record.kind === 'cache') {
+          stageCaches[record.stage] = nextPayload;
+          project.activeCaches[record.stage] = cloneProjectPayload(nextPayload);
+        }
+      });
+    });
+
+    return {
+      project,
+      stageCaches
+    };
+  };
   const openSharedProjectImageDb = () => new Promise((resolve, reject) => {
     if (!window.indexedDB) {
       reject(new Error('IndexedDB not supported'));
@@ -3623,11 +3699,12 @@
     if (!bundlePayload || bundlePayload.type !== sharedProjectBundleType) {
       throw new Error('Invalid project bundle');
     }
-    const project = ensureSharedProjectShape(bundlePayload.project);
+    const upgradedBundle = upgradeLegacyProjectMapIds(bundlePayload.project, bundlePayload.stageCaches || {});
+    const project = upgradedBundle.project;
     writeSharedProject(project);
     if (window.localStorage) {
       Object.entries(sharedProjectStages).forEach(([stage, config]) => {
-        const payload = bundlePayload.stageCaches?.[stage] ?? project.activeCaches?.[stage] ?? null;
+        const payload = upgradedBundle.stageCaches?.[stage] ?? project.activeCaches?.[stage] ?? null;
         if (payload == null) return;
         try {
           localStorage.setItem(config.storageKey, JSON.stringify(payload));
@@ -3676,11 +3753,12 @@
     if (!bundlePayload || bundlePayload.type !== sharedProjectBundleType) {
       throw new Error('Invalid project bundle');
     }
-    const project = ensureSharedProjectShape(bundlePayload.project);
+    const upgradedBundle = upgradeLegacyProjectMapIds(bundlePayload.project, bundlePayload.stageCaches || {});
+    const project = upgradedBundle.project;
     writeSharedProject(project);
     if (window.localStorage) {
       Object.entries(sharedProjectStages).forEach(([stage, config]) => {
-        const payload = bundlePayload.stageCaches?.[stage] ?? project.activeCaches?.[stage] ?? null;
+        const payload = upgradedBundle.stageCaches?.[stage] ?? project.activeCaches?.[stage] ?? null;
         if (payload == null) return;
         try {
           localStorage.setItem(config.storageKey, JSON.stringify(payload));
@@ -3783,7 +3861,7 @@
     }));
     return true;
   };
-  const buildCanonicalBaseMapPayload = (payload, fallbackName = '') => {
+  const buildCanonicalBaseMapPayload = (payload, fallbackName = '', preferredMapId = '') => {
     const normalized = normalizeCompactMapPayload(payload);
     if (!normalized?.map || !Array.isArray(normalized.assets)) return null;
     const basePayload = {
@@ -3791,7 +3869,7 @@
       assetColorPalette: normalized.assetColorPalette || normalized.map.assetColorPalette || 'studio',
       assets: cloneProjectPayload(normalized.assets) || [],
       map: {
-        id: normalized.map.id || createMapProjectId(),
+        id: preferredMapId || normalized.map.id || createMapProjectId(),
         name: normalized.map.name || normalized.name || fallbackName || '',
         width: normalized.map.width,
         height: normalized.map.height,
@@ -3894,7 +3972,8 @@
       const presentStages = mapMergeStages.filter((stage) => group[stage]?.payload?.map);
       if (presentStages.length < 2) return;
       const canonicalSource = group.mapCreator || group.propDropper || group.itemDropper || group.npcDropper;
-      const canonicalBase = buildCanonicalBaseMapPayload(canonicalSource?.payload, canonicalSource?.lookupName || key);
+      const canonicalMapId = chooseExistingMapId(...presentStages.map((stage) => group[stage]?.payload));
+      const canonicalBase = buildCanonicalBaseMapPayload(canonicalSource?.payload, canonicalSource?.lookupName || key, canonicalMapId);
       if (!canonicalBase) return;
       presentStages.forEach((stage) => {
         const entry = group[stage];
@@ -3953,7 +4032,12 @@
     const loser = winner.stage === leftStage && winner.docKey === leftDocKey
       ? { stage: rightStage, docKey: rightDocKey, entry: rightEntry }
       : { stage: leftStage, docKey: leftDocKey, entry: leftEntry };
-    const canonicalBase = buildCanonicalBaseMapPayload(winner.entry.payload, winner.entry.lookupName || winner.entry.displayName || '');
+    const canonicalMapId = chooseExistingMapId(winner.entry.payload, loser.entry.payload);
+    const canonicalBase = buildCanonicalBaseMapPayload(
+      winner.entry.payload,
+      winner.entry.lookupName || winner.entry.displayName || '',
+      canonicalMapId
+    );
     if (!canonicalBase) {
       return { merged: false, reason: 'invalid', similarity: analysis.similarity };
     }
