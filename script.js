@@ -3203,6 +3203,23 @@
       return null;
     }
   };
+  const hasMeaningfulProjectMapPayload = (payload) => {
+    if (!payload?.map || !Array.isArray(payload?.assets)) return false;
+    const mapId = String(payload?.map?.id || '').trim();
+    const mapName = String(payload?.map?.name || payload?.name || '').trim();
+    const hasAssets = (payload.assets || []).length > 0;
+    const hasBaseCells = Array.isArray(payload?.map?.cells) && payload.map.cells.some(Boolean);
+    const hasMarkers = Array.isArray(payload?.map?.markers) && payload.map.markers.some((marker) => (
+      marker === 'portal' || marker === 'entry' || marker === 'exit' || marker === 1 || marker === true
+    ));
+    const hasPropLayer = (Array.isArray(payload?.itemAssets) && payload.itemAssets.length > 0)
+      || (Array.isArray(payload?.itemLayer?.cells) && payload.itemLayer.cells.some(Boolean));
+    const hasItemLayer = (Array.isArray(payload?.gameItemAssets) && payload.gameItemAssets.length > 0)
+      || (Array.isArray(payload?.gameItemLayer?.cells) && payload.gameItemLayer.cells.some(Boolean));
+    const hasNpcLayer = (Array.isArray(payload?.npcAssets) && payload.npcAssets.length > 0)
+      || (Array.isArray(payload?.npcLayer?.cells) && payload.npcLayer.cells.some(Boolean));
+    return Boolean(mapId || mapName || hasAssets || hasBaseCells || hasMarkers || hasPropLayer || hasItemLayer || hasNpcLayer);
+  };
   const getDefaultSharedProject = () => ({
     type: sharedProjectBundleType,
     version: 1,
@@ -3358,7 +3375,7 @@
     const stagePriority = { mapCreator: 0, propDropper: 1, itemDropper: 2, npcDropper: 3 };
     sharedMapStages.forEach((stage) => {
       Object.values(project.stages?.[stage]?.documents || {}).forEach((entry) => {
-        if (!entry?.payload?.map) return;
+        if (!hasMeaningfulProjectMapPayload(entry?.payload)) return;
         const mapId = String(entry.mapId || entry.payload?.map?.id || '').trim();
         const label = String(entry.displayName || entry.lookupName || entry.payload?.map?.name || entry.payload?.name || 'Map').trim();
         const key = mapId || normalizeProjectLookupName(label);
@@ -3403,6 +3420,115 @@
       });
     });
     return Array.from(groups.values()).sort((a, b) => String(a.displayName || a.lookupName || '').localeCompare(String(b.displayName || b.lookupName || '')));
+  };
+  const getUnifiedMapStageOrder = (preferredStages = []) => {
+    const unique = [];
+    preferredStages.forEach((stage) => {
+      if (sharedProjectStages[stage] && !unique.includes(stage)) {
+        unique.push(stage);
+      }
+    });
+    if (!unique.length) {
+      sharedMapStages.forEach((stage) => {
+        if (!unique.includes(stage)) {
+          unique.push(stage);
+        }
+      });
+    }
+    return unique;
+  };
+  const selectUnifiedProjectMapDocument = (entry, preferredStages = []) => {
+    if (!entry?.docsByStage) return null;
+    const stageOrder = getUnifiedMapStageOrder(preferredStages);
+    const stageRank = new Map(stageOrder.map((stage, index) => [stage, index]));
+    const candidates = stageOrder
+      .map((stage) => entry.docsByStage?.[stage] ? { stage, ...entry.docsByStage[stage] } : null)
+      .filter((candidate) => hasMeaningfulProjectMapPayload(candidate?.payload));
+    if (!candidates.length) {
+      return null;
+    }
+    candidates.sort((left, right) => {
+      const leftUpdated = Date.parse(left.updatedAt || '') || 0;
+      const rightUpdated = Date.parse(right.updatedAt || '') || 0;
+      if (rightUpdated !== leftUpdated) return rightUpdated - leftUpdated;
+      return (stageRank.get(left.stage) ?? 99) - (stageRank.get(right.stage) ?? 99);
+    });
+    return candidates[0] || null;
+  };
+  const buildUnifiedProjectMapPayload = (entry) => {
+    if (!entry?.docsByStage) return null;
+    const docsByStage = entry.docsByStage || {};
+    const baseCandidates = ['propDropper', 'mapCreator']
+      .map((stage) => docsByStage[stage] ? { stage, ...docsByStage[stage] } : null)
+      .filter((candidate) => candidate?.payload?.map);
+    const visualCandidates = ['npcDropper', 'itemDropper', 'propDropper', 'mapCreator']
+      .map((stage) => docsByStage[stage] ? { stage, ...docsByStage[stage] } : null)
+      .filter((candidate) => candidate?.payload?.map);
+    const sortByUpdatedAtDesc = (left, right) => {
+      const leftUpdated = Date.parse(left?.updatedAt || '') || 0;
+      const rightUpdated = Date.parse(right?.updatedAt || '') || 0;
+      return rightUpdated - leftUpdated;
+    };
+    const baseSource = [...baseCandidates].sort(sortByUpdatedAtDesc)[0] || visualCandidates[0] || null;
+    const visualSource = [...visualCandidates].sort(sortByUpdatedAtDesc)[0] || baseSource;
+    let resolvedPayload = cloneProjectPayload(visualSource?.payload || entry.preferredPayload || null);
+    if (baseSource?.payload?.map) {
+      const canonicalBase = buildCanonicalBaseMapPayload(
+        baseSource.payload,
+        baseSource.lookupName || baseSource.displayName || entry.lookupName || entry.displayName || '',
+        entry.mapId || getPayloadMapId(baseSource.payload) || ''
+      );
+      if (canonicalBase) {
+        resolvedPayload = visualSource?.payload?.map
+          ? mergeBaseMapIntoStagePayload(
+            canonicalBase,
+            visualSource.payload,
+            visualSource.lookupName || visualSource.displayName || entry.lookupName || entry.displayName || ''
+          )
+          : canonicalBase;
+      }
+    }
+    const normalized = normalizeCompactMapPayload(resolvedPayload);
+    if (!normalized?.map) return resolvedPayload;
+    const sharedMarkers = getSharedProjectPortalMarkers(
+      {
+        mapId: entry.mapId || getPayloadMapId(normalized) || '',
+        lookupName: entry.lookupName || entry.displayName || normalized.map.name || normalized.name || ''
+      },
+      Number.parseInt(normalized.map.width, 10) || 0,
+      Number.parseInt(normalized.map.height, 10) || 0
+    );
+    if (Array.isArray(sharedMarkers)) {
+      normalized.map.markers = sharedMarkers;
+    }
+    return compactMapPayload(normalized);
+  };
+  const getLatestUnifiedProjectMap = (preferredStages = []) => {
+    const entries = listUnifiedProjectMaps();
+    let best = null;
+    entries.forEach((entry) => {
+      const selected = selectUnifiedProjectMapDocument(entry, preferredStages);
+      if (!selected?.payload?.map) return;
+      const candidate = {
+        mapId: entry.mapId || getPayloadMapId(selected.payload) || '',
+        displayName: entry.displayName || entry.lookupName || selected.displayName || selected.lookupName || 'Map',
+        lookupName: entry.lookupName || selected.lookupName || selected.displayName || 'Map',
+        stage: selected.stage,
+        docKey: selected.docKey,
+        updatedAt: selected.updatedAt || '',
+        payload: cloneProjectPayload(selected.payload)
+      };
+      if (!best) {
+        best = candidate;
+        return;
+      }
+      const bestUpdated = Date.parse(best.updatedAt || '') || 0;
+      const candidateUpdated = Date.parse(candidate.updatedAt || '') || 0;
+      if (candidateUpdated > bestUpdated) {
+        best = candidate;
+      }
+    });
+    return best;
   };
   const getSharedProjectDocument = (stage, lookupName = '') => {
     if (!sharedProjectStages[stage]) return null;
@@ -4671,6 +4797,9 @@
     mergeMatchingMaps: mergeMatchingMapDocuments,
     mergeSelectedMaps: mergeSelectedMapDocuments,
     listUnifiedMaps: listUnifiedProjectMaps,
+    selectUnifiedMapDocument: selectUnifiedProjectMapDocument,
+    buildUnifiedMapPayload: buildUnifiedProjectMapPayload,
+    getLatestUnifiedMap: getLatestUnifiedProjectMap,
     isLegacyMapPayload: isLegacyProjectMapPayload,
     getSharedMarkers: getSharedProjectPortalMarkers,
     setSharedMarkers: setSharedProjectPortalMarkers,
@@ -6960,12 +7089,31 @@
       return payload;
     };
 
+    const hasUsableMapPayload = (payload) => {
+      if (!payload?.map || !Array.isArray(payload?.assets)) return false;
+      const mapId = String(payload?.map?.id || '').trim();
+      const mapName = String(payload?.map?.name || payload?.name || '').trim();
+      const hasAssets = (payload.assets || []).length > 0;
+      const hasCells = Array.isArray(payload?.map?.cells) && payload.map.cells.some(Boolean);
+      const hasMarkers = Array.isArray(payload?.map?.markers) && payload.map.markers.some((marker) => (
+        marker === 'portal' || marker === 'entry' || marker === 'exit' || marker === 1 || marker === true
+      ));
+      return Boolean(mapId || mapName || hasAssets || hasCells || hasMarkers);
+    };
+    const getLatestMapCreatorDocument = () => {
+      const docs = projectManager?.listStageDocuments('mapCreator') || [];
+      if (!docs.length) return null;
+      return [...docs].sort((left, right) => (
+        (Date.parse(right?.updatedAt || '') || 0) - (Date.parse(left?.updatedAt || '') || 0)
+      ))[0] || null;
+    };
     const loadCachedMapState = () => {
       if (!window.localStorage) return false;
       try {
         const raw = localStorage.getItem(mapCacheKey);
         if (!raw) return false;
         const payload = JSON.parse(raw);
+        if (!hasUsableMapPayload(payload)) return false;
         applyMapPayload(payload);
         return true;
       } catch (error) {
@@ -6973,10 +7121,13 @@
       }
     };
     const loadProjectMapState = () => {
-      const doc = projectManager?.getStageActiveDocument('mapCreator');
+      const doc = projectManager?.getStageActiveDocument('mapCreator') || getLatestMapCreatorDocument();
       const payload = doc?.payload || projectManager?.getStageActiveCache('mapCreator');
-      if (!payload) return false;
+      if (!hasUsableMapPayload(payload)) return false;
       currentMapProjectDocKey = doc?.docKey || currentMapProjectDocKey;
+      if (doc?.docKey) {
+        projectManager?.setStageActiveDocument('mapCreator', doc.docKey);
+      }
       applyMapPayload(payload);
       return true;
     };
@@ -9958,44 +10109,14 @@
     const syncWorldFromProject = async () => {
       const maps = projectManager?.listUnifiedMaps?.() || [];
       if (!maps.length) return false;
+      const currentByMapId = new Map(
+        worldState.maps
+          .map((entry) => [String(entry.payload?.map?.id || entry.id || ''), entry])
+          .filter(([key]) => key)
+      );
       const currentByLookup = new Map(
         worldState.maps.map((entry) => [normalizeProjectLookupName(entry.payload?.map?.name || entry.name || ''), entry])
       );
-      const resolveWorldProjectPayload = (doc) => {
-        const docsByStage = doc?.docsByStage || {};
-        const baseCandidates = ['propDropper', 'mapCreator']
-          .map((stage) => docsByStage[stage])
-          .filter((entry) => entry?.payload?.map);
-        const visualCandidates = ['npcDropper', 'itemDropper', 'propDropper', 'mapCreator']
-          .map((stage) => docsByStage[stage])
-          .filter((entry) => entry?.payload?.map);
-        const sortByUpdatedAtDesc = (left, right) => (
-          (Date.parse(right?.updatedAt || '') || 0) - (Date.parse(left?.updatedAt || '') || 0)
-        );
-        const baseSource = [...baseCandidates].sort(sortByUpdatedAtDesc)[0]
-          || visualCandidates[0]
-          || null;
-        const visualSource = visualCandidates[0] || baseSource;
-        if (!baseSource?.payload?.map) {
-          return cloneProjectPayload(doc?.preferredPayload || null);
-        }
-        const canonicalBase = buildCanonicalBaseMapPayload(
-          baseSource.payload,
-          baseSource.lookupName || baseSource.displayName || doc?.lookupName || doc?.displayName || '',
-          doc?.mapId || getPayloadMapId(baseSource.payload) || ''
-        );
-        if (!canonicalBase) {
-          return cloneProjectPayload(visualSource?.payload || doc?.preferredPayload || null);
-        }
-        if (!visualSource?.payload?.map) {
-          return canonicalBase;
-        }
-        return mergeBaseMapIntoStagePayload(
-          canonicalBase,
-          visualSource.payload,
-          visualSource.lookupName || visualSource.displayName || doc?.lookupName || doc?.displayName || ''
-        );
-      };
       const payload = {
         version: 1,
         name: worldState.name || 'world',
@@ -10003,10 +10124,11 @@
         opacity: worldState.opacity,
         maps: maps.map((doc, index) => {
           const lookupName = doc.lookupName || doc.displayName || `Map ${index + 1}`;
-          const previous = currentByLookup.get(normalizeProjectLookupName(lookupName));
-          const mergedPayload = resolveWorldProjectPayload(doc);
+          const previous = currentByMapId.get(String(doc.mapId || ''))
+            || currentByLookup.get(normalizeProjectLookupName(lookupName));
+          const mergedPayload = projectManager?.buildUnifiedMapPayload?.(doc) || cloneProjectPayload(doc?.preferredPayload || null);
           return {
-            id: doc.preferredDocKey || doc.mapId || `project-map-${index + 1}`,
+            id: previous?.id || doc.mapId || doc.preferredDocKey || `project-map-${index + 1}`,
             name: doc.displayName || lookupName,
             fileName: previous?.fileName || '',
             payload: mergedPayload,

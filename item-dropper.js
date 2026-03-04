@@ -2233,13 +2233,28 @@
       reader.readAsText(file);
     };
 
+    const hasUsableBasePayload = (payload) => {
+      if (!payload?.map || !Array.isArray(payload?.assets)) return false;
+      const mapId = String(payload?.map?.id || '').trim();
+      const mapName = String(payload?.map?.name || payload?.name || '').trim();
+      const hasBaseAssets = (payload.assets || []).length > 0;
+      const hasBaseCells = Array.isArray(payload?.map?.cells) && payload.map.cells.some(Boolean);
+      const hasMarkers = Array.isArray(payload?.map?.markers) && payload.map.markers.some((marker) => (
+        marker === 'portal' || marker === 'entry' || marker === 'exit' || marker === 1 || marker === true
+      ));
+      const hasProps = (Array.isArray(payload?.itemAssets) && payload.itemAssets.length > 0)
+        || (Array.isArray(payload?.itemLayer?.cells) && payload.itemLayer.cells.some(Boolean));
+      const hasItems = (Array.isArray(payload?.gameItemAssets) && payload.gameItemAssets.length > 0)
+        || (Array.isArray(payload?.gameItemLayer?.cells) && payload.gameItemLayer.cells.some(Boolean));
+      return Boolean(mapId || mapName || hasBaseAssets || hasBaseCells || hasMarkers || hasProps || hasItems);
+    };
     const loadCachedState = async () => {
       if (!window.localStorage) return false;
       try {
         const raw = localStorage.getItem(itemCacheKey);
         if (!raw) return false;
         const payload = JSON.parse(raw);
-        if (!payload) return false;
+        if (!hasUsableBasePayload(payload)) return false;
         if (payload?.gameItemLayer && Array.isArray(payload?.gameItemAssets) && payload?.map && Array.isArray(payload?.assets)) {
           await applyItemPayload(payload, payload?.sourceFile || '');
           return true;
@@ -2254,11 +2269,23 @@
       }
     };
     const loadProjectState = async () => {
-      const doc = projectManager?.getStageActiveDocument('itemDropper');
-      const payload = doc?.payload || projectManager?.getStageActiveCache('itemDropper') || projectManager?.getUpstreamPayload('itemDropper');
-      if (!payload) return false;
-      currentProjectDocKey = doc?.docKey || currentProjectDocKey;
-      currentProjectSelection = doc?.docKey ? buildProjectOptionValue(currentStageName, doc.docKey) : '';
+      const activeDoc = projectManager?.getStageActiveDocument('itemDropper');
+      const activePayload = activeDoc?.payload || projectManager?.getStageActiveCache('itemDropper') || null;
+      const latestProjectMap = projectManager?.getLatestUnifiedMap?.([currentStageName, upstreamStageName, 'mapCreator']);
+      const doc = hasUsableBasePayload(activePayload)
+        ? {
+          stage: currentStageName,
+          docKey: activeDoc?.docKey || '',
+          payload: activePayload
+        }
+        : latestProjectMap;
+      const payload = doc?.payload || projectManager?.getUpstreamPayload('itemDropper');
+      if (!hasUsableBasePayload(payload)) return false;
+      currentProjectDocKey = doc?.stage === currentStageName ? (doc?.docKey || currentProjectDocKey) : currentProjectDocKey;
+      currentProjectSelection = doc?.stage && doc?.docKey ? buildProjectOptionValue(doc.stage, doc.docKey) : '';
+      if (doc?.stage === currentStageName && doc?.docKey) {
+        projectManager?.setStageActiveDocument(currentStageName, doc.docKey);
+      }
       if (payload?.gameItemLayer && Array.isArray(payload?.gameItemAssets) && payload?.map && Array.isArray(payload?.assets)) {
         await applyItemPayload(payload, payload?.sourceFile || '');
         return true;
@@ -2882,17 +2909,9 @@
 
     loadCachedState().then(async (loaded) => {
       const resolved = loaded || await loadProjectState();
-      if (!resolved && !state.assets.length) {
-        createAsset();
-        renderAssetList();
-        renderAssetGrid();
-        renderMapGrid();
-        scheduleSave();
-      } else {
-        renderAssetList();
-        renderAssetGrid();
-        renderMapGrid();
-      }
+      renderAssetList();
+      renderAssetGrid();
+      renderMapGrid();
     });
   };
 
