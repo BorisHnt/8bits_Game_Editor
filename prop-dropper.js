@@ -236,6 +236,19 @@
     };
     const currentStageName = 'propDropper';
     const upstreamStageName = 'mapCreator';
+    const getSharedMarkers = () => projectManager?.getSharedMarkers?.(
+      { mapId: state.baseMap.map.id || '', lookupName: state.baseMap.map.name || state.layout.name || '' },
+      state.baseMap.map.width,
+      state.baseMap.map.height
+    ) || null;
+    const syncSharedMarkers = () => {
+      projectManager?.setSharedMarkers?.(
+        { mapId: state.baseMap.map.id || '', lookupName: state.baseMap.map.name || state.layout.name || '' },
+        state.baseMap.map.markers,
+        state.baseMap.map.width,
+        state.baseMap.map.height
+      );
+    };
     const getPayloadMapId = (payload) => String(payload?.map?.id || '').trim();
     const getPayloadLookupName = (payload) => String(payload?.map?.name || payload?.name || '').trim();
     const buildProjectOptionValue = (stage, docKey) => `${stage}::${docKey}`;
@@ -653,6 +666,7 @@
       state.layout.cellSize = clamp(Number.parseInt(snapshot.layout.cellSize, 10) || 16, 10, 32);
       state.layout.cells = Array.isArray(snapshot.layout.cells) ? snapshot.layout.cells.map(cloneItemCell) : [];
       ensureCells();
+      syncSharedMarkers();
       if (mapNameInput) mapNameInput.value = state.layout.name;
       if (mapWidthInput) mapWidthInput.value = String(state.layout.width);
       if (mapHeightInput) mapHeightInput.value = String(state.layout.height);
@@ -1653,6 +1667,7 @@
         ensureHistorySnapshot();
         const current = state.baseMap.map.markers[index];
         state.baseMap.map.markers[index] = current === state.markerMode ? null : state.markerMode;
+        syncSharedMarkers();
         renderMapGrid();
         scheduleSave();
         return;
@@ -1718,6 +1733,7 @@
       state.layout.cells = resizedItems;
       state.baseMap.map.cells = resizedBase;
       state.baseMap.map.markers = resizedMarkers;
+      syncSharedMarkers();
       if (mapWidthInput) mapWidthInput.value = String(width);
       if (mapHeightInput) mapHeightInput.value = String(height);
       renderMapGrid();
@@ -1742,7 +1758,9 @@
       });
     };
 
-    const buildBasePayload = () => window.EightBitsMapSchema.compactPayload({
+    const buildBasePayload = () => {
+      const sharedMarkers = getSharedMarkers();
+      return window.EightBitsMapSchema.compactPayload({
       version: 1,
       assetColorPalette: state.baseMap.assetColorPalette || 'studio',
       assets: state.baseMap.assets.map((asset) => ({
@@ -1774,9 +1792,10 @@
             auto: cell.auto !== false
           };
         }),
-        markers: state.baseMap.map.markers.slice()
+        markers: (sharedMarkers || state.baseMap.map.markers).slice()
       }
-    });
+      });
+    };
 
     const buildExportPayload = () => {
       const basePayload = buildBasePayload();
@@ -1887,6 +1906,10 @@
           state.layout.height
         );
         state.baseMap.map.markers = state.baseMap.map.markers.map((marker, index) => remappedMarkers[index] || marker || null);
+      }
+      const sharedMarkers = getSharedMarkers();
+      if (Array.isArray(sharedMarkers)) {
+        state.baseMap.map.markers = sharedMarkers.slice();
       }
       ensureCells();
       if (!state.layout.name) {

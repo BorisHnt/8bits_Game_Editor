@@ -3163,7 +3163,8 @@
     name: '',
     updatedAt: new Date().toISOString(),
     stages: {},
-    activeCaches: {}
+    activeCaches: {},
+    portalRegistry: {}
   });
   const ensureSharedProjectShape = (rawProject) => {
     const project = rawProject && typeof rawProject === 'object'
@@ -3173,7 +3174,8 @@
         name: String(rawProject.name || '').trim(),
         updatedAt: rawProject.updatedAt || new Date().toISOString(),
         stages: rawProject.stages && typeof rawProject.stages === 'object' ? rawProject.stages : {},
-        activeCaches: rawProject.activeCaches && typeof rawProject.activeCaches === 'object' ? rawProject.activeCaches : {}
+        activeCaches: rawProject.activeCaches && typeof rawProject.activeCaches === 'object' ? rawProject.activeCaches : {},
+        portalRegistry: rawProject.portalRegistry && typeof rawProject.portalRegistry === 'object' ? rawProject.portalRegistry : {}
       }
       : getDefaultSharedProject();
     Object.keys(sharedProjectStages).forEach((stage) => {
@@ -3256,6 +3258,16 @@
     const stageData = project.stages[stage];
     const names = resolveProjectDocNames(payload, options);
     const mapId = String(options.mapId || getPayloadMapId(payload) || '').trim();
+    const payloadToStore = cloneProjectPayload(payload) || {};
+    if (payloadToStore?.map) {
+      const sharedMarkers = getSharedProjectPortalMarkers({
+        mapId,
+        normalizedLookupName: names.normalizedLookupName
+      }, Number.parseInt(payloadToStore.map.width, 10) || 0, Number.parseInt(payloadToStore.map.height, 10) || 0);
+      if (sharedMarkers) {
+        payloadToStore.map.markers = sharedMarkers;
+      }
+    }
     const existingEntry = Object.values(stageData.documents).find((entry) => (
       (mapId && String(entry?.mapId || '') === mapId)
       || entry?.normalizedLookupName === names.normalizedLookupName
@@ -3278,16 +3290,12 @@
       displayName: names.displayName,
       normalizedLookupName: names.normalizedLookupName,
       updatedAt: new Date().toISOString(),
-      payload: cloneProjectPayload(payload)
+      payload: payloadToStore
     };
     if (options.setActive !== false) {
       stageData.activeDocKey = docKey;
-      project.activeCaches[stage] = cloneProjectPayload(payload);
+      project.activeCaches[stage] = cloneProjectPayload(payloadToStore);
     }
-    synchronizeProjectMapMarkers(project, {
-      mapId: mapId || null,
-      normalizedLookupName: names.normalizedLookupName
-    });
     writeSharedProject(project);
     return cloneProjectPayload(stageData.documents[docKey]);
   };
@@ -4052,6 +4060,94 @@
     }
     return resized;
   };
+  const getPortalRegistrySelector = (selector = {}) => {
+    const mapId = String(selector.mapId || '').trim();
+    const normalizedLookupName = String(selector.normalizedLookupName || normalizeProjectLookupName(selector.lookupName || selector.name || '')).trim();
+    return {
+      key: mapId || normalizedLookupName,
+      mapId,
+      normalizedLookupName
+    };
+  };
+  const getSharedProjectPortalMarkers = (selector = {}, width = 0, height = 0) => {
+    const project = readSharedProject();
+    const portalSelector = getPortalRegistrySelector(selector);
+    if (!portalSelector.key) return null;
+    const entry = project.portalRegistry?.[portalSelector.key] || null;
+    if (!entry) return null;
+    const sourceWidth = clamp(Number.parseInt(entry.width, 10) || 0, 0, 9999);
+    const sourceHeight = clamp(Number.parseInt(entry.height, 10) || 0, 0, 9999);
+    const denseMarkers = decodeMarkers(entry.markers, sourceWidth, sourceHeight, entry.encoding || 'sparse');
+    if (!width || !height) return denseMarkers;
+    return remapProjectMarkers(denseMarkers, sourceWidth, sourceHeight, width, height);
+  };
+  const setSharedProjectPortalMarkers = (selector = {}, markers = [], width = 0, height = 0) => {
+    const portalSelector = getPortalRegistrySelector(selector);
+    const safeWidth = clamp(Number.parseInt(width, 10) || 0, 0, 9999);
+    const safeHeight = clamp(Number.parseInt(height, 10) || 0, 0, 9999);
+    if (!portalSelector.key || !safeWidth || !safeHeight) return false;
+    const project = readSharedProject();
+    const denseMarkers = Array.from({ length: safeWidth * safeHeight }, (_, index) => (
+      isPortalMarkerValue(markers?.[index]) ? 'portal' : null
+    ));
+    project.portalRegistry[portalSelector.key] = {
+      mapId: portalSelector.mapId || null,
+      normalizedLookupName: portalSelector.normalizedLookupName || null,
+      width: safeWidth,
+      height: safeHeight,
+      encoding: 'sparse',
+      markers: encodeSparseMarkers(denseMarkers, safeWidth),
+      updatedAt: new Date().toISOString()
+    };
+    sharedMapStages.forEach((stage) => {
+      Object.values(project.stages?.[stage]?.documents || {}).forEach((entry) => {
+        if (!entry?.payload?.map) return;
+        const entryMapId = String(entry.mapId || entry.payload?.map?.id || '').trim();
+        const entryLookup = String(
+          entry.normalizedLookupName
+          || normalizeProjectLookupName(entry.lookupName || entry.displayName || entry.payload?.map?.name || '')
+        ).trim();
+        if (
+          (portalSelector.mapId && entryMapId !== portalSelector.mapId)
+          && (!portalSelector.normalizedLookupName || entryLookup !== portalSelector.normalizedLookupName)
+        ) {
+          return;
+        }
+        if (!portalSelector.mapId && portalSelector.normalizedLookupName && entryLookup !== portalSelector.normalizedLookupName) {
+          return;
+        }
+        const payload = normalizeCompactMapPayload(entry.payload);
+        if (!payload?.map) return;
+        const targetWidth = clamp(Number.parseInt(payload.map.width, 10) || 0, 0, 9999);
+        const targetHeight = clamp(Number.parseInt(payload.map.height, 10) || 0, 0, 9999);
+        const remappedMarkers = remapProjectMarkers(denseMarkers, safeWidth, safeHeight, targetWidth, targetHeight);
+        const nextPayload = compactMapPayload({
+          ...cloneProjectPayload(payload),
+          map: {
+            ...cloneProjectPayload(payload.map),
+            markers: remappedMarkers
+          }
+        });
+        project.stages[stage].documents[entry.docKey] = {
+          ...project.stages[stage].documents[entry.docKey],
+          payload: nextPayload,
+          updatedAt: new Date().toISOString()
+        };
+        if (project.stages[stage].activeDocKey === entry.docKey) {
+          project.activeCaches[stage] = cloneProjectPayload(nextPayload);
+          if (window.localStorage) {
+            try {
+              localStorage.setItem(sharedProjectStages[stage].storageKey, JSON.stringify(nextPayload));
+            } catch (error) {
+              // ignore storage errors
+            }
+          }
+        }
+      });
+    });
+    writeSharedProject(project);
+    return true;
+  };
   const synchronizeProjectMapMarkers = (project, selector = {}) => {
     const targetMapId = String(selector.mapId || '').trim();
     const targetNormalizedLookupName = String(selector.normalizedLookupName || '').trim();
@@ -4530,6 +4626,8 @@
     mergeSelectedMaps: mergeSelectedMapDocuments,
     listUnifiedMaps: listUnifiedProjectMaps,
     isLegacyMapPayload: isLegacyProjectMapPayload,
+    getSharedMarkers: getSharedProjectPortalMarkers,
+    setSharedMarkers: setSharedProjectPortalMarkers,
     convertLegacyMap: convertLegacyStageDocument,
     listAssets: listSharedProjectImages,
     deleteAsset: deleteSharedProjectImage,
@@ -6546,6 +6644,19 @@
 
     const getAssetColorPalette = () => mapColorPalettes[mapState.colorPaletteId] || mapColorPalettes.studio;
     const getAssetPaletteColors = () => getAssetColorPalette().colors;
+    const getMapSharedMarkers = () => projectManager?.getSharedMarkers?.(
+      { mapId: mapState.map.id || '', lookupName: mapState.map.name || '' },
+      mapState.map.width,
+      mapState.map.height
+    ) || null;
+    const syncMapSharedMarkers = () => {
+      projectManager?.setSharedMarkers?.(
+        { mapId: mapState.map.id || '', lookupName: mapState.map.name || '' },
+        mapState.map.markers,
+        mapState.map.width,
+        mapState.map.height
+      );
+    };
 
     const getAssetColor = (number) => {
       const colors = getAssetPaletteColors();
@@ -6613,6 +6724,7 @@
       mapState.map.height = height;
       mapState.map.cells = resized;
       mapState.map.markers = resizedMarkers;
+      syncMapSharedMarkers();
     };
 
     const ensureMapCells = () => {
@@ -6710,6 +6822,7 @@
       mapState.map.cells = cloneMapCells(Array.isArray(snapshot.map.cells) ? snapshot.map.cells : []);
       mapState.map.markers = Array.isArray(snapshot.map.markers) ? snapshot.map.markers.slice() : [];
       ensureMapCells();
+      syncMapSharedMarkers();
 
       if (mapNameInput) mapNameInput.value = mapState.map.name;
       if (mapWidthInput) mapWidthInput.value = String(mapState.map.width);
@@ -6891,6 +7004,7 @@
 
       mapState.map.cells = nextCells;
       mapState.map.markers = nextMarkers;
+      syncMapSharedMarkers();
       renderMapGrid();
       scheduleMapSave();
     };
@@ -7673,6 +7787,7 @@
         ensureMapHistorySnapshot();
         const current = mapState.map.markers[index];
         mapState.map.markers[index] = current === mapState.markerMode ? null : mapState.markerMode;
+        syncMapSharedMarkers();
       } else if (currentTool === 'eraser') {
         ensureMapHistorySnapshot();
         mapState.map.cells[index] = null;
@@ -7922,7 +8037,9 @@
       });
     };
 
-    const buildMapPayload = () => window.EightBitsMapSchema.compactPayload({
+    const buildMapPayload = () => {
+      const sharedMarkers = getMapSharedMarkers();
+      return window.EightBitsMapSchema.compactPayload({
       version: 1,
       assetColorPalette: mapState.colorPaletteId,
       assets: mapState.assets.map((asset) => ({
@@ -7959,9 +8076,10 @@
             auto: cell.auto !== false
           };
         }),
-        markers: mapState.map.markers.slice()
+        markers: (sharedMarkers || mapState.map.markers).slice()
       }
-    });
+      });
+    };
 
     const applyMapPayload = (payload) => {
       payload = window.EightBitsMapSchema.normalizePayload(payload);
@@ -8051,7 +8169,12 @@
           nextMarkers[i] = null;
         }
       }
-      mapState.map.markers = nextMarkers;
+      const sharedMarkers = projectManager?.getSharedMarkers?.(
+        { mapId: mapState.map.id || '', lookupName: mapState.map.name || '' },
+        mapState.map.width,
+        mapState.map.height
+      );
+      mapState.map.markers = Array.isArray(sharedMarkers) ? sharedMarkers.slice() : nextMarkers;
       if (mapNameInput) mapNameInput.value = mapState.map.name;
       if (mapWidthInput) mapWidthInput.value = String(mapState.map.width);
       if (mapHeightInput) mapHeightInput.value = String(mapState.map.height);
