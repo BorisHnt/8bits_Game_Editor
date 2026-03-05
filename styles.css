@@ -1925,6 +1925,16 @@ svg {
   gap: 8px;
 }
 
+.lab-mode-options {
+  display: grid;
+  gap: 8px;
+}
+
+.lab-mode-options .asset-input,
+.lab-mode-options .asset-select {
+  width: 100%;
+}
+
 .map-toggle {
   display: flex;
   gap: 8px;
