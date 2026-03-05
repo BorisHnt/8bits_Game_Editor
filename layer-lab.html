@@ -131,17 +131,43 @@
 
           <div class="map-control-row map-control-row-2">
             <div class="map-control-group">
+              <label class="panel-label">Data</label>
+              <div class="map-toggle">
+                <button class="button-secondary" type="button" id="lab-undo">Undo</button>
+                <button class="button-secondary" type="button" id="lab-redo">Redo</button>
+                <button class="button-secondary" type="button" id="lab-export">Export JSON</button>
+                <button class="button-secondary" type="button" id="lab-import">Import JSON</button>
+                <input class="map-file-input" type="file" id="lab-import-file" accept=".json" />
+              </div>
+            </div>
+            <div class="map-control-group">
+              <label class="panel-label">View</label>
+              <div class="map-toggle">
+                <button class="button-secondary is-active" type="button" data-lab-view="normal">Normal</button>
+                <button class="button-secondary" type="button" data-lab-view="collision">Collision</button>
+                <button class="button-secondary" type="button" data-lab-view="depth">Depth</button>
+                <button class="button-secondary" type="button" data-lab-view="base">Base</button>
+                <button class="button-secondary" type="button" data-lab-view="props">Props</button>
+                <button class="button-secondary" type="button" data-lab-view="items">Items</button>
+                <button class="button-secondary" type="button" data-lab-view="npcs">NPCs</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="map-control-row map-control-row-2">
+            <div class="map-control-group">
               <label class="panel-label">Tool</label>
               <div class="map-toggle">
                 <button class="button-secondary is-active" type="button" data-lab-tool="pencil">Pencil</button>
                 <button class="button-secondary" type="button" data-lab-tool="eraser">Eraser</button>
                 <button class="button-secondary" type="button" data-lab-tool="eyedropper">Eyedropper</button>
+                <button class="button-secondary" type="button" data-lab-tool="fill">Fill</button>
                 <button class="button-secondary" type="button" data-lab-tool="portal">Portal</button>
               </div>
             </div>
             <div class="map-control-group">
               <label class="panel-label">Shortcuts</label>
-              <span class="panel-value">Alt = eraser, Space = eyedropper</span>
+              <span class="panel-value">Alt = eraser, Space = eyedropper, Ctrl+Z/Y = undo/redo</span>
             </div>
           </div>
 

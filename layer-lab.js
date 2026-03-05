@@ -3,6 +3,12 @@
   const qsa = (selector, scope = document) => Array.from(scope.querySelectorAll(selector));
   const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
   const createId = () => `lab_${Math.random().toString(36).slice(2, 11)}_${Date.now().toString(36)}`;
+  const clone = (value) => {
+    if (typeof structuredClone === 'function') {
+      return structuredClone(value);
+    }
+    return JSON.parse(JSON.stringify(value));
+  };
 
   const cacheDbName = '8bits-map-cache';
   const cacheStoreName = 'images';
@@ -55,7 +61,8 @@
       imageUrl: String(asset?.imageUrl || ''),
       fileName: String(asset?.fileName || ''),
       cacheKey: String(asset?.cacheKey || ''),
-      color: String(asset?.color || '#2a2a2a')
+      color: String(asset?.color || '#2a2a2a'),
+      type: asset?.type === 'passable' ? 'passable' : 'blocking'
     };
   };
 
@@ -91,8 +98,6 @@
     return output;
   };
 
-  const findAssetByNumber = (assets, number) => assets.find((asset) => Number(asset.number) === Number(number)) || null;
-
   const buildSpriteLayer = (asset, spriteIndex, cellSize) => {
     if (!asset?.imageUrl) return null;
     const row = Math.floor((spriteIndex - 1) / asset.cols);
@@ -102,6 +107,15 @@
       size: `${asset.cols * cellSize}px ${asset.rows * cellSize}px`,
       position: `${-col * cellSize}px ${-row * cellSize}px`
     };
+  };
+
+  const findAssetByNumber = (assets, number) => assets.find((asset) => Number(asset.number) === Number(number)) || null;
+
+  const layerIdByView = {
+    base: 'mapCreator',
+    props: 'propDropper',
+    items: 'itemDropper',
+    npcs: 'npcDropper'
   };
 
   const createModeModules = () => ({
@@ -114,27 +128,94 @@
       supportsPortal: true,
       getAssets: (state) => state.base.assets,
       getCells: (state) => state.base.cells,
-      createPaintCell: (editor, selectedAsset) => ({
-        assetNumber: selectedAsset.number,
-        spriteIndex: editor.state.selectedSpriteIndex,
-        auto: editor.state.modeSettings.mapCreator.paintAuto
-      }),
+      createPaintCell: (editor, selectedAsset) => {
+        const randomize = editor.state.modeSettings.mapCreator.randomize;
+        const spriteMax = Math.max(1, Number.parseInt(selectedAsset.spriteCount, 10) || 1);
+        let spriteIndex = editor.state.selectedSpriteIndex;
+        if (randomize.enabled) {
+          const min = clamp(Number.parseInt(randomize.min, 10) || 1, 1, spriteMax);
+          const max = clamp(Number.parseInt(randomize.max, 10) || spriteMax, min, spriteMax);
+          spriteIndex = min + Math.floor(Math.random() * (max - min + 1));
+        }
+        return {
+          assetNumber: selectedAsset.number,
+          spriteIndex,
+          auto: editor.state.modeSettings.mapCreator.paintAuto
+        };
+      },
       normalizeLoadedCell: (entry) => normalizeBaseCell(entry),
       extendPayload: () => {},
       renderOptions: (editor, container) => {
         container.innerHTML = '';
-        const label = document.createElement('label');
-        label.className = 'panel-value';
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = editor.state.modeSettings.mapCreator.paintAuto;
-        checkbox.addEventListener('change', () => {
-          editor.state.modeSettings.mapCreator.paintAuto = checkbox.checked;
+
+        const autoLabel = document.createElement('label');
+        autoLabel.className = 'panel-value';
+        const autoCheckbox = document.createElement('input');
+        autoCheckbox.type = 'checkbox';
+        autoCheckbox.checked = editor.state.modeSettings.mapCreator.paintAuto;
+        autoCheckbox.addEventListener('change', () => {
+          editor.state.modeSettings.mapCreator.paintAuto = autoCheckbox.checked;
           editor.markDirty();
         });
-        label.appendChild(checkbox);
-        label.append(' Auto tile when painting base cells');
-        container.appendChild(label);
+        autoLabel.appendChild(autoCheckbox);
+        autoLabel.append(' Auto tile when painting base cells');
+
+        const randomizeLabel = document.createElement('label');
+        randomizeLabel.className = 'panel-value';
+        const randomizeCheckbox = document.createElement('input');
+        randomizeCheckbox.type = 'checkbox';
+        randomizeCheckbox.checked = editor.state.modeSettings.mapCreator.randomize.enabled;
+        randomizeCheckbox.addEventListener('change', () => {
+          editor.state.modeSettings.mapCreator.randomize.enabled = randomizeCheckbox.checked;
+          editor.markDirty();
+        });
+        randomizeLabel.appendChild(randomizeCheckbox);
+        randomizeLabel.append(' Randomize sprite while painting');
+
+        const rangeLabel = document.createElement('label');
+        rangeLabel.className = 'panel-label';
+        rangeLabel.textContent = 'Randomize range (min / max)';
+
+        const rangeRow = document.createElement('div');
+        rangeRow.className = 'asset-inline-inputs';
+        const minInput = document.createElement('input');
+        minInput.className = 'asset-input';
+        minInput.type = 'number';
+        minInput.min = '1';
+        minInput.value = String(editor.state.modeSettings.mapCreator.randomize.min);
+        const sep = document.createElement('span');
+        sep.className = 'grid-separator';
+        sep.textContent = '/';
+        const maxInput = document.createElement('input');
+        maxInput.className = 'asset-input';
+        maxInput.type = 'number';
+        maxInput.min = '1';
+        maxInput.value = String(editor.state.modeSettings.mapCreator.randomize.max);
+
+        const onRangeChange = () => {
+          const min = Math.max(1, Number.parseInt(minInput.value, 10) || 1);
+          const max = Math.max(min, Number.parseInt(maxInput.value, 10) || min);
+          editor.state.modeSettings.mapCreator.randomize.min = min;
+          editor.state.modeSettings.mapCreator.randomize.max = max;
+          editor.state.map.randomize = {
+            enabled: editor.state.modeSettings.mapCreator.randomize.enabled,
+            min,
+            max
+          };
+          editor.markDirty();
+        };
+
+        minInput.addEventListener('input', onRangeChange);
+        maxInput.addEventListener('input', onRangeChange);
+
+        rangeRow.appendChild(minInput);
+        rangeRow.appendChild(sep);
+        rangeRow.appendChild(maxInput);
+
+        container.appendChild(autoLabel);
+        container.appendChild(randomizeLabel);
+        container.appendChild(rangeLabel);
+        container.appendChild(rangeRow);
       }
     },
     propDropper: {
@@ -151,7 +232,8 @@
         assetNumber: selectedAsset.number,
         spriteIndex: editor.state.selectedSpriteIndex,
         collision: editor.state.modeSettings.propDropper.defaultCollision,
-        playerDepth: editor.state.modeSettings.propDropper.defaultDepth
+        playerDepth: editor.state.modeSettings.propDropper.defaultDepth,
+        collisionMode: editor.state.modeSettings.propDropper.defaultCollisionMode
       }),
       normalizeLoadedCell: (entry) => normalizeLayerCell(entry, false),
       extendPayload: (editor, payload) => {
@@ -185,6 +267,24 @@
           editor.markDirty();
         });
 
+        const modeLabel = document.createElement('label');
+        modeLabel.className = 'panel-label';
+        modeLabel.textContent = 'Collision mode';
+
+        const modeSelect = document.createElement('select');
+        modeSelect.className = 'asset-select';
+        ['simple', 'mask'].forEach((value) => {
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = value;
+          modeSelect.appendChild(option);
+        });
+        modeSelect.value = editor.state.modeSettings.propDropper.defaultCollisionMode;
+        modeSelect.addEventListener('change', () => {
+          editor.state.modeSettings.propDropper.defaultCollisionMode = modeSelect.value === 'mask' ? 'mask' : 'simple';
+          editor.markDirty();
+        });
+
         const depthLabel = document.createElement('label');
         depthLabel.className = 'panel-label';
         depthLabel.textContent = 'Default player depth';
@@ -205,6 +305,8 @@
 
         container.appendChild(collisionLabel);
         container.appendChild(collisionSelect);
+        container.appendChild(modeLabel);
+        container.appendChild(modeSelect);
         container.appendChild(depthLabel);
         container.appendChild(depthSelect);
       }
@@ -225,7 +327,10 @@
         spriteIndex: editor.state.selectedSpriteIndex,
         itemKind: editor.state.modeSettings.itemDropper.defaultItemKind,
         oneShot: editor.state.modeSettings.itemDropper.defaultOneShot,
-        interactionId: editor.state.modeSettings.itemDropper.defaultInteractionId
+        interactionId: editor.state.modeSettings.itemDropper.defaultInteractionId,
+        collision: editor.state.modeSettings.itemDropper.defaultCollision,
+        collisionMode: editor.state.modeSettings.itemDropper.defaultCollisionMode,
+        playerDepth: editor.state.modeSettings.itemDropper.defaultDepth
       }),
       normalizeLoadedCell: (entry) => normalizeLayerCell(entry, true),
       extendPayload: (editor, payload) => {
@@ -293,11 +398,51 @@
           editor.markDirty();
         });
 
+        const collisionLabel = document.createElement('label');
+        collisionLabel.className = 'panel-label';
+        collisionLabel.textContent = 'Default collision';
+
+        const collisionSelect = document.createElement('select');
+        collisionSelect.className = 'asset-select';
+        ['blocking', 'passable'].forEach((value) => {
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = value;
+          collisionSelect.appendChild(option);
+        });
+        collisionSelect.value = editor.state.modeSettings.itemDropper.defaultCollision;
+        collisionSelect.addEventListener('change', () => {
+          editor.state.modeSettings.itemDropper.defaultCollision = collisionSelect.value === 'passable' ? 'passable' : 'blocking';
+          editor.markDirty();
+        });
+
+        const depthLabel = document.createElement('label');
+        depthLabel.className = 'panel-label';
+        depthLabel.textContent = 'Default depth';
+
+        const depthSelect = document.createElement('select');
+        depthSelect.className = 'asset-select';
+        ['front', 'cover'].forEach((value) => {
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = value;
+          depthSelect.appendChild(option);
+        });
+        depthSelect.value = editor.state.modeSettings.itemDropper.defaultDepth;
+        depthSelect.addEventListener('change', () => {
+          editor.state.modeSettings.itemDropper.defaultDepth = depthSelect.value === 'cover' ? 'cover' : 'front';
+          editor.markDirty();
+        });
+
         container.appendChild(kindLabel);
         container.appendChild(kindSelect);
         container.appendChild(oneShotLabel);
         container.appendChild(interactionLabel);
         container.appendChild(interactionInput);
+        container.appendChild(collisionLabel);
+        container.appendChild(collisionSelect);
+        container.appendChild(depthLabel);
+        container.appendChild(depthSelect);
       }
     },
     npcDropper: {
@@ -317,7 +462,10 @@
         npcName: editor.state.modeSettings.npcDropper.defaultNpcName,
         facing: editor.state.modeSettings.npcDropper.defaultFacing,
         behavior: editor.state.modeSettings.npcDropper.defaultBehavior,
-        interactionId: editor.state.modeSettings.npcDropper.defaultInteractionId
+        interactionId: editor.state.modeSettings.npcDropper.defaultInteractionId,
+        collision: editor.state.modeSettings.npcDropper.defaultCollision,
+        collisionMode: editor.state.modeSettings.npcDropper.defaultCollisionMode,
+        playerDepth: editor.state.modeSettings.npcDropper.defaultDepth
       }),
       normalizeLoadedCell: (entry) => normalizeLayerCell(entry, true),
       extendPayload: (editor, payload) => {
@@ -399,12 +547,32 @@
           editor.markDirty();
         });
 
+        const collisionLabel = document.createElement('label');
+        collisionLabel.className = 'panel-label';
+        collisionLabel.textContent = 'Default collision';
+
+        const collisionSelect = document.createElement('select');
+        collisionSelect.className = 'asset-select';
+        ['blocking', 'passable'].forEach((value) => {
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = value;
+          collisionSelect.appendChild(option);
+        });
+        collisionSelect.value = editor.state.modeSettings.npcDropper.defaultCollision;
+        collisionSelect.addEventListener('change', () => {
+          editor.state.modeSettings.npcDropper.defaultCollision = collisionSelect.value === 'passable' ? 'passable' : 'blocking';
+          editor.markDirty();
+        });
+
         container.appendChild(nameLabel);
         container.appendChild(nameInput);
         container.appendChild(facingLabel);
         container.appendChild(facingSelect);
         container.appendChild(behaviorLabel);
         container.appendChild(behaviorSelect);
+        container.appendChild(collisionLabel);
+        container.appendChild(collisionSelect);
       }
     }
   });
@@ -416,6 +584,7 @@
       this.modeModules = createModeModules();
       this.state = {
         mode: 'mapCreator',
+        view: 'normal',
         tool: 'pencil',
         temporaryTool: null,
         mapEntries: [],
@@ -440,25 +609,119 @@
         imageUrls: new Map(),
         modeSettings: {
           mapCreator: {
-            paintAuto: false
+            paintAuto: false,
+            randomize: {
+              enabled: false,
+              min: 1,
+              max: 4
+            }
           },
           propDropper: {
             defaultCollision: 'blocking',
-            defaultDepth: 'front'
+            defaultDepth: 'front',
+            defaultCollisionMode: 'simple'
           },
           itemDropper: {
             defaultItemKind: 'pickup',
             defaultOneShot: true,
-            defaultInteractionId: ''
+            defaultInteractionId: '',
+            defaultCollision: 'blocking',
+            defaultCollisionMode: 'simple',
+            defaultDepth: 'front'
           },
           npcDropper: {
             defaultNpcName: '',
             defaultFacing: 'down',
             defaultBehavior: 'idle',
-            defaultInteractionId: ''
+            defaultInteractionId: '',
+            defaultCollision: 'blocking',
+            defaultCollisionMode: 'simple',
+            defaultDepth: 'front'
           }
+        },
+        history: {
+          undoStack: [],
+          redoStack: [],
+          limit: 80,
+          sessionRecorded: false
         }
       };
+    }
+
+    snapshot() {
+      return clone({
+        map: this.state.map,
+        base: this.state.base,
+        props: this.state.props,
+        items: this.state.items,
+        npcs: this.state.npcs,
+        mode: this.state.mode,
+        view: this.state.view,
+        tool: this.state.tool,
+        selectedAssetNumber: this.state.selectedAssetNumber,
+        selectedSpriteIndex: this.state.selectedSpriteIndex,
+        modeSettings: this.state.modeSettings
+      });
+    }
+
+    restoreFromSnapshot(snapshot) {
+      if (!snapshot || !snapshot.map) return;
+      this.state.map = clone(snapshot.map);
+      this.state.base = clone(snapshot.base || { assets: [], cells: [] });
+      this.state.props = clone(snapshot.props || { assets: [], cells: [] });
+      this.state.items = clone(snapshot.items || { assets: [], cells: [] });
+      this.state.npcs = clone(snapshot.npcs || { assets: [], cells: [] });
+      this.state.mode = snapshot.mode || 'mapCreator';
+      this.state.view = snapshot.view || 'normal';
+      this.state.tool = snapshot.tool || 'pencil';
+      this.state.selectedAssetNumber = snapshot.selectedAssetNumber || null;
+      this.state.selectedSpriteIndex = clamp(Number.parseInt(snapshot.selectedSpriteIndex, 10) || 1, 1, 9999);
+      this.state.modeSettings = clone(snapshot.modeSettings || this.state.modeSettings);
+      this.ui.mapNameInput.value = this.state.map.name || '';
+      this.ui.cellSizeInput.value = String(this.state.map.cellSize || 16);
+      this.renderAll();
+    }
+
+    pushHistory() {
+      this.state.history.undoStack.push(this.snapshot());
+      if (this.state.history.undoStack.length > this.state.history.limit) {
+        this.state.history.undoStack.shift();
+      }
+      this.state.history.redoStack = [];
+      this.updateUndoRedoButtons();
+    }
+
+    maybePushHistoryForSession() {
+      if (this.state.history.sessionRecorded) return;
+      this.pushHistory();
+      this.state.history.sessionRecorded = true;
+    }
+
+    endHistorySession() {
+      this.state.history.sessionRecorded = false;
+    }
+
+    undo() {
+      if (!this.state.history.undoStack.length) return;
+      const snapshot = this.state.history.undoStack.pop();
+      this.state.history.redoStack.push(this.snapshot());
+      this.restoreFromSnapshot(snapshot);
+      this.updateUndoRedoButtons();
+      this.markDirty();
+    }
+
+    redo() {
+      if (!this.state.history.redoStack.length) return;
+      const snapshot = this.state.history.redoStack.pop();
+      this.state.history.undoStack.push(this.snapshot());
+      this.restoreFromSnapshot(snapshot);
+      this.updateUndoRedoButtons();
+      this.markDirty();
+    }
+
+    updateUndoRedoButtons() {
+      this.ui.undoButton.disabled = this.state.history.undoStack.length === 0;
+      this.ui.redoButton.disabled = this.state.history.redoStack.length === 0;
     }
 
     getActiveModeModule() {
@@ -504,8 +767,11 @@
       this.state.selectedAssetNumber = null;
       this.state.selectedSpriteIndex = 1;
       this.ui.mapNameInput.value = '';
+      this.state.history.undoStack = [];
+      this.state.history.redoStack = [];
       this.renderAll();
       this.setPublishState(false);
+      this.updateUndoRedoButtons();
     }
 
     getEntryValue(entry, index) {
@@ -601,34 +867,58 @@
       }
     }
 
+    getTopCellByModes(index, modes) {
+      const ordered = [...modes].reverse();
+      for (let i = 0; i < ordered.length; i += 1) {
+        const mode = ordered[i];
+        const cells = this.getModeCells(mode);
+        const entry = cells[index];
+        if (!entry) continue;
+        const assets = this.getModeAssets(mode);
+        const asset = findAssetByNumber(assets, entry.assetNumber);
+        return { mode, entry, asset };
+      }
+      return null;
+    }
+
+    getCellCollision(info) {
+      if (!info?.entry) return 'passable';
+      if (info.entry.collision === 'blocking' || info.entry.collision === 'passable') {
+        return info.entry.collision;
+      }
+      const assetType = info.asset?.type === 'passable' ? 'passable' : 'blocking';
+      return assetType;
+    }
+
+    getCellDepth(info) {
+      if (!info?.entry) return null;
+      if (info.entry.playerDepth === 'cover' || info.entry.playerDepth === 'front') {
+        return info.entry.playerDepth;
+      }
+      if (info.asset?.playerDepth === 'cover') return 'cover';
+      if (info.asset) return 'front';
+      return null;
+    }
+
+    getVisibleModesForRender() {
+      const moduleModes = this.getActiveModeModule().visibleModes;
+      const viewLayerMode = layerIdByView[this.state.view] || null;
+      if (viewLayerMode) return [viewLayerMode];
+      return moduleModes;
+    }
+
     getLayerCellAndAsset(mode, index) {
-      if (mode === 'mapCreator') {
-        const cell = this.state.base.cells[index];
-        const asset = cell ? findAssetByNumber(this.state.base.assets, cell.assetNumber) : null;
-        const spriteIndex = cell ? clamp(Number.parseInt(cell.spriteIndex, 10) || 1, 1, asset?.spriteCount || 1) : 1;
-        return { cell, asset, spriteIndex };
-      }
-      if (mode === 'propDropper') {
-        const cell = this.state.props.cells[index];
-        const asset = cell ? findAssetByNumber(this.state.props.assets, cell.assetNumber) : null;
-        const spriteIndex = cell ? clamp(Number.parseInt(cell.spriteIndex, 10) || 1, 1, asset?.spriteCount || 1) : 1;
-        return { cell, asset, spriteIndex };
-      }
-      if (mode === 'itemDropper') {
-        const cell = this.state.items.cells[index];
-        const asset = cell ? findAssetByNumber(this.state.items.assets, cell.assetNumber) : null;
-        const spriteIndex = cell ? clamp(Number.parseInt(cell.spriteIndex, 10) || 1, 1, asset?.spriteCount || 1) : 1;
-        return { cell, asset, spriteIndex };
-      }
-      const cell = this.state.npcs.cells[index];
-      const asset = cell ? findAssetByNumber(this.state.npcs.assets, cell.assetNumber) : null;
+      const cells = this.getModeCells(mode);
+      const assets = this.getModeAssets(mode);
+      const cell = cells[index];
+      const asset = cell ? findAssetByNumber(assets, cell.assetNumber) : null;
       const spriteIndex = cell ? clamp(Number.parseInt(cell.spriteIndex, 10) || 1, 1, asset?.spriteCount || 1) : 1;
       return { cell, asset, spriteIndex };
     }
 
     renderMapCell(cellNode, index) {
       const marker = this.state.map.markers[index];
-      const visibleModes = this.getActiveModeModule().visibleModes;
+      const visibleModes = this.getVisibleModesForRender();
       const visibleLayers = visibleModes
         .map((mode) => {
           const { cell, asset, spriteIndex } = this.getLayerCellAndAsset(mode, index);
@@ -643,11 +933,42 @@
       cellNode.classList.toggle('marker-entry', marker === 'portal');
       cellNode.classList.toggle('marker-exit', marker === 'portal');
 
+      cellNode.replaceChildren();
+      cellNode.style.backgroundImage = '';
+      cellNode.style.backgroundSize = '';
+      cellNode.style.backgroundPosition = '';
+      cellNode.style.backgroundRepeat = '';
+      cellNode.style.backgroundColor = '';
+
+      if (this.state.view === 'collision') {
+        const top = this.getTopCellByModes(index, this.getActiveModeModule().visibleModes);
+        const collision = this.getCellCollision(top);
+        cellNode.style.backgroundColor = collision === 'blocking' ? '#7a1f1f' : '#1f6f3a';
+        const code = document.createElement('span');
+        code.className = 'map-debug-code';
+        code.textContent = collision === 'blocking' ? '1' : '0';
+        cellNode.appendChild(code);
+        return;
+      }
+
+      if (this.state.view === 'depth') {
+        const top = this.getTopCellByModes(index, this.getActiveModeModule().visibleModes);
+        const depth = this.getCellDepth(top);
+        if (!top) {
+          cellNode.style.backgroundColor = '#10151d';
+        } else if (depth === 'cover') {
+          cellNode.style.backgroundColor = '#6e2d1d';
+        } else {
+          cellNode.style.backgroundColor = '#1d4c6e';
+        }
+        const code = document.createElement('span');
+        code.className = 'map-debug-code';
+        code.textContent = depth === 'cover' ? 'C' : depth === 'front' ? 'F' : '0';
+        cellNode.appendChild(code);
+        return;
+      }
+
       if (!visibleLayers.length) {
-        cellNode.style.backgroundImage = '';
-        cellNode.style.backgroundSize = '';
-        cellNode.style.backgroundPosition = '';
-        cellNode.style.backgroundRepeat = '';
         cellNode.style.backgroundColor = 'rgba(255,255,255,0.03)';
         return;
       }
@@ -656,7 +977,6 @@
       cellNode.style.backgroundSize = visibleLayers.map((layer) => layer.size).join(', ');
       cellNode.style.backgroundPosition = visibleLayers.map((layer) => layer.position).join(', ');
       cellNode.style.backgroundRepeat = visibleLayers.map(() => 'no-repeat').join(', ');
-      cellNode.style.backgroundColor = '';
     }
 
     renderMapGrid() {
@@ -682,6 +1002,13 @@
       const module = this.getActiveModeModule();
       this.ui.assetsSubtitle.textContent = module.assetsLabel;
       this.ui.visibleLayersLabel.textContent = module.visibleLayersLabel;
+    }
+
+    renderViewButtons() {
+      qsa('[data-lab-view]').forEach((button) => {
+        const view = button.dataset.labView;
+        button.classList.toggle('is-active', view === this.state.view);
+      });
     }
 
     renderToolButtons() {
@@ -806,11 +1133,58 @@
 
     renderAll() {
       this.renderModeButtons();
+      this.renderViewButtons();
       this.renderToolButtons();
       this.renderModeOptions();
       this.renderAssetList();
       this.renderAssetGrid();
       this.renderMapGrid();
+      this.updateUndoRedoButtons();
+    }
+
+    areCellsEquivalent(a, b) {
+      if (!a && !b) return true;
+      if (!a || !b) return false;
+      return Number(a.assetNumber || 0) === Number(b.assetNumber || 0);
+    }
+
+    floodFillActiveLayer(startIndex) {
+      const module = this.getActiveModeModule();
+      const cells = module.getCells(this.state);
+      if (!Array.isArray(cells) || !cells.length) return false;
+      const selectedAsset = this.getSelectedAsset();
+      if (!selectedAsset) return false;
+
+      const width = this.state.map.width;
+      const height = this.state.map.height;
+      const total = width * height;
+      if (startIndex < 0 || startIndex >= total) return false;
+
+      const target = cells[startIndex] || null;
+      const replacement = module.createPaintCell(this, selectedAsset, target, startIndex);
+      if (this.areCellsEquivalent(target, replacement)) return false;
+
+      const queue = [startIndex];
+      const visited = new Uint8Array(total);
+      let changed = false;
+
+      while (queue.length) {
+        const index = queue.shift();
+        if (visited[index]) continue;
+        visited[index] = 1;
+        if (!this.areCellsEquivalent(cells[index] || null, target)) continue;
+        cells[index] = clone(replacement);
+        changed = true;
+
+        const x = index % width;
+        const y = Math.floor(index / width);
+        if (x > 0) queue.push(index - 1);
+        if (x < width - 1) queue.push(index + 1);
+        if (y > 0) queue.push(index - width);
+        if (y < height - 1) queue.push(index + width);
+      }
+
+      return changed;
     }
 
     applyToolAt(index, isDrag = false) {
@@ -821,6 +1195,7 @@
 
       if (tool === 'portal') {
         if (isDrag || !module.supportsPortal) return;
+        this.maybePushHistoryForSession();
         this.state.map.markers[index] = this.state.map.markers[index] === 'portal' ? null : 'portal';
         this.markDirty();
         const cellNode = this.ui.mapGrid.querySelector(`.map-cell[data-index="${index}"]`);
@@ -838,8 +1213,19 @@
         return;
       }
 
+      if (tool === 'fill') {
+        if (isDrag) return;
+        this.maybePushHistoryForSession();
+        const changed = this.floodFillActiveLayer(index);
+        if (!changed) return;
+        this.markDirty();
+        this.renderMapGrid();
+        return;
+      }
+
       if (tool === 'eraser') {
         if (!activeCells[index]) return;
+        this.maybePushHistoryForSession();
         activeCells[index] = null;
         this.markDirty();
         const cellNode = this.ui.mapGrid.querySelector(`.map-cell[data-index="${index}"]`);
@@ -850,6 +1236,7 @@
       const selectedAsset = this.getSelectedAsset();
       if (!selectedAsset) return;
 
+      this.maybePushHistoryForSession();
       activeCells[index] = module.createPaintCell(this, selectedAsset, activeCells[index] || null, index);
       this.markDirty();
 
@@ -875,11 +1262,65 @@
       };
     }
 
-    buildPayloadForActiveStage() {
+    buildPayloadForStage(stage) {
       const payload = this.buildBasePayload();
-      const module = this.getActiveModeModule();
-      module.extendPayload(this, payload);
+      const stageOrder = ['mapCreator', 'propDropper', 'itemDropper', 'npcDropper'];
+      const stageIndex = stageOrder.indexOf(stage);
+      if (stageIndex >= 1) this.modeModules.propDropper.extendPayload(this, payload);
+      if (stageIndex >= 2) {
+        payload.gameItemAssets = this.state.items.assets;
+        payload.gameItemLayer = {
+          name: this.state.map.name,
+          width: this.state.map.width,
+          height: this.state.map.height,
+          cellSize: this.state.map.cellSize,
+          cells: this.state.items.cells
+        };
+      }
+      if (stageIndex >= 3) {
+        payload.npcAssets = this.state.npcs.assets;
+        payload.npcLayer = {
+          name: this.state.map.name,
+          width: this.state.map.width,
+          height: this.state.map.height,
+          cellSize: this.state.map.cellSize,
+          cells: this.state.npcs.cells
+        };
+      }
       return window.EightBitsMapSchema.compactPayload(payload);
+    }
+
+    buildUnifiedPayload() {
+      return this.buildPayloadForStage('npcDropper');
+    }
+
+    async exportJson() {
+      const payload = this.buildUnifiedPayload();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${(this.state.map.name || 'layer_lab_map').replace(/[^a-zA-Z0-9_-]+/g, '_')}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async importJsonFile(file) {
+      if (!file) return;
+      const rawText = await file.text();
+      let payload = null;
+      try {
+        payload = JSON.parse(rawText);
+      } catch (error) {
+        return;
+      }
+      const normalized = window.EightBitsMapSchema.normalizePayload(payload);
+      if (!normalized?.map) return;
+      await this.loadPayloadToState(normalized, {
+        keepSelection: false,
+        markDirty: true,
+        resetHistory: true
+      });
     }
 
     async publishActiveMode() {
@@ -888,7 +1329,7 @@
       const module = this.getActiveModeModule();
       const stage = module.stage;
       const docKey = entry?.docsByStage?.[stage]?.docKey || null;
-      const payload = this.buildPayloadForActiveStage();
+      const payload = this.buildPayloadForStage(stage);
 
       this.projectManager.publishStageDocument(stage, payload, {
         docKey,
@@ -903,6 +1344,52 @@
       await this.loadSelectedMap();
     }
 
+    async loadPayloadToState(normalized, options = {}) {
+      const { keepSelection = false, markDirty = false, resetHistory = false } = options;
+      const width = clamp(Number.parseInt(normalized.map.width, 10) || 1, 1, 200);
+      const height = clamp(Number.parseInt(normalized.map.height, 10) || 1, 1, 200);
+      const total = width * height;
+
+      this.state.map.id = String(normalized.map.id || window.EightBitsMapSchema.createMapId());
+      this.state.map.name = String(normalized.map.name || 'Map');
+      this.state.map.width = width;
+      this.state.map.height = height;
+      this.state.map.cellSize = clamp(Number.parseInt(normalized.map.cellSize, 10) || Number.parseInt(this.state.map.cellSize, 10) || 16, 10, 32);
+      this.state.map.randomize = normalized.map.randomize || null;
+      this.state.map.markers = normalizeCells(normalized.map.markers, total, (marker) => (window.EightBitsMapSchema.isPortalMarker(marker) ? 'portal' : null));
+
+      this.state.base.assets = (Array.isArray(normalized.assets) ? normalized.assets : []).map(normalizeAsset);
+      this.state.base.cells = normalizeCells(normalized.map.cells, total, normalizeBaseCell);
+
+      this.state.props.assets = (Array.isArray(normalized.itemAssets) ? normalized.itemAssets : []).map(normalizeAsset);
+      this.state.props.cells = normalizeCells(normalized.itemLayer?.cells, total, (entry) => normalizeLayerCell(entry, false));
+
+      this.state.items.assets = (Array.isArray(normalized.gameItemAssets) ? normalized.gameItemAssets : []).map(normalizeAsset);
+      this.state.items.cells = normalizeCells(normalized.gameItemLayer?.cells, total, (entry) => normalizeLayerCell(entry, true));
+
+      this.state.npcs.assets = (Array.isArray(normalized.npcAssets) ? normalized.npcAssets : []).map(normalizeAsset);
+      this.state.npcs.cells = normalizeCells(normalized.npcLayer?.cells, total, (entry) => normalizeLayerCell(entry, true));
+
+      await this.resolveAllImages();
+
+      this.ui.mapNameInput.value = this.state.map.name;
+      this.ui.cellSizeInput.value = String(this.state.map.cellSize);
+
+      if (!keepSelection) {
+        const modeAssets = this.getModeAssets();
+        this.state.selectedAssetNumber = modeAssets[0]?.number || null;
+        this.state.selectedSpriteIndex = 1;
+      }
+
+      if (resetHistory) {
+        this.state.history.undoStack = [];
+        this.state.history.redoStack = [];
+      }
+
+      this.renderAll();
+      this.setPublishState(markDirty);
+    }
+
     async loadSelectedMap() {
       const entry = this.getCurrentEntry();
       if (!entry) {
@@ -914,41 +1401,11 @@
       const normalized = window.EightBitsMapSchema.normalizePayload(payload);
       if (!normalized?.map) return;
 
-      const width = clamp(Number.parseInt(normalized.map.width, 10) || 1, 1, 200);
-      const height = clamp(Number.parseInt(normalized.map.height, 10) || 1, 1, 200);
-      const total = width * height;
-
-      this.state.map.id = String(normalized.map.id || entry.mapId || '');
-      this.state.map.name = String(normalized.map.name || entry.displayName || entry.lookupName || 'Map');
-      this.state.map.width = width;
-      this.state.map.height = height;
-      this.state.map.cellSize = clamp(Number.parseInt(this.state.map.cellSize, 10) || Number.parseInt(normalized.map.cellSize, 10) || 16, 10, 32);
-      this.state.map.randomize = normalized.map.randomize || null;
-      this.state.map.markers = normalizeCells(normalized.map.markers, total, (marker) => (marker === 'portal' ? 'portal' : null));
-
-      this.state.base.assets = (Array.isArray(normalized.assets) ? normalized.assets : []).map(normalizeAsset);
-      this.state.base.cells = normalizeCells(normalized.map.cells, total, this.modeModules.mapCreator.normalizeLoadedCell);
-
-      this.state.props.assets = (Array.isArray(normalized.itemAssets) ? normalized.itemAssets : []).map(normalizeAsset);
-      this.state.props.cells = normalizeCells(normalized.itemLayer?.cells, total, this.modeModules.propDropper.normalizeLoadedCell);
-
-      this.state.items.assets = (Array.isArray(normalized.gameItemAssets) ? normalized.gameItemAssets : []).map(normalizeAsset);
-      this.state.items.cells = normalizeCells(normalized.gameItemLayer?.cells, total, this.modeModules.itemDropper.normalizeLoadedCell);
-
-      this.state.npcs.assets = (Array.isArray(normalized.npcAssets) ? normalized.npcAssets : []).map(normalizeAsset);
-      this.state.npcs.cells = normalizeCells(normalized.npcLayer?.cells, total, this.modeModules.npcDropper.normalizeLoadedCell);
-
-      await this.resolveAllImages();
-
-      this.ui.mapNameInput.value = this.state.map.name;
-      this.ui.cellSizeInput.value = String(this.state.map.cellSize);
-
-      const modeAssets = this.getModeAssets();
-      this.state.selectedAssetNumber = modeAssets[0]?.number || null;
-      this.state.selectedSpriteIndex = 1;
-
-      this.renderAll();
-      this.setPublishState(false);
+      await this.loadPayloadToState(normalized, {
+        keepSelection: false,
+        markDirty: false,
+        resetHistory: true
+      });
     }
 
     switchMode(nextMode) {
@@ -962,6 +1419,14 @@
       this.state.selectedAssetNumber = modeAssets[0]?.number || null;
       this.state.selectedSpriteIndex = 1;
       this.renderAll();
+    }
+
+    switchView(nextView) {
+      const valid = ['normal', 'collision', 'depth', 'base', 'props', 'items', 'npcs'];
+      if (!valid.includes(nextView)) return;
+      this.state.view = nextView;
+      this.renderViewButtons();
+      this.renderMapGrid();
     }
 
     bindEvents() {
@@ -987,6 +1452,14 @@
           const nextMode = button.dataset.labMode;
           if (!nextMode) return;
           this.switchMode(nextMode);
+        });
+      });
+
+      qsa('[data-lab-view]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const nextView = button.dataset.labView;
+          if (!nextView) return;
+          this.switchView(nextView);
         });
       });
 
@@ -1016,17 +1489,33 @@
         const index = Number.parseInt(target.dataset.index, 10);
         if (!Number.isFinite(index)) return;
         const tool = this.getEffectiveTool();
-        if (tool === 'eyedropper' || tool === 'portal') return;
+        if (tool === 'eyedropper' || tool === 'portal' || tool === 'fill') return;
         this.applyToolAt(index, true);
       });
 
       window.addEventListener('pointerup', () => {
         this.state.isPainting = false;
+        this.endHistorySession();
       });
 
       window.addEventListener('keydown', (event) => {
         const tag = String(event.target?.tagName || '').toLowerCase();
         if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+        const isMac = /mac/i.test(navigator.platform || '');
+        const modKey = isMac ? event.metaKey : event.ctrlKey;
+        const key = String(event.key || '').toLowerCase();
+        if (modKey && key === 'z' && !event.shiftKey) {
+          event.preventDefault();
+          this.undo();
+          return;
+        }
+        if (modKey && (key === 'y' || (key === 'z' && event.shiftKey))) {
+          event.preventDefault();
+          this.redo();
+          return;
+        }
+
         if (event.key === 'Alt') {
           this.state.temporaryTool = 'eraser';
           this.renderToolButtons();
@@ -1052,7 +1541,27 @@
       window.addEventListener('blur', () => {
         this.state.temporaryTool = null;
         this.state.isPainting = false;
+        this.endHistorySession();
         this.renderToolButtons();
+      });
+
+      this.ui.undoButton.addEventListener('click', () => this.undo());
+      this.ui.redoButton.addEventListener('click', () => this.redo());
+
+      this.ui.exportButton.addEventListener('click', () => {
+        this.exportJson();
+      });
+
+      this.ui.importButton.addEventListener('click', () => {
+        this.ui.importFile.click();
+      });
+
+      this.ui.importFile.addEventListener('change', async () => {
+        const file = this.ui.importFile.files?.[0];
+        if (file) {
+          await this.importJsonFile(file);
+        }
+        this.ui.importFile.value = '';
       });
 
       this.ui.updateCacheButton.addEventListener('click', () => {
@@ -1088,6 +1597,11 @@
     refreshButton: qs('#lab-refresh'),
     cellSizeInput: qs('#lab-cell-size'),
     publishStatus: qs('#lab-publish-status'),
+    undoButton: qs('#lab-undo'),
+    redoButton: qs('#lab-redo'),
+    exportButton: qs('#lab-export'),
+    importButton: qs('#lab-import'),
+    importFile: qs('#lab-import-file'),
     assetList: qs('#lab-asset-list'),
     assetGrid: qs('#lab-asset-grid'),
     assetGridLabel: qs('#lab-asset-grid-label'),
