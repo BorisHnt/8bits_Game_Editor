@@ -2317,9 +2317,7 @@
         if (!hasUsableBasePayload(payload)) return false;
         if (payload?.gameItemLayer && Array.isArray(payload?.gameItemAssets) && payload?.map && Array.isArray(payload?.assets)) {
           await applyItemPayload(payload, payload?.sourceFile || '');
-          if (isPayloadOutdatedAgainstUpstream(payload)) {
-            await refreshBaseMapFromProject({ recordHistory: false });
-          }
+          await refreshBaseMapFromProject({ recordHistory: false });
           return true;
         }
         if (payload?.map && Array.isArray(payload?.assets)) {
@@ -2355,9 +2353,7 @@
       }
       if (payload?.gameItemLayer && Array.isArray(payload?.gameItemAssets) && payload?.map && Array.isArray(payload?.assets)) {
         await applyItemPayload(payload, payload?.sourceFile || '');
-        if (doc?.stage === currentStageName && isPayloadOutdatedAgainstUpstream(payload)) {
-          await refreshBaseMapFromProject({ recordHistory: false });
-        }
+        await refreshBaseMapFromProject({ recordHistory: false });
         return true;
       }
       if (payload?.map && Array.isArray(payload?.assets)) {
@@ -2420,9 +2416,7 @@
       }
       if (stage === currentStageName && doc.payload?.gameItemLayer && Array.isArray(doc.payload?.gameItemAssets) && doc.payload?.map && Array.isArray(doc.payload?.assets)) {
         await applyItemPayload(doc.payload, doc.payload?.sourceFile || '');
-        if (isPayloadOutdatedAgainstUpstream(doc.payload)) {
-          await refreshBaseMapFromProject({ recordHistory: false });
-        }
+        await refreshBaseMapFromProject({ recordHistory: false });
         return true;
       }
       if (doc.payload?.map && Array.isArray(doc.payload?.assets)) {

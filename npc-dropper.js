@@ -2257,9 +2257,7 @@
         if (!hasUsableBasePayload(payload)) return false;
         if (payload?.npcLayer && Array.isArray(payload?.npcAssets) && payload?.map && Array.isArray(payload?.assets)) {
           await applyItemPayload(payload, payload?.sourceFile || '');
-          if (isPayloadOutdatedAgainstUpstream(payload)) {
-            await refreshBaseMapFromProject({ recordHistory: false });
-          }
+          await refreshBaseMapFromProject({ recordHistory: false });
           return true;
         }
         if (payload?.map && Array.isArray(payload?.assets)) {
@@ -2296,9 +2294,7 @@
       }
       if (payload?.npcLayer && Array.isArray(payload?.npcAssets) && payload?.map && Array.isArray(payload?.assets)) {
         await applyItemPayload(payload, payload?.sourceFile || '');
-        if (doc?.stage === currentStageName && isPayloadOutdatedAgainstUpstream(payload)) {
-          await refreshBaseMapFromProject({ recordHistory: false });
-        }
+        await refreshBaseMapFromProject({ recordHistory: false });
         return true;
       }
       if (payload?.map && Array.isArray(payload?.assets)) {
@@ -2362,9 +2358,7 @@
       }
       if (stage === currentStageName && doc.payload?.npcLayer && Array.isArray(doc.payload?.npcAssets) && doc.payload?.map && Array.isArray(doc.payload?.assets)) {
         await applyItemPayload(doc.payload, doc.payload?.sourceFile || '');
-        if (isPayloadOutdatedAgainstUpstream(doc.payload)) {
-          await refreshBaseMapFromProject({ recordHistory: false });
-        }
+        await refreshBaseMapFromProject({ recordHistory: false });
         return true;
       }
       if (doc.payload?.map && Array.isArray(doc.payload?.assets)) {

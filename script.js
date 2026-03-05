@@ -9062,7 +9062,16 @@
 
     const buildPortalList = (payload) => {
       payload = window.EightBitsMapSchema.normalizePayload(payload);
-      const markers = Array.isArray(payload?.map?.markers) ? payload.map.markers : [];
+      const mapWidth = clamp(Number.parseInt(payload?.map?.width, 10) || 1, 1, 9999);
+      const mapHeight = clamp(Number.parseInt(payload?.map?.height, 10) || 1, 1, 9999);
+      const payloadMarkers = Array.isArray(payload?.map?.markers) ? payload.map.markers : [];
+      const sharedMarkers = projectManager?.getSharedMarkers?.({
+        mapId: String(payload?.map?.id || payload?.mapId || '').trim(),
+        lookupName: payload?.map?.name || payload?.name || ''
+      }, mapWidth, mapHeight);
+      const markers = Array.from({ length: mapWidth * mapHeight }, (_, index) => (
+        isPortalMarkerValue(sharedMarkers?.[index]) || isPortalMarkerValue(payloadMarkers?.[index]) ? 'portal' : null
+      ));
       const width = clamp(Number.parseInt(payload?.map?.width, 10) || 1, 1, 9999);
       const portals = [];
       markers.forEach((marker, index) => {
@@ -10397,10 +10406,12 @@
 
     setZoom(worldState.zoom);
     setOpacity(worldState.opacity);
-    loadCachedWorldState().then((loaded) => {
+    loadCachedWorldState().then(async (loaded) => {
       if (!loaded) {
-        loadProjectWorldState();
+        await loadProjectWorldState();
+        return;
       }
+      await syncWorldFromProject();
     });
 
     window.addEventListener('resize', () => {

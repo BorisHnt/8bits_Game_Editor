@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>8bits Game Editor — Layer Lab (Experimental)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="page-item page-layer-lab">
+  <header class="navigation-bar-sticky">
+    <div class="navigation-bar-inner">
+      <a class="brand-lockup" href="index.html" aria-label="8bits Game Editor home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" stroke-linejoin="miter">
+            <rect x="2" y="2" width="8" height="8"></rect>
+            <rect x="14" y="2" width="8" height="8"></rect>
+            <rect x="2" y="14" width="8" height="8"></rect>
+            <rect x="14" y="14" width="8" height="8"></rect>
+          </svg>
+        </span>
+        <span class="brand-text">8bits Game Editor</span>
+      </a>
+      <div class="navigation-right">
+        <nav class="navigation-links">
+          <a class="navigation-link" href="index.html">
+            <span class="navigation-text">Home</span>
+          </a>
+          <a class="navigation-link" href="map-creator.html">
+            <span class="navigation-text">Map Creator</span>
+          </a>
+          <a class="navigation-link" href="prop-dropper.html">
+            <span class="navigation-text">Prop Dropper</span>
+          </a>
+          <a class="navigation-link" href="item-dropper.html">
+            <span class="navigation-text">Item Dropper</span>
+          </a>
+          <a class="navigation-link" href="npc-dropper.html">
+            <span class="navigation-text">NPC Dropper</span>
+          </a>
+          <a class="navigation-link is-active" href="layer-lab.html">
+            <span class="navigation-text">Layer Lab</span>
+          </a>
+          <a class="navigation-link" href="world-creator.html">
+            <span class="navigation-text">World Creator</span>
+          </a>
+          <a class="navigation-link" href="tester.html">
+            <span class="navigation-text">Map Tester</span>
+          </a>
+          <a class="navigation-link" href="project-management.html">
+            <span class="navigation-text">Project Management</span>
+          </a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main class="workspace-page item-creator">
+    <section class="workspace-header">
+      <div>
+        <h1 class="workspace-title">Layer Lab (Experimental)</h1>
+        <p class="workspace-subtitle">Edit Map Creator, Prop Dropper, Item Dropper and NPC Dropper layers from a single page.</p>
+      </div>
+    </section>
+
+    <section class="workspace-layout map-layout">
+      <aside class="workspace-panel-left map-panel-left">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Active Layer Assets</h2>
+            <p class="panel-subtitle" id="lab-assets-subtitle">Map Creator assets</p>
+          </div>
+        </div>
+        <div class="asset-list" id="lab-asset-list"></div>
+      </aside>
+
+      <section class="workspace-panel-center map-panel-center">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Sprite Grid</h2>
+            <p class="panel-subtitle" id="lab-asset-grid-label">Select an asset to preview sprites.</p>
+          </div>
+        </div>
+        <div class="asset-grid" id="lab-asset-grid"></div>
+      </section>
+
+      <aside class="workspace-panel-right map-panel-right">
+        <div class="panel-header">
+          <div>
+            <h2 class="panel-title">Layer Builder</h2>
+            <p class="panel-subtitle" id="lab-visible-layers">Visible layers: Map</p>
+          </div>
+        </div>
+        <div class="map-controls">
+          <div class="map-control-row map-control-row-2">
+            <div class="map-control-group">
+              <label class="panel-label">Select Map</label>
+              <select class="world-select" id="lab-map-select"></select>
+              <label class="panel-label">Map Name</label>
+              <div class="map-name-edit-row">
+                <input class="asset-input" type="text" id="lab-map-name" placeholder="Map name" />
+                <button class="button-secondary" type="button" id="lab-update-cache">Update Cache</button>
+              </div>
+              <span class="map-publish-status" id="lab-publish-status" data-status="updated">Updated</span>
+            </div>
+            <div class="map-control-group">
+              <label class="panel-label">Project</label>
+              <div class="map-toggle">
+                <button class="button-secondary" type="button" id="lab-refresh">Refresh from project</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="map-control-row map-control-row-2">
+            <div class="map-control-group">
+              <label class="panel-label">Mode</label>
+              <div class="map-toggle">
+                <button class="button-secondary is-active" type="button" data-lab-mode="mapCreator">Map Creator</button>
+                <button class="button-secondary" type="button" data-lab-mode="propDropper">Prop Dropper</button>
+                <button class="button-secondary" type="button" data-lab-mode="itemDropper">Item Dropper</button>
+                <button class="button-secondary" type="button" data-lab-mode="npcDropper">NPC Dropper</button>
+              </div>
+            </div>
+            <div class="map-control-group">
+              <label class="panel-label" for="lab-cell-size">Cell Size</label>
+              <input type="range" id="lab-cell-size" min="10" max="32" value="16" />
+            </div>
+          </div>
+
+          <div class="map-control-row map-control-row-2">
+            <div class="map-control-group">
+              <label class="panel-label">Tool</label>
+              <div class="map-toggle">
+                <button class="button-secondary is-active" type="button" data-lab-tool="pencil">Pencil</button>
+                <button class="button-secondary" type="button" data-lab-tool="eraser">Eraser</button>
+                <button class="button-secondary" type="button" data-lab-tool="eyedropper">Eyedropper</button>
+                <button class="button-secondary" type="button" data-lab-tool="portal">Portal</button>
+              </div>
+            </div>
+            <div class="map-control-group">
+              <label class="panel-label">Shortcuts</label>
+              <span class="panel-value">Alt = eraser, Space = eyedropper</span>
+            </div>
+          </div>
+
+          <div class="map-grid-wrapper" id="lab-grid-wrapper">
+            <div class="map-grid" id="lab-map-grid"></div>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+  <script src="layer-lab.js"></script>
+</body>
+</html>
