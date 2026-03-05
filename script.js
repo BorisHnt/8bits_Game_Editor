@@ -3235,7 +3235,8 @@
     updatedAt: new Date().toISOString(),
     stages: {},
     activeCaches: {},
-    portalRegistry: {}
+    portalRegistry: {},
+    mapLayerRegistry: {}
   });
   const ensureSharedProjectShape = (rawProject) => {
     const project = rawProject && typeof rawProject === 'object'
@@ -3246,7 +3247,8 @@
         updatedAt: rawProject.updatedAt || new Date().toISOString(),
         stages: rawProject.stages && typeof rawProject.stages === 'object' ? rawProject.stages : {},
         activeCaches: rawProject.activeCaches && typeof rawProject.activeCaches === 'object' ? rawProject.activeCaches : {},
-        portalRegistry: rawProject.portalRegistry && typeof rawProject.portalRegistry === 'object' ? rawProject.portalRegistry : {}
+        portalRegistry: rawProject.portalRegistry && typeof rawProject.portalRegistry === 'object' ? rawProject.portalRegistry : {},
+        mapLayerRegistry: rawProject.mapLayerRegistry && typeof rawProject.mapLayerRegistry === 'object' ? rawProject.mapLayerRegistry : {}
       }
       : getDefaultSharedProject();
     Object.keys(sharedProjectStages).forEach((stage) => {
@@ -3323,6 +3325,98 @@
       normalizedLookupName: normalizeProjectLookupName(lookupName)
     };
   };
+  const mapLayerStageMap = {
+    mapCreator: 'base',
+    propDropper: 'props',
+    itemDropper: 'items',
+    npcDropper: 'npcs'
+  };
+  const createEmptyLayerRevisions = () => ({
+    base: 0,
+    props: 0,
+    items: 0,
+    npcs: 0
+  });
+  const normalizeLayerRevisions = (revisions) => {
+    const source = revisions && typeof revisions === 'object' ? revisions : {};
+    return {
+      base: Math.max(0, Number.parseInt(source.base, 10) || 0),
+      props: Math.max(0, Number.parseInt(source.props, 10) || 0),
+      items: Math.max(0, Number.parseInt(source.items, 10) || 0),
+      npcs: Math.max(0, Number.parseInt(source.npcs, 10) || 0)
+    };
+  };
+  const getMapLayerRegistrySelector = ({ mapId = '', normalizedLookupName = '' } = {}) => {
+    const safeMapId = String(mapId || '').trim();
+    const safeLookup = String(normalizedLookupName || '').trim();
+    return {
+      key: safeMapId || safeLookup,
+      mapId: safeMapId,
+      normalizedLookupName: safeLookup
+    };
+  };
+  const ensureMapLayerRegistryEntry = (project, { mapId = '', normalizedLookupName = '', lookupName = '', displayName = '' } = {}) => {
+    project.mapLayerRegistry = project.mapLayerRegistry && typeof project.mapLayerRegistry === 'object'
+      ? project.mapLayerRegistry
+      : {};
+    const selector = getMapLayerRegistrySelector({ mapId, normalizedLookupName });
+    if (!selector.key) return null;
+    const existing = project.mapLayerRegistry[selector.key] || null;
+    const entry = {
+      key: selector.key,
+      mapId: selector.mapId || existing?.mapId || null,
+      normalizedLookupName: selector.normalizedLookupName || existing?.normalizedLookupName || null,
+      lookupName: String(lookupName || existing?.lookupName || '').trim(),
+      displayName: String(displayName || existing?.displayName || lookupName || existing?.lookupName || 'Map').trim(),
+      revisions: normalizeLayerRevisions(existing?.revisions),
+      updatedAt: new Date().toISOString(),
+      updatedBy: existing?.updatedBy || null
+    };
+    project.mapLayerRegistry[selector.key] = entry;
+    return entry;
+  };
+  const bumpMapLayerRevision = (project, stage, names, mapId = '', payload = null) => {
+    const layerKey = mapLayerStageMap[stage];
+    if (!layerKey || !payload?.map) return null;
+    const entry = ensureMapLayerRegistryEntry(project, {
+      mapId,
+      normalizedLookupName: names.normalizedLookupName,
+      lookupName: names.lookupName,
+      displayName: names.displayName
+    });
+    if (!entry) return null;
+    entry.revisions[layerKey] = (entry.revisions[layerKey] || 0) + 1;
+    entry.updatedAt = new Date().toISOString();
+    entry.updatedBy = stage;
+    if (!entry.mapId) {
+      entry.mapId = String(mapId || payload?.map?.id || '').trim() || null;
+    }
+    if (!entry.normalizedLookupName) {
+      entry.normalizedLookupName = names.normalizedLookupName || null;
+    }
+    project.mapLayerRegistry[entry.key] = entry;
+    return cloneProjectPayload(entry);
+  };
+  const getSharedProjectMapLayerVersions = (selector = {}) => {
+    const project = readSharedProject();
+    const parsed = parseProjectDocSelector(selector);
+    const normalizedLookupName = normalizeProjectLookupName(parsed.lookupName || '');
+    const directSelector = getMapLayerRegistrySelector({
+      mapId: parsed.mapId,
+      normalizedLookupName
+    });
+    const registry = project.mapLayerRegistry && typeof project.mapLayerRegistry === 'object'
+      ? project.mapLayerRegistry
+      : {};
+    let entry = directSelector.key ? registry[directSelector.key] : null;
+    if (!entry && parsed.mapId) {
+      entry = Object.values(registry).find((candidate) => String(candidate?.mapId || '') === parsed.mapId) || null;
+    }
+    if (!entry && normalizedLookupName) {
+      entry = Object.values(registry).find((candidate) => String(candidate?.normalizedLookupName || '') === normalizedLookupName) || null;
+    }
+    return normalizeLayerRevisions(entry?.revisions);
+  };
   const publishSharedProjectDocument = (stage, payload, options = {}) => {
     if (!sharedProjectStages[stage] || !payload) return null;
     const project = readSharedProject();
@@ -3338,6 +3432,14 @@
       if (sharedMarkers) {
         payloadToStore.map.markers = sharedMarkers;
       }
+    }
+    const layerRevisionEntry = bumpMapLayerRevision(project, stage, names, mapId, payloadToStore);
+    if (layerRevisionEntry && payloadToStore?.map) {
+      payloadToStore.syncMeta = {
+        ...(payloadToStore.syncMeta && typeof payloadToStore.syncMeta === 'object' ? payloadToStore.syncMeta : {}),
+        mapId: layerRevisionEntry.mapId || mapId || payloadToStore.map.id || '',
+        layerRevisions: normalizeLayerRevisions(layerRevisionEntry.revisions)
+      };
     }
     const existingEntry = Object.values(stageData.documents).find((entry) => (
       (mapId && String(entry?.mapId || '') === mapId)
@@ -4138,6 +4240,20 @@
       removed = applyStageDocumentRemoval(project, stage, doc.docKey) || removed;
     });
     if (!removed) return false;
+    const targetNormalizedLookup = normalizeProjectLookupName(target.lookupName || target.displayName || '');
+    if (project.mapLayerRegistry && typeof project.mapLayerRegistry === 'object') {
+      Object.keys(project.mapLayerRegistry).forEach((key) => {
+        const entry = project.mapLayerRegistry[key];
+        const entryMapId = String(entry?.mapId || '').trim();
+        const entryLookup = String(entry?.normalizedLookupName || '').trim();
+        if (
+          (targetMapId && entryMapId === targetMapId)
+          || (targetNormalizedLookup && entryLookup === targetNormalizedLookup)
+        ) {
+          delete project.mapLayerRegistry[key];
+        }
+      });
+    }
     writeSharedProject(project);
     return true;
   };
@@ -4163,6 +4279,9 @@
         }
       }
     });
+    if (resetProjectName || sharedMapStages.some((stage) => stageSet.has(stage))) {
+      project.mapLayerRegistry = {};
+    }
     if (resetProjectName) {
       project.name = '';
     }
@@ -4808,6 +4927,7 @@
     selectUnifiedMapDocument: selectUnifiedProjectMapDocument,
     buildUnifiedMapPayload: buildUnifiedProjectMapPayload,
     getLatestUnifiedMap: getLatestUnifiedProjectMap,
+    getMapLayerVersions: getSharedProjectMapLayerVersions,
     isLegacyMapPayload: isLegacyProjectMapPayload,
     getSharedMarkers: getSharedProjectPortalMarkers,
     setSharedMarkers: setSharedProjectPortalMarkers,

@@ -743,6 +743,22 @@ svg {
   color: #7fcf9a;
 }
 
+.map-sync-status {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+}
+
+.map-sync-status[data-status="stale"] {
+  color: #d9a441;
+}
+
+.map-sync-status[data-status="synced"] {
+  color: #7fcf9a;
+}
+
 .tool-flash-message {
   margin-top: 6px;
   color: #7fcf9a;

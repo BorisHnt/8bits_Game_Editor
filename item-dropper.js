@@ -66,7 +66,9 @@
       baseMapEmpty: 'No base map loaded.',
       updateCache: 'Update Cache',
       publishUpdated: 'Updated',
-      publishDirty: 'Not published yet'
+      publishDirty: 'Not published yet',
+      syncUpToDate: 'Synced',
+      syncNeedsUpdate: 'Upstream updated'
     },
     fr: {
       addItem: 'Ajouter item',
@@ -123,7 +125,9 @@
       baseMapEmpty: 'Aucune map de base chargee.',
       updateCache: 'Mettre a jour le cache',
       publishUpdated: 'Mis a jour',
-      publishDirty: 'Non publie'
+      publishDirty: 'Non publie',
+      syncUpToDate: 'Synchronise',
+      syncNeedsUpdate: 'Amont mis a jour'
     }
   };
 
@@ -192,6 +196,7 @@
     const mapUpdateButton = qs('#item-map-update');
     const mapPublishStatus = qs('#item-publish-status');
     const baseMapLabel = qs('#item-base-map-label');
+    const syncStatusLabel = qs('#item-sync-status');
     const refreshBaseMapButton = qs('#item-refresh-base-map');
     const refreshBaseMapFile = qs('#item-refresh-base-map-file');
     const undoButton = qs('#item-undo');
@@ -292,6 +297,10 @@
         height: 50,
         cellSize: 16,
         cells: []
+      },
+      syncMeta: {
+        appliedBaseRev: 0,
+        appliedPropsRev: 0
       }
     };
 
@@ -330,8 +339,32 @@
     };
     const currentStageName = 'itemDropper';
     const upstreamStageName = 'propDropper';
+    const getLayerVersions = () => projectManager?.getMapLayerVersions?.({
+      mapId: state.baseMap.map.id || '',
+      lookupName: state.baseMap.map.name || state.layout.name || ''
+    }) || { base: 0, props: 0, items: 0, npcs: 0 };
+    const updateSyncStatus = () => {
+      if (!syncStatusLabel) return;
+      const versions = getLayerVersions();
+      const appliedBaseRev = Math.max(0, Number.parseInt(state.syncMeta?.appliedBaseRev, 10) || 0);
+      const appliedPropsRev = Math.max(0, Number.parseInt(state.syncMeta?.appliedPropsRev, 10) || 0);
+      const stale = appliedBaseRev < (versions.base || 0) || appliedPropsRev < (versions.props || 0);
+      syncStatusLabel.dataset.status = stale ? 'stale' : 'synced';
+      const statusLabel = msg(stale ? 'syncNeedsUpdate' : 'syncUpToDate', stale ? 'Upstream updated' : 'Synced');
+      syncStatusLabel.textContent = `Base v${versions.base || 0} · Props v${versions.props || 0} · Items v${versions.items || 0} · Applied b${appliedBaseRev}/p${appliedPropsRev} · ${statusLabel}`;
+    };
     const getPayloadMapId = (payload) => String(payload?.map?.id || '').trim();
     const getPayloadLookupName = (payload) => String(payload?.map?.name || payload?.name || '').trim();
+    const isPayloadOutdatedAgainstUpstream = (payload) => {
+      if (!payload?.map) return false;
+      const versions = projectManager?.getMapLayerVersions?.({
+        mapId: getPayloadMapId(payload),
+        lookupName: getPayloadLookupName(payload)
+      }) || { base: 0, props: 0 };
+      const appliedBaseRev = Math.max(0, Number.parseInt(payload?.syncMeta?.appliedBaseRev, 10) || 0);
+      const appliedPropsRev = Math.max(0, Number.parseInt(payload?.syncMeta?.appliedPropsRev, 10) || 0);
+      return appliedBaseRev < (versions.base || 0) || appliedPropsRev < (versions.props || 0);
+    };
     const buildProjectOptionValue = (stage, docKey) => `${stage}::${docKey}`;
     const parseProjectOptionValue = (value) => {
       const [stage, ...rest] = String(value || '').split('::');
@@ -757,6 +790,10 @@
       selectedSpriteIndex: state.selectedSpriteIndex,
       tool: state.tool,
       view: state.view,
+      syncMeta: {
+        appliedBaseRev: Math.max(0, Number.parseInt(state.syncMeta?.appliedBaseRev, 10) || 0),
+        appliedPropsRev: Math.max(0, Number.parseInt(state.syncMeta?.appliedPropsRev, 10) || 0)
+      },
       baseMap: {
         sourceFile: state.baseMap.sourceFile,
         assetColorPalette: state.baseMap.assetColorPalette,
@@ -788,6 +825,8 @@
       state.selectedSpriteIndex = clamp(Number.parseInt(snapshot.selectedSpriteIndex, 10) || 1, 1, 9999);
       state.tool = snapshot.tool || 'pencil';
       state.view = snapshot.view || 'normal';
+      state.syncMeta.appliedBaseRev = Math.max(0, Number.parseInt(snapshot?.syncMeta?.appliedBaseRev, 10) || 0);
+      state.syncMeta.appliedPropsRev = Math.max(0, Number.parseInt(snapshot?.syncMeta?.appliedPropsRev, 10) || 0);
       state.baseMap.sourceFile = snapshot.baseMap.sourceFile || '';
       state.baseMap.assetColorPalette = snapshot.baseMap.assetColorPalette || 'studio';
       state.baseMap.assets = (snapshot.baseMap.assets || []).map((asset, index) => normalizeBaseAsset(asset, index + 1));
@@ -1918,6 +1957,7 @@
       if (!baseMapLabel) return;
       const label = state.baseMap.map.name || state.baseMap.sourceFile || msg('baseMapEmpty', 'No base map loaded.');
       baseMapLabel.textContent = label;
+      updateSyncStatus();
     };
 
     const updateInteractionControls = () => {
@@ -1972,6 +2012,11 @@
         editor: 'item-dropper',
         name: state.layout.name || state.baseMap.map.name || '',
         sourceFile: state.baseMap.sourceFile || '',
+        syncMeta: {
+          ...(state.syncMeta && typeof state.syncMeta === 'object' ? state.syncMeta : {}),
+          appliedBaseRev: Math.max(0, Number.parseInt(state.syncMeta?.appliedBaseRev, 10) || 0),
+          appliedPropsRev: Math.max(0, Number.parseInt(state.syncMeta?.appliedPropsRev, 10) || 0)
+        },
         itemAssets: state.inheritedProps.assets.map((asset) => ({
           name: asset.name,
           fileName: asset.fileName,
@@ -2094,7 +2139,7 @@
     };
 
     const applyBaseMapPayload = async (payload, fileName = '', options = {}) => {
-      const { clearItems = true } = options;
+      const { clearItems = true, appliedBaseRev = null, appliedPropsRev = null } = options;
       const previousWidth = state.layout.width;
       const previousHeight = state.layout.height;
       const previousCells = state.layout.cells.map(cloneItemCell);
@@ -2123,6 +2168,12 @@
         state.layout.cells = Array.from({ length: state.layout.width * state.layout.height }, () => null);
       } else {
         state.layout.cells = remapLayoutCells(previousCells, previousWidth, previousHeight, state.layout.width, state.layout.height);
+      }
+      if (Number.isFinite(Number.parseInt(appliedBaseRev, 10))) {
+        state.syncMeta.appliedBaseRev = Math.max(0, Number.parseInt(appliedBaseRev, 10) || 0);
+      }
+      if (Number.isFinite(Number.parseInt(appliedPropsRev, 10))) {
+        state.syncMeta.appliedPropsRev = Math.max(0, Number.parseInt(appliedPropsRev, 10) || 0);
       }
       ensureCells();
       if (!state.layout.name) {
@@ -2154,20 +2205,29 @@
       };
       reader.readAsText(file);
     };
-    const refreshBaseMapFromProject = async () => {
+    const refreshBaseMapFromProject = async (options = {}) => {
+      const { recordHistory = true } = options;
       const payload = projectManager?.getUpstreamPayload('itemDropper', {
         mapId: state.baseMap.map.id || '',
         lookupName: state.baseMap.map.name || state.layout.name || ''
       });
       if (!payload?.map || !Array.isArray(payload?.assets)) return false;
-      pushHistorySnapshot();
-      await applyBaseMapPayload(payload, payload?.sourceFile || '', { clearItems: false });
+      const versions = getLayerVersions();
+      if (recordHistory) pushHistorySnapshot();
+      await applyBaseMapPayload(payload, payload?.sourceFile || '', {
+        clearItems: false,
+        appliedBaseRev: versions.base || 0,
+        appliedPropsRev: versions.props || 0
+      });
       return true;
     };
 
     const applyItemPayload = async (payload, fileName = '') => {
       payload = window.EightBitsMapSchema.normalizePayload(payload);
       await applyBaseMapPayload(payload, fileName || payload?.sourceFile || '', { clearItems: true });
+      state.syncMeta.appliedBaseRev = Math.max(0, Number.parseInt(payload?.syncMeta?.appliedBaseRev, 10) || state.syncMeta.appliedBaseRev || 0);
+      state.syncMeta.appliedPropsRev = Math.max(0, Number.parseInt(payload?.syncMeta?.appliedPropsRev, 10) || state.syncMeta.appliedPropsRev || 0);
+      updateSyncStatus();
       state.assets = Array.isArray(payload?.gameItemAssets) ? payload.gameItemAssets.map((asset, index) => normalizeItemAsset(asset, index + 1)) : [];
       normalizeAssetNumbers();
       const assetByNumber = new Map(state.assets.map((asset) => [asset.number, asset.id]));
@@ -2257,10 +2317,17 @@
         if (!hasUsableBasePayload(payload)) return false;
         if (payload?.gameItemLayer && Array.isArray(payload?.gameItemAssets) && payload?.map && Array.isArray(payload?.assets)) {
           await applyItemPayload(payload, payload?.sourceFile || '');
+          if (isPayloadOutdatedAgainstUpstream(payload)) {
+            await refreshBaseMapFromProject({ recordHistory: false });
+          }
           return true;
         }
         if (payload?.map && Array.isArray(payload?.assets)) {
           await applyBaseMapPayload(payload, payload?.sourceFile || '', { clearItems: true });
+          const versions = getLayerVersions();
+          state.syncMeta.appliedBaseRev = versions.base || 0;
+          state.syncMeta.appliedPropsRev = versions.props || 0;
+          updateSyncStatus();
           return true;
         }
         return false;
@@ -2288,10 +2355,21 @@
       }
       if (payload?.gameItemLayer && Array.isArray(payload?.gameItemAssets) && payload?.map && Array.isArray(payload?.assets)) {
         await applyItemPayload(payload, payload?.sourceFile || '');
+        if (doc?.stage === currentStageName && isPayloadOutdatedAgainstUpstream(payload)) {
+          await refreshBaseMapFromProject({ recordHistory: false });
+        }
         return true;
       }
       if (payload?.map && Array.isArray(payload?.assets)) {
-        await applyBaseMapPayload(payload, payload?.sourceFile || '', { clearItems: true });
+        const versions = projectManager?.getMapLayerVersions?.({
+          mapId: getPayloadMapId(payload),
+          lookupName: getPayloadLookupName(payload)
+        }) || { base: 0, props: 0 };
+        await applyBaseMapPayload(payload, payload?.sourceFile || '', {
+          clearItems: true,
+          appliedBaseRev: versions.base || 0,
+          appliedPropsRev: versions.props || 0
+        });
         return true;
       }
       return false;
@@ -2342,10 +2420,21 @@
       }
       if (stage === currentStageName && doc.payload?.gameItemLayer && Array.isArray(doc.payload?.gameItemAssets) && doc.payload?.map && Array.isArray(doc.payload?.assets)) {
         await applyItemPayload(doc.payload, doc.payload?.sourceFile || '');
+        if (isPayloadOutdatedAgainstUpstream(doc.payload)) {
+          await refreshBaseMapFromProject({ recordHistory: false });
+        }
         return true;
       }
       if (doc.payload?.map && Array.isArray(doc.payload?.assets)) {
-        await applyBaseMapPayload(doc.payload, doc.payload?.sourceFile || '', { clearItems: true });
+        const versions = projectManager?.getMapLayerVersions?.({
+          mapId: getPayloadMapId(doc.payload),
+          lookupName: getPayloadLookupName(doc.payload)
+        }) || { base: 0, props: 0 };
+        await applyBaseMapPayload(doc.payload, doc.payload?.sourceFile || '', {
+          clearItems: true,
+          appliedBaseRev: versions.base || 0,
+          appliedPropsRev: versions.props || 0
+        });
         return true;
       }
       return false;
@@ -2893,6 +2982,7 @@
     });
     window.addEventListener('8bits-project-updated', () => {
       refreshProjectMapOptions();
+      updateSyncStatus();
     });
 
     bindGrid();
